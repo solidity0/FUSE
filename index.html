@@ -1024,7 +1024,7 @@
       list.appendChild(tr);
     });
     list.querySelectorAll('.wallet-x').forEach(btn => {
-      btn.onclick = () => { state.wallets.splice(+btn.dataset.i,1); state.senderSel = new Set(); state.recipientSel = new Set(); renderWallets(); updateSidebarWalletInfo(); checkReadiness(); };
+      btn.onclick = () => { state.wallets.splice(+btn.dataset.i,1); state.senderSel = new Set(); state.recipientSel = new Set(); renderWallets(); updateSidebarWalletInfo(); checkReadiness(); updateConnectWalletBtnStatus(); };
     });
     list.querySelectorAll('.wallet-name-input').forEach(inp => {
       inp.oninput = () => { state.wallets[+inp.dataset.i].name = inp.value; };
@@ -1144,7 +1144,7 @@
   $('nwConfirmSaved').addEventListener('change', e => { $('nwDone').disabled = !e.target.checked; });
   $('nwDone').onclick = () => { $('newWalletModal').style.display = 'none'; };
 
-  $('clearWallets').onclick = () => { if(confirm('Clear all loaded wallets?')){ state.wallets = []; state.senderSel = new Set(); state.recipientSel = new Set(); renderWallets(); updateSidebarWalletInfo(); checkReadiness(); } };
+  $('clearWallets').onclick = () => { if(confirm('Clear all loaded wallets?')){ state.wallets = []; state.senderSel = new Set(); state.recipientSel = new Set(); renderWallets(); updateSidebarWalletInfo(); checkReadiness(); updateConnectWalletBtnStatus(); } };
 
   $('refreshBalances').onclick = async () => {
     const provider = getProvider();
@@ -1567,8 +1567,14 @@
       if(!accounts || !accounts.length) return { address:null, error:'Wallet returned no account.' };
       const address = ethers.getAddress(accounts[0]);
       if(!state.wallets.some(w => w.address.toLowerCase() === address.toLowerCase())){
-        state.wallets.push({ pk:null, address, balance:null, injected:true, name: (injected.isMetaMask ? 'MetaMask' : 'Wallet') + ' ' + (state.wallets.length + 1) });
-        renderWallets(); updateSidebarWalletInfo();
+        const newWallet = { pk:null, address, balance:null, injected:true, name: (injected.isMetaMask ? 'MetaMask' : 'Wallet') + ' ' + (state.wallets.length + 1) };
+        state.wallets.push(newWallet);
+        renderWallets(); updateSidebarWalletInfo(); updateConnectWalletBtnStatus();
+        try{
+          const bal = await getProvider().getBalance(address);
+          newWallet.balance = Number(ethers.formatEther(bal)).toFixed(4);
+          renderWallets();
+        }catch(e){ /* balance fetch failed — row just shows — until "Refresh balances" is clicked */ }
       }
       return { address, error:null };
     }catch(e){
@@ -1585,7 +1591,7 @@
       if(!accounts.length) return;
       const address = ethers.getAddress(accounts[0]);
       const existing = state.wallets.find(w => w.injected);
-      if(existing){ existing.address = address; renderWallets(); updateSidebarWalletInfo(); }
+      if(existing){ existing.address = address; renderWallets(); updateSidebarWalletInfo(); updateConnectWalletBtnStatus(); }
     });
     injected.on('chainChanged', () => {
       setDiag('warn', 'Network changed in your wallet — reselect the chain in Settings if it no longer matches.');
@@ -1602,8 +1608,14 @@
       if(accounts && accounts.length){
         const address = ethers.getAddress(accounts[0]);
         if(!state.wallets.some(w => w.address.toLowerCase() === address.toLowerCase())){
-          state.wallets.push({ pk:null, address, balance:null, injected:true, name: (injected.isMetaMask ? 'MetaMask' : 'Wallet') + ' ' + (state.wallets.length + 1) });
-          renderWallets(); updateSidebarWalletInfo();
+          const newWallet = { pk:null, address, balance:null, injected:true, name: (injected.isMetaMask ? 'MetaMask' : 'Wallet') + ' ' + (state.wallets.length + 1) };
+          state.wallets.push(newWallet);
+          renderWallets(); updateSidebarWalletInfo(); updateConnectWalletBtnStatus();
+          try{
+            const bal = await getProvider().getBalance(address);
+            newWallet.balance = Number(ethers.formatEther(bal)).toFixed(4);
+            renderWallets();
+          }catch(e){ /* balance fetch failed — row just shows — until "Refresh balances" is clicked */ }
         }
       }
     }catch(e){ /* silent — this is just a background convenience check */ }
@@ -1623,6 +1635,22 @@
     el.style.display = 'block';
   }
 
+  function updateConnectWalletBtnStatus(){
+    const btn = $('connectWalletBtn');
+    const connected = state.wallets.find(w => w.injected);
+    if(connected){
+      btn.textContent = `✓ Connected ${connected.address.slice(0,6)}...${connected.address.slice(-4)}`;
+      btn.classList.remove('btn-primary'); btn.classList.add('btn-secondary');
+      btn.style.color = 'var(--success)';
+      btn.disabled = false;
+    } else {
+      btn.textContent = '🦊 Connect Wallet';
+      btn.classList.remove('btn-secondary'); btn.classList.add('btn-primary');
+      btn.style.color = '';
+      btn.disabled = false;
+    }
+  }
+
   $('acctLogout').onclick = async () => {
     if(!confirm('Log out the connected wallet? This only clears it from FUSE for this session — it does not affect your MetaMask itself.')) return;
     const injected = getInjectedProvider();
@@ -1637,6 +1665,7 @@
     state.recipientSel = new Set();
     renderWallets(); updateSidebarWalletInfo(); checkReadiness();
     showConnectWalletStatus('Disconnected.', false);
+    updateConnectWalletBtnStatus();
   };
 
   (async function setupConnectWalletButton(){
@@ -1645,15 +1674,18 @@
     btn.disabled = true;
     await waitForInjectedProvider();
     btn.disabled = false;
-    btn.textContent = '🦊 Connect Wallet';
+    updateConnectWalletBtnStatus();
     btn.onclick = async () => {
+      if(state.wallets.some(w => w.injected)){
+        showConnectWalletStatus('Already connected — use the logout icon next to your account to disconnect.', false);
+        return;
+      }
       setConnectBtnState('Connecting…', { disabled:true });
       showConnectWalletStatus(null);
       const { address, error } = await connectInjectedWallet();
       if(address){
-        setConnectBtnState('Connected ✓');
         showConnectWalletStatus(`Connected ${address.slice(0,6)}...${address.slice(-4)}`, false);
-        setTimeout(() => setConnectBtnState('🦊 Connect Wallet'), 1800);
+        updateConnectWalletBtnStatus();
       } else {
         setConnectBtnState('🦊 Connect Wallet');
         showConnectWalletStatus(error || 'Could not connect.', true);
