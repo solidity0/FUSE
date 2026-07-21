@@ -1,0 +1,2176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FUSE — Mint Execution Terminal</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+  :root{
+    --bg: #0a0a0a;
+    --surface: #131313;
+    --surface-raised: #1c1c1c;
+    --surface-hover: #242424;
+    --border: #2a2a2a;
+    --border-soft: #1d1d1d;
+    --accent: #3B2BE5;
+    --accent-dim: #1e1670;
+    --accent-text: #ab9dff;
+    --success: #35d483;
+    --fail: #ff5c5c;
+    --pending: #ffb454;
+    --text: #ececec;
+    --text-mid: #a3a3a3;
+    --text-dim: #6b6b6b;
+    --warn-bg: #2a2110;
+    --err-bg: #2a1414;
+    --success-bg: #0f2a1c;
+    --warn-border: #4a3a15;
+    --err-border: #4a1e1e;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', sans-serif;
+  }
+  [data-theme="light"]{
+    --bg: #f2f3f5; --surface:#ffffff; --surface-raised:#f6f7f8; --surface-hover:#ececee;
+    --border:#e3e5e8; --border-soft:#ececee; --text:#14161a; --text-mid:#5b606b; --text-dim:#9a9ea6;
+    --accent-dim: #e6e2fd; --accent-text: #3B2BE5;
+    --success: #1f8a54; --fail: #c0292b; --pending: #96741a;
+    --warn-bg: #fff3cd; --err-bg: #fde2e2; --success-bg: #dcf5e7;
+    --warn-border: #f0dca0; --err-border: #f3b8b8;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; background:var(--bg); color:var(--text); font-family:var(--sans); }
+  body{ min-height:100vh; display:flex; justify-content:center; zoom:0.82; }
+  ::selection{ background:var(--accent-dim); color:var(--accent-text); }
+  a{ color:var(--accent-text); text-decoration:none; }
+  a:hover{ text-decoration:underline; }
+  button{ font-family:var(--sans); cursor:pointer; border:none; }
+
+  .shell{ display:grid; grid-template-columns: 250px 1fr; gap:20px; max-width:1180px; width:100%; padding:26px 24px 60px; align-items:start; }
+  @media (max-width:880px){ .shell{ grid-template-columns:1fr; } .sidebar{ display:none; } }
+
+  .sidebar{ display:flex; flex-direction:column; gap:16px; position:sticky; top:26px; }
+  .side-card{
+    background:var(--surface); border:1px solid var(--border-soft); border-radius:0;
+    padding:16px 14px; display:flex; flex-direction:column; gap:4px;
+  }
+  .s-logo{ display:flex; align-items:center; gap:9px; padding:6px 8px 18px; }
+  .s-mark{ width:31px; height:31px; border-radius:0; background:linear-gradient(135deg,var(--accent),#150f5c); display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-weight:700; color:#eef0ff; font-size:13px; }
+  .s-name{ font-family:var(--mono); font-weight:700; font-size:15px; letter-spacing:.4px; }
+
+  .s-nav-item{
+    display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+    background:none; padding:9px 10px; border-radius:0; font-size:13px; font-weight:500;
+    color:var(--text-mid);
+  }
+  .s-nav-item:hover{ background:var(--surface-hover); color:var(--text); }
+  .s-nav-item.active{ background:var(--accent-dim); color:var(--accent-text); font-weight:600; box-shadow: inset 2px 0 0 var(--accent); }
+  .s-nav-item .ic{ width:16px; text-align:center; opacity:.85; display:inline-flex; align-items:center; justify-content:center; }
+  .s-nav-item .badge{ margin-left:auto; background:var(--surface-raised); color:var(--text-dim); font-size:10px; padding:1px 7px; border-radius:0; font-family:var(--mono); }
+  .s-nav-item.active .badge{ background:rgba(0,224,184,.15); color:var(--accent-text); }
+
+  .s-toggle-row{ display:flex; align-items:center; gap:8px; padding:10px 10px 4px; font-size:12px; color:var(--text-mid); }
+  .s-unit-switch{ display:flex; background:var(--surface-raised); border-radius:0; padding:2px; margin-left:auto; }
+  .s-unit-switch button{ background:none; color:var(--text-dim); font-size:11px; font-weight:600; padding:3px 8px; border-radius:0; }
+  .s-unit-switch button.active{ background:var(--accent); color:#ffffff; }
+
+  .s-divider{ height:1px; background:var(--border-soft); margin:10px 4px; }
+
+  .s-link{ display:flex; align-items:center; gap:10px; padding:8px 10px; font-size:12.5px; color:var(--text-mid); border-radius:0; background:none; width:100%; text-align:left; }
+  .s-link:hover{ background:var(--surface-hover); color:var(--text); }
+  .s-link .ic{ width:16px; text-align:center; }
+
+  .s-account{ display:flex; align-items:center; gap:9px; padding:10px; }
+  .s-avatar{ width:26px; height:26px; border-radius:50%; background:var(--surface-raised); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:var(--text-mid); flex-shrink:0; }
+  .s-account-name{ font-size:12.5px; font-weight:600; }
+  .s-account-addr{ font-size:10.5px; color:var(--text-dim); font-family:var(--mono); }
+
+  .s-plan{ padding:10px 12px; background:var(--surface-raised); border-radius:0; margin:2px 4px; font-size:11px; color:var(--text-mid); line-height:1.6; }
+  .s-plan b{ color:var(--text); font-family:var(--mono); }
+
+  .s-theme{ display:flex; align-items:center; gap:8px; padding:10px 10px 4px; margin-top:auto; }
+  .switch{ position:relative; width:36px; height:20px; flex-shrink:0; }
+  .switch input{ opacity:0; width:0; height:0; }
+  .slider{ position:absolute; cursor:pointer; inset:0; background:var(--border); border-radius:0; transition:.15s; }
+  .slider:before{ content:""; position:absolute; height:14px; width:14px; left:3px; top:3px; background:var(--text-dim); border-radius:50%; transition:.15s; }
+  input:checked + .slider{ background:var(--accent-dim); }
+  input:checked + .slider:before{ background:var(--accent); transform:translateX(16px); }
+
+  .main{ display:flex; flex-direction:column; gap:16px; min-width:0; }
+  .page{ display:flex; flex-direction:column; gap:16px; }
+  .page[hidden]{ display:none; }
+
+  .diag-banner{
+    display:flex; align-items:center; gap:10px; padding:11px 16px; border-radius:0;
+    background:var(--accent-dim); color:var(--accent-text); font-size:12.5px; font-weight:500;
+    border:1px solid rgba(59,43,229,.3);
+  }
+  .diag-banner.warn{ background:var(--warn-bg); color:var(--pending); border-color:var(--warn-border); }
+  .diag-banner.err{ background:var(--err-bg); color:var(--fail); border-color:var(--err-border); }
+  .diag-banner .flex-fill{ flex:1; }
+
+  .topbar{ display:flex; gap:10px; align-items:center; }
+  .search-input{ flex:1; background:var(--surface); border:1px solid var(--border); border-radius:0; padding:9px 12px; color:var(--text); font-family:var(--mono); font-size:12.5px; outline:none; }
+  .search-input:focus{ border-color:var(--accent); }
+
+  .card{ background:var(--surface); border:1px solid var(--border-soft); border-radius:0; padding:18px 20px; }
+
+  .target-head{ display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+  .target-avatar{ width:38px; height:38px; border-radius:0; background:var(--surface-raised); display:flex; align-items:center; justify-content:center; font-weight:700; font-family:var(--mono); color:var(--accent-text); flex-shrink:0; }
+  .target-name-row{ flex:1; min-width:0; }
+  .target-name{ font-weight:700; font-size:14.5px; }
+  .target-addr{ font-family:var(--mono); font-size:11px; color:var(--text-dim); }
+
+  .tabs{ display:flex; gap:4px; background:var(--surface-raised); padding:3px; border-radius:0; width:fit-content; margin-bottom:14px; }
+  .tab{ background:none; color:var(--text-dim); font-size:12px; font-weight:600; padding:6px 13px; border-radius:0; }
+  .tab.active{ background:var(--surface); color:var(--text); }
+
+  label{ display:block; font-size:11.5px; color:var(--text-mid); margin-bottom:5px; font-weight:500; }
+  input[type=text], input[type=password], input[type=number], input[type=datetime-local], textarea{
+    width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text);
+    padding:8px 10px; border-radius:0; font-family:var(--mono); font-size:12.5px; outline:none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus, textarea:focus{ border-color:var(--accent); box-shadow: 0 0 0 3px rgba(59,43,229,.18); }
+  textarea{ resize:vertical; min-height:64px; line-height:1.5; }
+  .field{ margin-bottom:11px; }
+  .field-row{ display:flex; gap:10px; }
+  .field-row > *{ flex:1; }
+  .hint{ font-size:10.5px; color:var(--text-dim); margin-top:4px; line-height:1.5; }
+
+  .btn{ font-weight:600; font-size:12.5px; border-radius:0; padding:8px 13px; transition: background .15s, transform .1s, box-shadow .15s; }
+  .btn:active:not(:disabled){ transform: scale(.97); }
+  .btn-primary{ background:linear-gradient(135deg, var(--accent), #2318a8); color:#ffffff; box-shadow: 0 2px 10px rgba(59,43,229,.25); }
+  .btn-primary:hover:not(:disabled){ background:linear-gradient(135deg, var(--accent-text), var(--accent)); box-shadow: 0 2px 14px rgba(59,43,229,.4); }
+  .btn-secondary{ background:var(--surface-raised); color:var(--text); border:1px solid var(--border); }
+  .btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+  .btn-outline-warn{ background:none; color:var(--pending); border:1px solid var(--warn-border); }
+  .btn-outline-warn:hover:not(:disabled){ background:var(--warn-bg); }
+
+  .icon-search-btn{
+    width:34px; height:34px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(135deg, var(--accent), #2318a8); color:#fff; border:none; cursor:pointer;
+    box-shadow: 0 2px 10px rgba(59,43,229,.3); transition: box-shadow .15s, transform .1s;
+  }
+  .icon-search-btn:hover{ box-shadow: 0 2px 16px rgba(59,43,229,.5); }
+  .icon-search-btn:active{ transform: scale(.94); }
+  .btn-danger{ background:var(--fail); color:#fff; }
+  button:disabled{ opacity:.4; cursor:not-allowed; }
+  .btn-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .btn-row > *{ flex:1; min-width:110px; }
+
+  .fn-candidate{ display:flex; align-items:center; justify-content:space-between; padding:7px 10px; border:1px solid var(--border); border-radius:0; margin-bottom:6px; cursor:pointer; font-family:var(--mono); font-size:11.5px; }
+  .fn-candidate:hover{ border-color:var(--text-dim); }
+  .fn-candidate.selected{ border-color:var(--accent); background:var(--accent-dim); color:var(--accent-text); }
+  .fn-tag{ font-size:9.5px; padding:2px 6px; border-radius:0; background:var(--surface-raised); color:var(--text-dim); }
+  .arg-row{ display:flex; gap:8px; align-items:center; margin-bottom:7px; }
+  .arg-label{ width:100px; flex-shrink:0; font-size:11.5px; color:var(--text-mid); font-family:var(--mono); }
+
+  .config-toggle{ font-size:12px; color:var(--accent-text); background:none; padding:0; margin-bottom:10px; font-weight:600; }
+  .config-body[hidden]{ display:none; }
+
+  table{ width:100%; border-collapse:collapse; font-family:var(--mono); font-size:11.5px; }
+  th{ text-align:left; color:var(--text); font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.4px; padding:8px 10px; border-bottom:1px solid var(--border); }
+  td{ padding:9px 10px; border-bottom:1px solid var(--border-soft); }
+  tr:last-child td{ border-bottom:none; }
+  .status-pill{ display:inline-flex; align-items:center; gap:5px; padding:3px 8px; border-radius:0; font-size:10.5px; font-weight:600; }
+  .status-pending{ background:var(--warn-bg); color:var(--pending); }
+  .status-success{ background:var(--success-bg); color:var(--success); }
+  .status-fail{ background:var(--err-bg); color:var(--fail); }
+  .status-armed{ background:var(--surface-raised); color:var(--text-dim); }
+  .log-empty, .stat-empty{ text-align:center; color:var(--text-dim); padding:26px 10px; font-family:var(--sans); font-size:12.5px; }
+
+  .stats-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  @media (max-width:700px){ .stats-grid{ grid-template-columns:repeat(2,1fr); } }
+  .stat-box{ background:var(--surface-raised); border:1px solid var(--border-soft); border-radius:0; padding:14px; }
+
+  input[type=range]{
+    width:100%; accent-color:var(--accent); -webkit-appearance:none; appearance:none;
+    height:4px; background:var(--border); outline:none; margin:10px 0 4px;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none; width:16px; height:16px;
+    background:var(--accent); border:2px solid var(--accent-text); cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:16px; height:16px; background:var(--accent); border:2px solid var(--accent-text);
+    cursor:pointer; border-radius:0;
+  }
+  input[type=range]::-moz-range-track{ height:4px; background:var(--border); }
+  .stat-num{ font-family:var(--mono); font-size:22px; font-weight:700; }
+  .stat-label{ font-size:10px; color:var(--text-dim); margin-top:3px; text-transform:uppercase; letter-spacing:.5px; }
+
+  .toggle-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:11px; }
+
+  .security-note{ display:flex; gap:9px; padding:11px 13px; background:#1a1408; border:1px solid #3a2e12; border-radius:0; font-size:11.5px; color:#d9b97a; line-height:1.5; }
+  [data-theme="light"] .security-note{ background:#fff6e0; border-color:#f0dca0; color:#8a6d1e; }
+
+  .section-title{ font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+  .section-title .dot{ width:6px; height:6px; border-radius:50%; background:var(--accent); }
+
+  .wallet-row{ display:flex; align-items:center; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--border-soft); gap:8px; }
+  .wallet-row:last-child{ border-bottom:none; }
+  .wallet-addr{ font-family:var(--mono); font-size:12.5px; }
+  .wallet-bal{ font-family:var(--mono); font-size:11px; color:var(--text-dim); }
+  .wallet-x{ background:none; color:var(--text-dim); padding:2px 6px; font-size:14px; }
+  .wallet-x:hover{ color:var(--fail); }
+  .empty-note{ color:var(--text-dim); font-size:12px; padding:6px 0; }
+
+  .chain-icon-row{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+  .chain-icon{
+    width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-family:var(--mono); font-weight:700; font-size:12px; color:var(--text-dim);
+    background:var(--surface-raised); border:2px solid transparent; cursor:pointer;
+    transition: background .15s, border-color .15s;
+  }
+  .chain-icon svg{ opacity:.4; transition: opacity .15s; }
+  .chain-icon:hover{ background:var(--chain-color, var(--surface-hover)); color:#fff; }
+  .chain-icon:hover svg{ opacity:1; }
+  .chain-icon.active{ background:var(--chain-color, var(--accent)); border-color:var(--accent-text); color:#fff; }
+  .chain-icon.active svg{ opacity:1; }
+  .wallet-name-input{ background:none; border:none; color:var(--text); font-family:var(--sans); font-weight:600; font-size:12.5px; padding:0; outline:none; width:100%; }
+  .wallet-token-badge{ width:16px; height:16px; border-radius:50%; background:var(--accent); display:inline-flex; align-items:center; justify-content:center; font-size:8px; font-weight:700; color:#ffffff; margin-left:6px; vertical-align:middle; }
+
+  .grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:900px){ .grid-2{ grid-template-columns:1fr; } }
+
+  .dropdown-select{ position:relative; }
+  .dropdown-trigger{
+    width:100%; text-align:left; background:var(--bg); border:1px solid var(--border); color:var(--text-mid);
+    padding:9px 10px; font-family:var(--mono); font-size:12.5px; display:flex; justify-content:space-between; align-items:center; gap:8px;
+  }
+  .dropdown-trigger.has-selection{ color:var(--text); }
+  .dropdown-trigger .chev{ color:var(--text-dim); margin-left:auto; }
+  .dropdown-trigger .trigger-badge{ background:var(--accent); color:#fff; font-size:10px; font-weight:700; padding:1px 6px; flex-shrink:0; }
+  .dropdown-trigger .trigger-chip{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; }
+  .dropdown-trigger .trigger-chip-bal{ color:var(--text-dim); flex-shrink:0; }
+  .dropdown-panel{
+    position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:30;
+    background:var(--surface); border:1px solid var(--border); display:none;
+  }
+  .dropdown-panel.open{ display:block; }
+  .multi-select-empty{ padding:12px 10px; color:var(--text-dim); font-family:var(--sans); font-size:12px; text-align:center; }
+  .dropdown-search-wrap{ padding:8px 8px 8px 0; border-bottom:1px solid var(--border-soft); display:flex; justify-content:flex-end; background:var(--surface-raised); }
+  input.dropdown-search{ width:130px !important; flex:none; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:6px 8px; font-family:var(--mono); font-size:11px; outline:none; }
+  .multi-select-rows{ max-height:170px; overflow-y:auto; }
+  .ms-table{ width:100%; border-collapse:collapse; font-family:var(--mono); font-size:11.5px; }
+  .ms-table thead th{ text-align:left; color:var(--text); font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.4px; padding:7px 8px; border-bottom:1px solid var(--border); background:var(--surface-raised); position:sticky; top:0; }
+  .ms-table td{ padding:6px 8px; border-bottom:1px solid var(--border-soft); }
+  .ms-table tbody tr:last-child td{ border-bottom:none; }
+  .hide-small-row{ display:flex; align-items:center; justify-content:flex-end; gap:8px; padding:8px 10px; font-size:11px; color:var(--text-mid); border-top:1px solid var(--border-soft); }
+  .external-addr-chip{ display:inline-flex; align-items:center; gap:6px; background:var(--surface-raised); border:1px solid var(--border); padding:4px 8px; font-family:var(--mono); font-size:11px; margin:0 6px 6px 0; }
+  .external-addr-chip button{ background:none; color:var(--text-dim); padding:0; font-size:12px; }
+
+  .modal-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:100; display:flex; align-items:center; justify-content:center; }
+  .modal-box{ background:var(--surface); border:1px solid var(--border); padding:20px 22px; width:360px; max-width:90vw; max-height:85vh; overflow-y:auto; }
+  .modal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .modal-title{ font-size:13px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; }
+  .modal-x{ background:none; color:var(--text-dim); font-size:16px; padding:2px 6px; }
+  .modal-x:hover{ color:var(--text); }
+
+  .scan-step{ display:flex; align-items:center; gap:10px; padding:9px 4px; font-size:12.5px; color:var(--text-dim); }
+  .scan-step.active{ color:var(--text); }
+  .scan-step.done{ color:var(--success); }
+  .scan-icon{ width:20px; height:20px; border-radius:50%; background:var(--surface-raised); display:flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:700; flex-shrink:0; }
+  .scan-step.active .scan-icon{ background:var(--accent-dim); color:var(--accent-text); animation:spin 1s linear infinite; }
+  .scan-step.done .scan-icon{ background:var(--success-bg); color:var(--success); }
+  @keyframes spin{ from{ transform:rotate(0deg);} to{ transform:rotate(360deg);} }
+  .scan-line{ width:1px; height:14px; background:var(--border); margin-left:10px; }
+
+  .adv-toggle{ font-size:12px; color:var(--accent-text); background:none; padding:0; margin-bottom:10px; font-weight:600; }
+  .adv-body[hidden]{ display:none; }
+
+  .phase-card{ border:1px solid var(--border); border-radius:0; padding:16px; background:var(--surface-raised); }
+  .phase-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:8px; }
+  .phase-title{ font-weight:700; font-size:12.5px; letter-spacing:.5px; text-transform:uppercase; }
+  .phase-badges{ display:flex; gap:6px; flex-wrap:wrap; }
+  .phase-badge{ background:var(--surface); border:1px solid var(--border); border-radius:0; padding:5px 9px; font-size:10.5px; color:var(--text-dim); font-family:var(--mono); }
+  .phase-badge b{ color:var(--text); font-size:11.5px; }
+  .qty-stepper{ display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+  .qty-btn{ width:34px; height:34px; border-radius:0; background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:16px; font-weight:700; }
+  .qty-input{ flex:1; text-align:center; font-family:var(--mono); font-size:15px; font-weight:700; background:var(--surface); border:1px solid var(--border); border-radius:0; padding:8px; color:var(--text); }
+  .gas-row{ display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:11.5px; color:var(--text-dim); margin-bottom:12px; padding:8px 10px; background:var(--surface); border-radius:0; }
+
+  .phase-list-item{ border:1px solid var(--border); background:var(--surface); padding:10px 12px; margin-bottom:8px; cursor:pointer; transition:border-color .15s; }
+  .phase-list-item:hover{ border-color:var(--accent); }
+  .phase-list-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+  .phase-countdown-badge{ font-family:var(--mono); font-size:10px; color:var(--accent-text); background:var(--accent-dim); padding:2px 8px; }
+  .phase-list-name{ font-weight:700; font-size:13px; }
+  .gas-row b{ color:var(--text); margin-left:auto; }
+</style>
+</head>
+<body data-theme="dark">
+
+<div class="shell">
+  <div class="sidebar">
+    <div class="side-card">
+      <div class="s-logo">
+        <div class="s-mark">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="7" width="16" height="13" rx="3" stroke="currentColor" stroke-width="1.8"/>
+            <line x1="12" y1="7" x2="12" y2="3" stroke="currentColor" stroke-width="1.8"/>
+            <circle cx="12" cy="2.3" r="1.3" fill="currentColor"/>
+            <circle cx="9" cy="13.2" r="1.4" fill="currentColor"/>
+            <circle cx="15" cy="13.2" r="1.4" fill="currentColor"/>
+            <line x1="9" y1="17" x2="15" y2="17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="s-name">FUSE</div>
+      </div>
+
+      <button class="s-nav-item active" data-page="mints"><span class="ic">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M2 12 L6 6 L10 18 L14 6 L18 18 L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span> Mints</button>
+      <button class="s-nav-item" data-page="wallets"><span class="ic">▤</span> Wallets <span class="badge" id="navWalletCount">0</span></button>
+      <button class="s-nav-item" data-page="disperse"><span class="ic">⇄</span> Disperse</button>
+
+      <div class="s-toggle-row">
+        <label class="switch"><input type="checkbox" id="usdToggle"><span class="slider"></span></label>
+        <span>USD</span>
+        <button id="gasCalcOpen" class="btn btn-secondary" style="margin-left:auto; padding:6px 8px; display:flex; align-items:center;" title="Gas calculator">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="2" width="16" height="20" rx="2" stroke="currentColor" stroke-width="1.8"/>
+            <rect x="7" y="5" width="10" height="4" rx="0.5" fill="currentColor"/>
+            <circle cx="7.7" cy="13" r="1.1" fill="currentColor"/>
+            <circle cx="12" cy="13" r="1.1" fill="currentColor"/>
+            <circle cx="16.3" cy="13" r="1.1" fill="currentColor"/>
+            <circle cx="7.7" cy="16.8" r="1.1" fill="currentColor"/>
+            <circle cx="12" cy="16.8" r="1.1" fill="currentColor"/>
+            <circle cx="16.3" cy="16.8" r="1.1" fill="currentColor"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="side-card">
+      <button class="s-link" data-page="settings"><span class="ic">⚙</span> Settings</button>
+      <a class="s-link" href="https://github.com" target="_blank"><span class="ic">↗</span> Source / repo</a>
+
+      <div class="s-divider"></div>
+
+      <div class="s-account">
+        <div class="s-avatar" id="acctAvatar">·</div>
+        <div style="flex:1; min-width:0;">
+          <div class="s-account-name" id="acctName">No wallet loaded</div>
+          <div class="s-account-addr" id="acctAddr">—</div>
+        </div>
+        <button id="acctLogout" title="Log out" style="background:none; color:var(--text-dim); padding:4px; display:none;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M16 17l5-5-5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="21" y1="12" x2="9" y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="s-plan">
+        <b>Local instance</b> · no subscription, no wallet cap<br>
+        <span id="planWalletCount">0</span> wallet(s) loaded this session
+      </div>
+
+      <div class="s-theme">
+        <span style="font-size:12px; color:var(--text-mid);">Dark mode</span>
+        <label class="switch"><input type="checkbox" id="themeToggle" checked><span class="slider"></span></label>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <div class="page" id="page-mints">
+      <div class="diag-banner" id="diagBanner">
+        <span>◎</span><span class="flex-fill" id="diagText">Not armed — load a wallet and select a mint function below.</span>
+      </div>
+
+      <div class="topbar">
+        <input class="search-input" id="topSearch" placeholder="Paste a mint link, OpenSea URL, or contract address…">
+        <button class="icon-search-btn" id="topSearchGo" title="Scan">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2"/>
+            <line x1="16" y1="16" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="card" id="scanCard" style="display:none;">
+        <div style="display:flex; justify-content:flex-end; margin-bottom:-6px;">
+          <button id="scanCardClose" style="background:none; color:var(--text-dim); font-size:16px; padding:2px 6px; line-height:1;">✕</button>
+        </div>
+        <div class="scan-step" id="scanStep1"><span class="scan-icon">1</span> Scanning page for contract</div>
+        <div class="scan-step" id="scanStep2"><span class="scan-icon">2</span> Connecting wallet</div>
+        <div class="scan-step" id="scanStep3"><span class="scan-icon">3</span> Checking eligibility</div>
+      </div>
+
+      <div class="card" id="targetCard" hidden>
+        <div class="target-head">
+          <div class="target-avatar" id="targetAvatar">?</div>
+          <div class="target-name-row">
+            <div class="target-name" id="targetName">No target loaded</div>
+            <div class="target-addr" id="targetAddrDisplay">Paste a contract address above</div>
+          </div>
+          <a id="explorerLink" href="#" target="_blank" style="font-size:12px; display:none;">View ↗</a>
+        </div>
+
+        <div class="tabs">
+          <button class="tab active" data-tab="minted">Minted</button>
+          <button class="tab" data-tab="transactions">Transactions</button>
+          <button class="tab" data-tab="analytics">Analytics</button>
+        </div>
+
+        <div class="card" id="phasesCard" hidden style="margin-bottom:16px;">
+          <div class="section-title" style="justify-content:space-between; display:flex;">
+            <span><span class="dot"></span> Mint phases</span>
+            <button class="btn btn-secondary" id="autoDetectPhases" style="padding:5px 10px; font-size:11px;">⟳ Auto-detect from contract</button>
+          </div>
+          <div id="phaseList" style="margin-bottom:12px;"><div class="empty-note">No phases added yet. Try "Auto-detect" for OpenSea Studio (SeaDrop) drops, or add each stage manually with its own price and start time. Click a phase card to arm it.</div></div>
+          <div class="grid-2">
+            <div class="field"><label>Phase name</label><input type="text" id="phaseName" placeholder="FCFS"></div>
+            <div class="field"><label>Price (ETH)</label><input type="text" id="phasePrice" placeholder="0.03"></div>
+          </div>
+          <div class="field"><label>Starts at</label><input type="datetime-local" id="phaseStart" step="1"></div>
+          <button class="btn btn-secondary" id="addPhase" style="width:100%;">+ Add phase</button>
+        </div>
+
+        <div class="phase-card" id="phaseCard">
+          <div class="phase-head">
+            <div class="phase-title" id="phaseCardTitle">MINT</div>
+            <div class="phase-badges">
+              <span class="phase-badge">PRICE <b><input type="text" id="mintValue" placeholder="0.00" style="width:52px; background:none; border:none; color:inherit; font:inherit; padding:0; outline:none;"></b> <span id="priceNativeSymbol">ETH</span> <span id="priceUsdHint" style="color:var(--text-dim);"></span></span>
+              <span class="phase-badge">MAX <b id="maxPerWalletBadge">—</b></span>
+              <span class="phase-badge" id="eligibleBadgeWrap">ELIGIBLE <b id="eligibleBadge">?</b></span>
+            </div>
+          </div>
+
+          <div class="qty-stepper">
+            <button class="qty-btn" id="qtyMinus" type="button">−</button>
+            <input type="number" id="mintQty" class="qty-input" value="1" min="1">
+            <button class="qty-btn" id="qtyPlus" type="button">+</button>
+          </div>
+
+          <div class="gas-row">GAS <span>·</span> LIVE ESTIMATE <b id="gasLiveVal">—</b></div>
+
+          <div class="field">
+            <label>Drain (sweep) address <span style="color:var(--text-dim); font-weight:400;">— optional, auto-sends the minted NFT here</span></label>
+            <input type="text" id="sweepAddr" placeholder="0x...">
+          </div>
+          <div class="field"><label>Schedule (blank = manual fire)</label><input type="datetime-local" id="scheduleTime" step="1"></div>
+
+          <div class="btn-row">
+            <button class="btn btn-outline-warn" id="simulateBtn">Simulate</button>
+            <button class="btn btn-secondary" id="armBtn">Arm</button>
+          </div>
+          <button class="btn btn-danger" id="fireBtn" style="width:100%; margin-top:8px;" disabled>Fire now</button>
+          <div class="hint" id="countdownHint" style="margin-top:6px; text-align:center; font-size:12px;"></div>
+        </div>
+
+        <button class="adv-toggle" id="advToggleBtn" style="margin-top:14px;">▸ Advanced — contract, ABI, mint function, gas limits</button>
+        <div class="adv-body" id="advBody" hidden>
+          <div class="grid-2">
+            <div>
+              <div class="field">
+                <label>Contract address</label>
+                <input type="text" id="contractAddr" placeholder="0x...">
+              </div>
+              <div class="btn-row" style="margin-bottom:11px;">
+                <button class="btn btn-secondary" id="fetchAbi">Fetch ABI</button>
+                <button class="btn btn-secondary" id="pasteAbi">Paste ABI instead</button>
+              </div>
+              <div id="abiPasteWrap" style="display:none; margin-bottom:11px;">
+                <textarea id="abiRaw" placeholder="[ { &quot;type&quot;: &quot;function&quot;, ... } ]"></textarea>
+                <button class="btn btn-secondary" id="parseAbi" style="margin-top:8px;">Parse</button>
+              </div>
+              <div id="fnList"></div>
+              <div id="argForm" style="margin-top:10px;"></div>
+            </div>
+
+            <div>
+              <div class="toggle-row">
+                <span style="font-size:12px; color:var(--text-mid);">Auto gas-bump on stuck/reverted tx</span>
+                <label class="switch"><input type="checkbox" id="autoBump" checked><span class="slider"></span></label>
+              </div>
+              <div class="field-row">
+                <div class="field"><label>Priority bump (gwei/attempt)</label><input type="number" id="bumpGwei" value="3" min="0"></div>
+                <div class="field"><label>Max attempts</label><input type="number" id="maxAttempts" value="3" min="1"></div>
+              </div>
+              <div class="field"><label>Max gas cap (gwei)</label><input type="number" id="maxGasCap" value="150" min="1"></div>
+              <div class="hint">Price, quantity, drain address and schedule now live in the phase card above — this panel is just the plumbing (which function to call, how aggressively to retry).</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="tabpane-minted">
+          <table>
+            <thead><tr><th>Hash</th><th>Wallet</th><th>Amount</th><th>Gas (gwei)</th><th>Status</th></tr></thead>
+            <tbody id="logBody"><tr><td colspan="5" class="log-empty">No mint attempts yet.</td></tr></tbody>
+          </table>
+        </div>
+        <div id="tabpane-transactions" style="display:none;">
+          <table>
+            <thead><tr><th>Hash</th><th>Wallet</th><th>Amount</th><th>Gas (gwei)</th><th>Status</th></tr></thead>
+            <tbody id="logBody2"><tr><td colspan="5" class="log-empty">No transactions yet.</td></tr></tbody>
+          </table>
+        </div>
+        <div id="tabpane-analytics" style="display:none;">
+          <div class="stats-grid">
+            <div class="stat-box"><div class="stat-num" id="statTotal">0</div><div class="stat-label">Attempts</div></div>
+            <div class="stat-box"><div class="stat-num" id="statSuccess" style="color:var(--success);">0</div><div class="stat-label">Minted</div></div>
+            <div class="stat-box"><div class="stat-num" id="statFail" style="color:var(--fail);">0</div><div class="stat-label">Failed</div></div>
+            <div class="stat-box"><div class="stat-num" id="statGas">—</div><div class="stat-label">Avg gwei used</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="page-wallets" hidden>
+      <div class="diag-banner" style="background:var(--accent-dim); color:var(--accent-text); border-color:rgba(59,43,229,.3);">
+        <span>⚑</span><span class="flex-fill">Keys live in this tab's memory only — never saved to disk. Refreshing the page clears them.</span>
+        <a href="#" id="walletSecurityLink" style="color:var(--accent-text);">Learn more</a>
+      </div>
+
+      <div class="topbar" style="justify-content:flex-end;">
+        <input class="search-input" id="walletSearch" placeholder="Search wallets…" style="flex:none; width:260px;">
+        <button class="btn btn-primary" id="connectWalletBtn">🦊 Connect Wallet</button>
+        <button class="btn btn-secondary" id="genWallet">+ Create</button>
+        <button class="btn btn-secondary" id="importToggle">⇵ Import</button>
+      </div>
+      <div id="connectWalletStatus" class="hint" style="display:none; text-align:right;"></div>
+
+      <div class="card">
+        <div class="chain-icon-row" id="chainIconRow"></div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width:24px;"><input type="checkbox" id="selectAllWallets"></th>
+              <th>Name</th>
+              <th>Address</th>
+              <th>Balance ↕</th>
+              <th style="width:24px;"></th>
+            </tr>
+          </thead>
+          <tbody id="walletList"><tr><td colspan="5" class="log-empty">No wallets loaded — Create a new one or Import a private key.</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="refreshBalances">Refresh balances</button>
+        <button class="btn btn-danger" id="clearWallets" style="background:transparent; color:var(--fail); border:1px solid #3a2020;">Clear all</button>
+      </div>
+    </div>
+
+    <div class="page" id="page-disperse" hidden>
+      <div class="card">
+        <div class="chain-icon-row" id="disperseChainRow"></div>
+
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap; justify-content:space-between;">
+          <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
+            <div class="toggle-row" style="margin-bottom:0; flex:none; border:1px solid var(--border); padding:9px 14px; gap:14px; width:190px;">
+              <span style="font-weight:600; font-size:12.5px;">NFT/ERC20</span>
+              <label class="switch"><input type="checkbox" id="disperseErc20Toggle"><span class="slider"></span></label>
+            </div>
+            <div id="disperseTokenRow" style="display:none; align-items:center; gap:10px; flex:1; min-width:200px;">
+              <input type="text" id="disperseTokenAddr" placeholder="Paste NFT/ERC20 address" style="flex:1; min-width:160px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px; font-family:var(--mono); font-size:12px;">
+              <button class="icon-search-btn" id="disperseTokenSearch" style="flex:none;" title="Search token">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2"/>
+                  <line x1="16" y1="16" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="btn-row" style="flex:none;">
+            <button class="btn btn-secondary" id="disperseSwap">⇅ Swap</button>
+            <button class="btn btn-secondary" id="disperseReset">✕ Reset</button>
+          </div>
+        </div>
+
+        <div class="btn-row" id="quickTokenRow" style="display:none; margin-bottom:16px; width:190px;">
+          <button class="btn btn-secondary" id="quickUsdc" style="flex:1; color:#4a9eff; padding:6px 4px; font-size:11.5px;">$ USDC</button>
+          <button class="btn btn-secondary" id="quickUsdt" style="flex:1; color:#26a17b; padding:6px 4px; font-size:11.5px;">◆ USDT</button>
+        </div>
+
+        <div class="field">
+          <label style="text-transform:uppercase; font-size:11px; letter-spacing:.5px;">Senders</label>
+          <div class="dropdown-select" id="sendersDropdown" style="max-width:340px;">
+            <button type="button" class="dropdown-trigger" id="sendersTrigger">Select <span class="chev">⌄</span></button>
+            <div class="dropdown-panel" id="sendersSelect"></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label style="text-transform:uppercase; font-size:11px; letter-spacing:.5px;">Recipients</label>
+          <div class="dropdown-select" id="recipientsDropdown" style="max-width:340px;">
+            <button type="button" class="dropdown-trigger" id="recipientsTrigger">Select <span class="chev">⌄</span></button>
+            <div class="dropdown-panel" id="recipientsSelect"></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label style="text-transform:uppercase; font-size:11px; letter-spacing:.5px;">OR</label>
+          <div style="display:flex; gap:8px; max-width:400px;">
+            <input type="text" id="disperseExternalAddr" placeholder="External Address">
+            <button class="btn btn-secondary" id="disperseAddExternal">→</button>
+          </div>
+          <div id="externalAddrList" style="margin-top:8px;"></div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+          <div class="s-unit-switch" id="disperseUnitSwitch" style="background:var(--surface-raised); padding:3px;">
+            <button class="active" id="disperseUnitNative">ETH</button>
+            <button id="disperseUnitUsd">USD</button>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label style="text-transform:uppercase; font-size:11px; letter-spacing:.5px;">Mode</label>
+            <select id="disperseMode" style="width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px; font-family:var(--mono); font-size:12.5px;">
+              <option value="flat">Flat — same amount each</option>
+              <option value="split">Split total evenly</option>
+            </select>
+          </div>
+          <div class="field">
+            <label id="disperseAmountLabel" style="text-transform:uppercase; font-size:11px; letter-spacing:.5px;">Per wallet</label>
+            <div class="qty-stepper">
+              <button class="qty-btn" id="disperseMinus" type="button">−</button>
+              <input type="text" id="disperseAmount" class="qty-input" value="0">
+              <button class="qty-btn" id="dispersePlus" type="button">+</button>
+              <button class="btn btn-secondary" id="disperseMaxBtn" type="button">MAX</button>
+            </div>
+            <div class="hint" id="disperseMaxHint" style="text-align:right;">ⓘ MAX · 0 ETH ($0)</div>
+            <div style="display:flex; justify-content:flex-end;">
+              <button class="btn btn-primary" id="disperseGo" style="padding:6px 16px; font-size:12px; margin-top:6px;">Disperse →</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="disperseLog" style="margin-top:14px;"></div>
+      </div>
+    </div>
+
+    <div class="page" id="page-settings" hidden>
+      <div class="card">
+        <div class="section-title"><span class="dot"></span>Chain &amp; connection</div>
+        <div class="field">
+          <label>Chain</label>
+          <div id="chainGrid" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;"></div>
+          <div class="hint">Scoped to Ethereum for now — Base, Arbitrum, Optimism, Polygon, and Zora are wired in the code but hidden until you want them turned back on.</div>
+        </div>
+        <div class="field">
+          <label>Custom RPC URL (strongly recommended)</label>
+          <input type="text" id="rpcUrl" placeholder="https://eth-mainnet.g.alchemy.com/v2/...">
+          <div class="hint">Public RPCs are slow and rate-limited under mint load — this is the #1 cause of missed mints. Use your own Alchemy/Infura endpoint.</div>
+        </div>
+        <div class="field">
+          <label>Etherscan-family API key (optional, for ABI auto-fetch)</label>
+          <input type="password" id="apiKey" placeholder="works across chains via Etherscan v2 API">
+        </div>
+        <div class="field">
+          <label>OpenSea proxy URL <span style="color:var(--text-dim); font-weight:400;">— recommended</span></label>
+          <input type="text" id="openseaProxyUrl" placeholder="https://your-worker.workers.dev">
+          <div class="hint">OpenSea's own docs say their API key can't be safely used in a browser, and their API blocks direct cross-origin calls anyway. A tiny serverless proxy (e.g. Cloudflare Worker) holds the key server-side and fixes both — see the worker.js file provided alongside this app.</div>
+        </div>
+        <div class="field">
+          <label>OpenSea API key <span style="color:var(--text-dim); font-weight:400;">— direct fallback, less reliable</span></label>
+          <input type="password" id="openseaKey" placeholder="only used if no proxy URL is set above">
+          <div class="hint">Calling OpenSea directly from the browser with this key will often fail (CORS) and isn't how OpenSea recommends using API keys. Set the proxy URL above instead if you can.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="modal-overlay" id="gasCalcModal" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title">Gas Calculator</div>
+      <button class="modal-x" id="gcClose">✕</button>
+    </div>
+
+    <div class="field"><label>Mint price (USD)</label><input type="text" id="gcMintPrice" value="0"></div>
+    <div class="field"><label>Sell price (USD)</label><input type="text" id="gcSellPrice" value="0"></div>
+    <div class="field"><label>OTC price (USD)</label><input type="text" id="gcOtcPrice" value="0"></div>
+    <div class="field-row">
+      <div class="field"><label>OpenSea fee (%)</label><input type="number" id="gcOpenseaFee" value="1"></div>
+      <div class="field"><label>Royalty fee (%)</label><input type="number" id="gcRoyaltyFee" value="5"></div>
+    </div>
+    <div class="field">
+      <label>Gas aggressivity <span id="gcAggVal" style="color:var(--text-dim);">50%</span></label>
+      <input type="range" id="gcAggressivity" min="0" max="100" value="50">
+    </div>
+
+    <div class="grid-2">
+      <div class="stat-box"><div class="stat-label">Gas budget</div><div class="stat-num" id="gcGasBudget">$0.00</div></div>
+      <div class="stat-box"><div class="stat-label">Potential profit</div><div class="stat-num" id="gcProfit">$0.00</div></div>
+    </div>
+
+    <div class="btn-row" style="margin-top:14px;">
+      <button class="btn btn-secondary" id="gcReset">↺ Reset</button>
+      <button class="btn btn-primary" id="gcCloseBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="newWalletModal" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title">New Wallet Generated</div>
+    </div>
+
+    <div class="security-note" style="margin-bottom:14px;">⚠ This is shown once. It is not saved anywhere — if you navigate away or refresh without copying it, it's gone for good.</div>
+
+    <div class="field">
+      <label>Address</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="nwAddress" readonly style="flex:1;">
+        <button class="btn btn-secondary" id="nwCopyAddr">Copy</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Private key</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="nwPrivateKey" readonly style="flex:1;">
+        <button class="btn btn-secondary" id="nwCopyKey">Copy</button>
+      </div>
+    </div>
+
+    <label style="display:flex; align-items:center; gap:8px; margin:14px 0; font-size:12px; color:var(--text-mid);">
+      <input type="checkbox" id="nwConfirmSaved"> I've copied and saved this private key somewhere safe
+    </label>
+
+    <button class="btn btn-primary" id="nwDone" style="width:100%;" disabled>Done</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="importWalletsModal" style="display:none;">
+  <div class="modal-box" style="width:480px;">
+    <div class="modal-head">
+      <div class="modal-title">Import Wallets</div>
+      <button class="modal-x" id="importModalClose">✕</button>
+    </div>
+
+    <div id="importRowsWrap">
+      <table class="ms-table">
+        <thead><tr><th>Name</th><th>Address</th><th>Private Key</th><th style="width:28px;"></th></tr></thead>
+        <tbody id="importRowsBody"></tbody>
+      </table>
+      <button class="btn btn-secondary" id="addImportRow" style="width:100%; margin-top:8px;">+ Add row</button>
+    </div>
+
+    <div class="toggle-row" style="margin-top:14px;">
+      <span style="font-size:12.5px;">Bulk import</span>
+      <label class="switch"><input type="checkbox" id="bulkImportToggle"><span class="slider"></span></label>
+    </div>
+
+    <div id="bulkImportWrap" style="display:none; margin-top:10px;">
+      <textarea id="pkInput" placeholder="0x... — one private key per line"></textarea>
+    </div>
+
+    <button class="btn btn-primary" id="importWalletsGo" style="width:100%; margin-top:14px;">+ Import</button>
+    <div class="hint" style="text-align:center; margin-top:8px;">Private keys stay in this browser tab's memory only — never saved to disk or sent anywhere.</div>
+  </div>
+</div>
+
+
+<script>
+(function(){
+  const CHAINS = {
+    ethereum: { id:1, name:'ETH', nativeSymbol:'ETH', cgId:'ethereum', openseaChain:'ethereum', color:'#3B2BE5', icon:'Ξ', explorerApi:'https://api.etherscan.io/v2/api', defaultRpc:'https://eth.llamarpc.com', tx:'https://etherscan.io/tx/', addr:'https://etherscan.io/address/' },
+    base:     { id:8453, name:'Base', nativeSymbol:'ETH', cgId:'ethereum', openseaChain:'base', color:'#0052ff', icon:'B', explorerApi:'https://api.etherscan.io/v2/api', defaultRpc:'https://mainnet.base.org', tx:'https://basescan.org/tx/', addr:'https://basescan.org/address/' },
+    arbitrum: { id:42161, name:'Arb', nativeSymbol:'ETH', cgId:'ethereum', openseaChain:'arbitrum', color:'#28a0f0', icon:'A', explorerApi:'https://api.etherscan.io/v2/api', defaultRpc:'https://arb1.arbitrum.io/rpc', tx:'https://arbiscan.io/tx/', addr:'https://arbiscan.io/address/' },
+    optimism: { id:10, name:'OP', nativeSymbol:'ETH', cgId:'ethereum', openseaChain:'optimism', color:'#ff0420', icon:'O', explorerApi:'https://api.etherscan.io/v2/api', defaultRpc:'https://mainnet.optimism.io', tx:'https://optimistic.etherscan.io/tx/', addr:'https://optimistic.etherscan.io/address/' },
+    polygon:  { id:137, name:'Poly', nativeSymbol:'POL', cgId:'matic-network', openseaChain:'matic', color:'#8247e5', icon:'P', explorerApi:'https://api.etherscan.io/v2/api', defaultRpc:'https://polygon-rpc.com', tx:'https://polygonscan.com/tx/', addr:'https://polygonscan.com/address/' },
+    zora:     { id:7777777, name:'Zora', nativeSymbol:'ETH', cgId:'ethereum', openseaChain:'zora', color:'#2b5df0', icon:'Z', explorerApi:'https://api.etherscan.io/v2/api', defaultRpc:'https://rpc.zora.energy', tx:'https://explorer.zora.energy/tx/', addr:'https://explorer.zora.energy/address/' },
+  };
+  const OPENSEA_CHAIN_TO_KEY = Object.fromEntries(Object.entries(CHAINS).map(([k,c]) => [c.openseaChain, k]));
+  const ACTIVE_CHAINS = ['ethereum']; // scoped to Ethereum only for now — add keys back here to re-enable a chain
+
+  function chainGlyphSvg(key, size){
+    size = size || 18;
+    const v = `width="${size}" height="${size}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"`;
+    switch(key){
+      case 'ethereum': return `<svg ${v}><path d="M12 2L4.5 12.2 12 16.5l7.5-4.3L12 2z" fill="currentColor" fill-opacity=".95"/><path d="M12 22l7.5-10.3L12 16.5l-7.5-4.8L12 22z" fill="currentColor" fill-opacity=".6"/></svg>`;
+      case 'base':     return `<svg ${v}><circle cx="12" cy="12" r="7.5" fill="currentColor"/></svg>`;
+      case 'arbitrum': return `<svg ${v}><path d="M12 3.5l7.2 12.4H4.8L12 3.5z" fill="currentColor"/></svg>`;
+      case 'optimism': return `<svg ${v}><circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="3" fill="none"/></svg>`;
+      case 'polygon':  return `<svg ${v}><polygon points="12,3 19.5,7.5 19.5,16.5 12,21 4.5,16.5 4.5,7.5" fill="currentColor"/></svg>`;
+      case 'zora':     return `<svg ${v}><path d="M6.5 6.5h11l-8.7 11h8.7" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      default: return '';
+    }
+  }
+
+  let state = {
+    chain: 'ethereum',
+    wallets: [],
+    abi: null,
+    fn: null,
+    args: {},
+    armed: false,
+    scheduleTimer: null,
+    stats: { total:0, success:0, fail:0, gasSum:0, gasCount:0 },
+    phases: [],
+    unit: 'native',
+    priceUsd: null,
+    senderSel: new Set(),
+    recipientSel: new Set(),
+  };
+  const disperseFilters = {
+    sendersSelect: { query: '', hideSmall: false, sortDir: null },
+    recipientsSelect: { query: '', hideSmall: false, sortDir: null },
+  };
+
+  const $ = id => document.getElementById(id);
+
+  document.querySelectorAll('[data-page]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.page;
+      document.querySelectorAll('.page').forEach(p => p.hidden = true);
+      const pageEl = $('page-' + target);
+      if(pageEl) pageEl.hidden = false;
+      document.querySelectorAll('.s-nav-item').forEach(n => n.classList.remove('active'));
+      if(btn.classList.contains('s-nav-item')) btn.classList.add('active');
+      if(target === 'wallets') renderWallets();
+      if(target === 'disperse') populateDisperseFrom();
+    });
+  });
+
+  $('themeToggle').addEventListener('change', e => {
+    document.body.setAttribute('data-theme', e.target.checked ? 'dark' : 'light');
+  });
+
+  document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');
+      ['minted','transactions','analytics'].forEach(name => {
+        $('tabpane-'+name).style.display = (name === t.dataset.tab) ? 'block' : 'none';
+      });
+      if(t.dataset.tab === 'analytics') renderStats();
+    });
+  });
+
+  $('advToggleBtn').addEventListener('click', () => {
+    const body = $('advBody');
+    const hidden = body.hasAttribute('hidden');
+    if(hidden){ body.removeAttribute('hidden'); $('advToggleBtn').textContent = '▾ Advanced — contract, ABI, mint function, gas limits'; }
+    else { body.setAttribute('hidden',''); $('advToggleBtn').textContent = '▸ Advanced — contract, ABI, mint function, gas limits'; }
+  });
+
+  $('qtyMinus').onclick = () => { $('mintQty').value = Math.max(1, (parseInt($('mintQty').value)||1) - 1); if(state.armed) disarm(); };
+  $('qtyPlus').onclick = () => { $('mintQty').value = (parseInt($('mintQty').value)||1) + 1; if(state.armed) disarm(); };
+
+  function renderChainGrid(){
+    const grid = $('chainGrid');
+    grid.innerHTML = '';
+    Object.entries(CHAINS).filter(([key]) => ACTIVE_CHAINS.includes(key)).forEach(([key, c]) => {
+      const el = document.createElement('button');
+      el.className = 'btn btn-secondary';
+      el.style.cssText = 'font-size:11.5px; padding:7px 4px;' + (state.chain===key ? ' border-color:var(--accent); color:var(--accent-text);' : '');
+      el.textContent = c.name;
+      el.onclick = () => { state.chain = key; $('rpcUrl').value=''; renderChainGrid(); disarm(); onChainChanged(); };
+      grid.appendChild(el);
+    });
+  }
+  renderChainGrid();
+
+  function onChainChanged(){
+    updateUnitButtons();
+    fetchNativePrice();
+  }
+
+  function updateUnitButtons(){
+    $('priceNativeSymbol').textContent = CHAINS[state.chain].nativeSymbol;
+  }
+
+  async function fetchNativePrice(){
+    state.priceUsd = null;
+    try{
+      const cgId = CHAINS[state.chain].cgId;
+      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cgId}&vs_currencies=usd`);
+      const data = await res.json();
+      state.priceUsd = data[cgId] ? data[cgId].usd : null;
+    }catch(e){ state.priceUsd = null; }
+    refreshUnitDisplays();
+  }
+
+  function fmtNative(amount){
+    if(amount === null || amount === undefined || isNaN(amount)) return '—';
+    if(state.unit === 'usd'){
+      if(state.priceUsd == null) return '≈ ? USD';
+      return '$' + (amount * state.priceUsd).toFixed(2);
+    }
+    return Number(amount).toFixed(4) + ' ' + CHAINS[state.chain].nativeSymbol;
+  }
+
+  function refreshUnitDisplays(){
+    renderWallets();
+    if(typeof renderDisperseSelectors === 'function' && $('sendersSelect')) renderDisperseSelectors();
+    const price = parseFloat($('mintValue').value);
+    $('priceUsdHint').textContent = (state.unit === 'usd' && !isNaN(price)) ? fmtNative(price) : '';
+  }
+
+  $('usdToggle').addEventListener('change', e => {
+    state.unit = e.target.checked ? 'usd' : 'native';
+    updateUnitButtons(); refreshUnitDisplays();
+    $('disperseUnitNative').classList.toggle('active', state.unit !== 'usd');
+    $('disperseUnitUsd').classList.toggle('active', state.unit === 'usd');
+    updateDisperseMaxHint();
+  });
+
+  updateUnitButtons();
+  fetchNativePrice();
+
+  // ---------- gas calculator ----------
+  function gcCompute(){
+    const mint = parseFloat($('gcMintPrice').value) || 0;
+    const sell = parseFloat($('gcSellPrice').value) || 0;
+    const openseaFeePct = parseFloat($('gcOpenseaFee').value) || 0;
+    const royaltyPct = parseFloat($('gcRoyaltyFee').value) || 0;
+    const aggressivity = parseFloat($('gcAggressivity').value) || 0;
+    $('gcAggVal').textContent = aggressivity + '%';
+
+    const gwei = parseFloat(($('gasLiveVal').textContent || '').replace(/[^0-9.]/g,'')) || 30;
+    const priceUsd = state.priceUsd || 0;
+    const gasLimitAssumed = 150000;
+    const baseGasEth = (gwei * gasLimitAssumed) / 1e9;
+    const budgetEth = baseGasEth * (0.5 + aggressivity / 100);
+    const budgetUsd = budgetEth * priceUsd;
+    $('gcGasBudget').textContent = '$' + budgetUsd.toFixed(2);
+
+    const fees = sell * ((openseaFeePct + royaltyPct) / 100);
+    const profit = sell - mint - fees - budgetUsd;
+    $('gcProfit').textContent = '$' + profit.toFixed(2);
+    $('gcProfit').style.color = profit >= 0 ? 'var(--success)' : 'var(--fail)';
+  }
+
+  ['gcMintPrice','gcSellPrice','gcOtcPrice','gcOpenseaFee','gcRoyaltyFee','gcAggressivity'].forEach(id => {
+    $(id).addEventListener('input', gcCompute);
+  });
+
+  $('gasCalcOpen').onclick = () => { $('gasCalcModal').style.display = 'flex'; gcCompute(); };
+  $('gcClose').onclick = () => { $('gasCalcModal').style.display = 'none'; };
+  $('gcCloseBtn').onclick = () => { $('gasCalcModal').style.display = 'none'; };
+  $('gasCalcModal').addEventListener('click', (e) => { if(e.target.id === 'gasCalcModal') $('gasCalcModal').style.display = 'none'; });
+  $('gcReset').onclick = () => {
+    $('gcMintPrice').value = 0; $('gcSellPrice').value = 0; $('gcOtcPrice').value = 0;
+    $('gcOpenseaFee').value = 1; $('gcRoyaltyFee').value = 5; $('gcAggressivity').value = 50;
+    gcCompute();
+  };
+
+  function getProvider(){
+    const custom = $('rpcUrl').value.trim();
+    const rpc = custom || CHAINS[state.chain].defaultRpc;
+    return new ethers.JsonRpcProvider(rpc, CHAINS[state.chain].id);
+  }
+
+  function updateSidebarWalletInfo(){
+    $('navWalletCount').textContent = state.wallets.length;
+    $('planWalletCount').textContent = state.wallets.length;
+    const hasInjected = state.wallets.some(w => w.injected);
+    $('acctLogout').style.display = hasInjected ? 'block' : 'none';
+    if(state.wallets.length){
+      const w = state.wallets[0];
+      $('acctAvatar').textContent = w.address.slice(2,3).toUpperCase();
+      $('acctName').textContent = state.wallets.length > 1 ? `${state.wallets.length} wallets loaded` : 'Wallet loaded';
+      $('acctAddr').textContent = w.address.slice(0,6)+'...'+w.address.slice(-4);
+    } else {
+      $('acctAvatar').textContent = '·';
+      $('acctName').textContent = 'No wallet loaded';
+      $('acctAddr').textContent = '—';
+    }
+  }
+
+  function renderChainIconRow(){
+    const row = $('chainIconRow');
+    row.innerHTML = '';
+    Object.entries(CHAINS).filter(([key]) => ACTIVE_CHAINS.includes(key)).forEach(([key, c]) => {
+      const el = document.createElement('div');
+      const isActive = state.chain === key;
+      el.className = 'chain-icon' + (isActive ? ' active' : '');
+      el.style.setProperty('--chain-color', c.color);
+      el.innerHTML = chainGlyphSvg(key, 17);
+      el.title = c.name;
+      el.onclick = () => { state.chain = key; renderChainGrid(); renderChainIconRow(); onChainChanged(); disarm(); };
+      row.appendChild(el);
+    });
+  }
+
+  function renderWallets(){
+    renderChainIconRow();
+    const list = $('walletList');
+    const query = ($('walletSearch') ? $('walletSearch').value.trim().toLowerCase() : '');
+    const filtered = state.wallets
+      .map((w, i) => ({ w, i }))
+      .filter(({w}) => !query || w.address.toLowerCase().includes(query) || (w.name||'').toLowerCase().includes(query));
+
+    if(!state.wallets.length){ list.innerHTML = '<tr><td colspan="5" class="log-empty">No wallets loaded — Create a new one or Import a private key.</td></tr>'; return; }
+    if(!filtered.length){ list.innerHTML = '<tr><td colspan="5" class="log-empty">No wallets match your search.</td></tr>'; return; }
+
+    list.innerHTML = '';
+    filtered.forEach(({w, i}) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input type="checkbox" class="wallet-select" data-i="${i}"></td>
+        <td><input type="text" class="wallet-name-input" data-i="${i}" value="${w.name || 'Wallet ' + (i+1)}"></td>
+        <td>${w.address.slice(0,6)}...${w.address.slice(-4)}</td>
+        <td>${w.balance != null ? fmtNative(parseFloat(w.balance)) : '—'} <span class="wallet-token-badge" style="background:${CHAINS[state.chain].color}; color:#fff;">${chainGlyphSvg(state.chain, 10)}</span></td>
+        <td><button class="wallet-x" data-i="${i}">✕</button></td>`;
+      list.appendChild(tr);
+    });
+    list.querySelectorAll('.wallet-x').forEach(btn => {
+      btn.onclick = () => { state.wallets.splice(+btn.dataset.i,1); state.senderSel = new Set(); state.recipientSel = new Set(); renderWallets(); updateSidebarWalletInfo(); checkReadiness(); };
+    });
+    list.querySelectorAll('.wallet-name-input').forEach(inp => {
+      inp.oninput = () => { state.wallets[+inp.dataset.i].name = inp.value; };
+    });
+  }
+
+  $('walletSearch').addEventListener('input', renderWallets);
+  $('walletSecurityLink').addEventListener('click', (e) => {
+    e.preventDefault();
+    alert('Keys you import or generate here stay in this browser tab\'s memory only. Nothing is written to disk or sent anywhere except the RPC you configure in Settings. Refreshing or closing the tab clears them — use a dedicated mint wallet, not your main one.');
+  });
+  $('selectAllWallets').addEventListener('change', e => {
+    $('walletList').querySelectorAll('.wallet-select').forEach(cb => cb.checked = e.target.checked);
+  });
+
+  let importRowCount = 0;
+
+  function addImportRow(){
+    importRowCount++;
+    const tbody = $('importRowsBody');
+    const tr = document.createElement('tr');
+    tr.dataset.rowId = importRowCount;
+    tr.innerHTML = `
+      <td><input type="text" class="import-name" placeholder="Wallet"></td>
+      <td><input type="text" class="import-address" placeholder="—" readonly style="font-family:var(--mono); font-size:11px; color:var(--text-dim); background:var(--surface-raised);"></td>
+      <td><input type="text" class="import-pk" placeholder="0x..." style="font-family:var(--mono); font-size:11px;"></td>
+      <td style="width:28px; text-align:center; padding:6px 4px;"><button class="wallet-x import-row-remove" title="Remove row">✕</button></td>`;
+    tbody.appendChild(tr);
+    tr.querySelector('.import-pk').addEventListener('input', (e) => {
+      const addrInput = tr.querySelector('.import-address');
+      try{
+        const pk = e.target.value.trim();
+        const addr = ethers.computeAddress(pk.startsWith('0x') ? pk : '0x'+pk);
+        addrInput.value = addr.slice(0,6) + '...' + addr.slice(-4);
+        addrInput.style.color = 'var(--text)';
+      }catch(err){ addrInput.value = ''; addrInput.style.color = 'var(--text-dim)'; }
+    });
+    tr.querySelector('.import-row-remove').addEventListener('click', () => tr.remove());
+  }
+
+  $('addImportRow').onclick = () => addImportRow();
+
+  function openImportModal(){
+    $('importRowsBody').innerHTML = '';
+    importRowCount = 0;
+    addImportRow();
+    $('bulkImportToggle').checked = false;
+    $('bulkImportWrap').style.display = 'none';
+    $('importRowsWrap').style.display = 'block';
+    $('pkInput').value = '';
+    $('importWalletsModal').style.display = 'flex';
+  }
+
+  $('importToggle').onclick = () => openImportModal();
+  $('importModalClose').onclick = () => { $('importWalletsModal').style.display = 'none'; };
+  $('importWalletsModal').addEventListener('click', (e) => { if(e.target.id === 'importWalletsModal') $('importWalletsModal').style.display = 'none'; });
+
+  $('bulkImportToggle').addEventListener('change', (e) => {
+    $('bulkImportWrap').style.display = e.target.checked ? 'block' : 'none';
+    $('importRowsWrap').style.display = e.target.checked ? 'none' : 'block';
+  });
+
+  $('importWalletsGo').onclick = () => {
+    let added = 0;
+    if($('bulkImportToggle').checked){
+      const lines = $('pkInput').value.split('\n').map(s=>s.trim()).filter(Boolean);
+      lines.forEach(pk => {
+        try{
+          const w = new ethers.Wallet(pk.startsWith('0x') ? pk : '0x'+pk);
+          state.wallets.push({ pk: w.privateKey, address: w.address, balance: null, name: 'Wallet ' + (state.wallets.length + 1) });
+          added++;
+        }catch(e){ /* bad key skipped */ }
+      });
+    } else {
+      $('importRowsBody').querySelectorAll('tr').forEach(tr => {
+        const pkVal = tr.querySelector('.import-pk').value.trim();
+        const nameVal = tr.querySelector('.import-name').value.trim();
+        if(!pkVal) return;
+        try{
+          const w = new ethers.Wallet(pkVal.startsWith('0x') ? pkVal : '0x'+pkVal);
+          state.wallets.push({ pk: w.privateKey, address: w.address, balance: null, name: nameVal || 'Wallet ' + (state.wallets.length + 1) });
+          added++;
+        }catch(e){ /* bad key skipped */ }
+      });
+    }
+    if(added === 0){ alert('No valid private keys found — check the format and try again.'); return; }
+    $('importWalletsModal').style.display = 'none';
+    renderWallets(); updateSidebarWalletInfo(); checkReadiness();
+  };
+
+  $('genWallet').onclick = () => {
+    const w = ethers.Wallet.createRandom();
+    state.wallets.push({ pk: w.privateKey, address: w.address, balance: null, name: 'Wallet ' + (state.wallets.length + 1) });
+    renderWallets(); updateSidebarWalletInfo();
+    $('nwAddress').value = w.address;
+    $('nwPrivateKey').value = w.privateKey;
+    $('nwConfirmSaved').checked = false;
+    $('nwDone').disabled = true;
+    $('newWalletModal').style.display = 'flex';
+  };
+
+  function copyToClipboard(text, btn){
+    const done = () => { const old = btn.textContent; btn.textContent = 'Copied ✓'; setTimeout(() => btn.textContent = old, 1500); };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+    } else fallbackCopy(text, done);
+  }
+  function fallbackCopy(text, done){
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); done(); }catch(e){}
+    document.body.removeChild(ta);
+  }
+
+  $('nwCopyAddr').onclick = () => copyToClipboard($('nwAddress').value, $('nwCopyAddr'));
+  $('nwCopyKey').onclick = () => copyToClipboard($('nwPrivateKey').value, $('nwCopyKey'));
+  $('nwConfirmSaved').addEventListener('change', e => { $('nwDone').disabled = !e.target.checked; });
+  $('nwDone').onclick = () => { $('newWalletModal').style.display = 'none'; };
+
+  $('clearWallets').onclick = () => { if(confirm('Clear all loaded wallets?')){ state.wallets = []; state.senderSel = new Set(); state.recipientSel = new Set(); renderWallets(); updateSidebarWalletInfo(); checkReadiness(); } };
+
+  $('refreshBalances').onclick = async () => {
+    const provider = getProvider();
+    for(const w of state.wallets){
+      try{ const bal = await provider.getBalance(w.address); w.balance = Number(ethers.formatEther(bal)).toFixed(4); }
+      catch(e){ w.balance = 'err'; }
+    }
+    renderWallets();
+  };
+
+  let disperseExternal = [];
+
+  function renderDisperseChainRow(){
+    const row = $('disperseChainRow');
+    row.innerHTML = '';
+    Object.entries(CHAINS).filter(([key]) => ACTIVE_CHAINS.includes(key)).forEach(([key, c]) => {
+      const el = document.createElement('div');
+      const isActive = state.chain === key;
+      el.className = 'chain-icon' + (isActive ? ' active' : '');
+      el.style.setProperty('--chain-color', c.color);
+      el.innerHTML = chainGlyphSvg(key, 17);
+      el.title = c.name;
+      el.onclick = () => { state.chain = key; renderChainGrid(); renderChainIconRow(); renderDisperseChainRow(); onChainChanged(); };
+      row.appendChild(el);
+    });
+  }
+
+  function getSelectionSet(checkedClass){
+    return checkedClass === 'sender-check' ? state.senderSel : state.recipientSel;
+  }
+
+  function renderMultiSelect(containerId, checkedClass, triggerId, noun){
+    const el = $(containerId);
+    const filt = disperseFilters[containerId];
+    const sel = getSelectionSet(checkedClass);
+
+    if(!state.wallets.length){
+      el.innerHTML = '<div class="multi-select-empty">No wallets loaded — add some on the Wallets page.</div>';
+      updateDropdownTrigger(triggerId, checkedClass, noun);
+      return;
+    }
+
+    let filtered = state.wallets
+      .map((w, i) => ({ w, i }))
+      .filter(({w}) => {
+        if(filt.hideSmall && (w.balance == null || parseFloat(w.balance) < 0.001)) return false;
+        if(filt.query && !(w.address.toLowerCase().includes(filt.query) || (w.name||'').toLowerCase().includes(filt.query))) return false;
+        return true;
+      });
+
+    if(filt.sortDir){
+      filtered.sort((a, b) => {
+        const av = a.w.balance != null ? parseFloat(a.w.balance) : -1;
+        const bv = b.w.balance != null ? parseFloat(b.w.balance) : -1;
+        return filt.sortDir === 'asc' ? av - bv : bv - av;
+      });
+    }
+
+    const allChecked = filtered.length > 0 && filtered.every(({i}) => sel.has(i));
+    const rowsHtml = filtered.length
+      ? filtered.map(({w, i}) => `
+        <tr>
+          <td><input type="checkbox" class="${checkedClass}" data-i="${i}" ${sel.has(i) ? 'checked' : ''}></td>
+          <td>${w.name || 'Wallet '+(i+1)}</td>
+          <td>${w.address.slice(0,6)}...${w.address.slice(-4)}</td>
+          <td style="text-align:right;">${w.balance != null ? fmtNative(parseFloat(w.balance)) : '—'}</td>
+        </tr>`).join('')
+      : `<tr><td colspan="4" class="multi-select-empty">No matching wallets.</td></tr>`;
+
+    el.innerHTML = `
+      <div class="dropdown-search-wrap"><input type="text" class="dropdown-search" placeholder="Search" value="${filt.query.replace(/"/g,'&quot;')}"></div>
+      <div class="multi-select-rows">
+        <table class="ms-table">
+          <thead><tr>
+            <th><input type="checkbox" class="select-all-check" ${allChecked ? 'checked' : ''}></th>
+            <th>Name</th><th>Address</th>
+            <th style="text-align:right; cursor:pointer;" class="ms-sort-balance">Balance ${filt.sortDir === 'asc' ? '↑' : filt.sortDir === 'desc' ? '↓' : '↕'}</th>
+          </tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+      <div class="hide-small-row">
+        <span>Hide small balances</span>
+        <label class="switch"><input type="checkbox" class="hide-small-toggle" ${filt.hideSmall ? 'checked' : ''}><span class="slider"></span></label>
+      </div>`;
+
+    const searchInput = el.querySelector('.dropdown-search');
+    searchInput.addEventListener('click', e => e.stopPropagation());
+    searchInput.addEventListener('input', (e) => {
+      filt.query = e.target.value.trim().toLowerCase();
+      const caret = e.target.selectionStart;
+      renderMultiSelect(containerId, checkedClass, triggerId, noun);
+      const newInput = el.querySelector('.dropdown-search');
+      newInput.focus();
+      newInput.setSelectionRange(caret, caret);
+    });
+
+    el.querySelector('.hide-small-toggle').addEventListener('change', (e) => {
+      filt.hideSmall = e.target.checked;
+      renderMultiSelect(containerId, checkedClass, triggerId, noun);
+    });
+
+    el.querySelector('.ms-sort-balance').addEventListener('click', () => {
+      filt.sortDir = filt.sortDir === 'desc' ? 'asc' : 'desc';
+      renderMultiSelect(containerId, checkedClass, triggerId, noun);
+    });
+
+    el.querySelector('.select-all-check').addEventListener('change', (e) => {
+      filtered.forEach(({i}) => { if(e.target.checked) sel.add(i); else sel.delete(i); });
+      renderMultiSelect(containerId, checkedClass, triggerId, noun);
+    });
+
+    el.querySelectorAll('.' + checkedClass).forEach(cb => {
+      cb.addEventListener('change', () => {
+        const i = parseInt(cb.dataset.i);
+        if(cb.checked) sel.add(i); else sel.delete(i);
+        updateDropdownTrigger(triggerId, checkedClass, noun);
+      });
+    });
+
+    updateDropdownTrigger(triggerId, checkedClass, noun);
+  }
+
+  function updateDropdownTrigger(triggerId, checkedClass, noun){
+    const idxs = getCheckedIndices(checkedClass);
+    const count = idxs.length;
+    const btn = $(triggerId);
+    btn.classList.toggle('has-selection', count > 0);
+    if(count === 0){
+      btn.innerHTML = 'Select <span class="chev">⌄</span>';
+    } else if(count === 1){
+      const w = state.wallets[idxs[0]];
+      const balText = w.balance != null ? fmtNative(parseFloat(w.balance)) : '—';
+      btn.innerHTML = `<span class="trigger-badge">1</span> <span class="trigger-chip">${w.name || 'Wallet'} · ${w.address.slice(0,6)}...${w.address.slice(-4)}</span> <span class="trigger-chip-bal">${balText}</span> <span class="chev">⌄</span>`;
+    } else {
+      btn.innerHTML = `<span class="trigger-badge">${count}</span> ${count} ${noun}s selected <span class="chev">⌄</span>`;
+    }
+  }
+
+  function setupDropdown(triggerId, panelId){
+    $(triggerId).addEventListener('click', (e) => {
+      e.stopPropagation();
+      const panel = $(panelId);
+      const wasOpen = panel.classList.contains('open');
+      document.querySelectorAll('.dropdown-panel.open').forEach(p => p.classList.remove('open'));
+      if(!wasOpen) panel.classList.add('open');
+    });
+  }
+  setupDropdown('sendersTrigger', 'sendersSelect');
+  setupDropdown('recipientsTrigger', 'recipientsSelect');
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.dropdown-panel.open').forEach(p => p.classList.remove('open'));
+  });
+  document.querySelectorAll('.dropdown-panel').forEach(p => p.addEventListener('click', e => e.stopPropagation()));
+
+  function renderDisperseSelectors(){
+    renderMultiSelect('sendersSelect', 'sender-check', 'sendersTrigger', 'sender');
+    renderMultiSelect('recipientsSelect', 'recipient-check', 'recipientsTrigger', 'recipient');
+    renderExternalList();
+  }
+
+  function getCheckedIndices(cls){
+    return Array.from(getSelectionSet(cls));
+  }
+
+  function renderExternalList(){
+    const wrap = $('externalAddrList');
+    wrap.innerHTML = '';
+    disperseExternal.forEach((addr, i) => {
+      const chip = document.createElement('span');
+      chip.className = 'external-addr-chip';
+      chip.innerHTML = `${addr.slice(0,6)}...${addr.slice(-4)} <button data-i="${i}">✕</button>`;
+      wrap.appendChild(chip);
+    });
+    wrap.querySelectorAll('button').forEach(btn => {
+      btn.onclick = () => { disperseExternal.splice(+btn.dataset.i, 1); renderExternalList(); };
+    });
+  }
+
+  $('disperseAddExternal').onclick = () => {
+    const v = $('disperseExternalAddr').value.trim();
+    if(/^0x[a-fA-F0-9]{40}$/.test(v)){ disperseExternal.push(v); $('disperseExternalAddr').value = ''; renderExternalList(); }
+    else alert('Enter a valid 0x address.');
+  };
+  $('disperseExternalAddr').addEventListener('keydown', (e) => {
+    if(e.key === 'Enter') $('disperseAddExternal').click();
+  });
+
+  function setErc20Mode(on){
+    $('disperseErc20Toggle').checked = on;
+    $('disperseTokenRow').style.display = on ? 'flex' : 'none';
+    $('quickTokenRow').style.display = on ? 'flex' : 'none';
+  }
+
+  $('disperseErc20Toggle').addEventListener('change', e => {
+    $('disperseTokenRow').style.display = e.target.checked ? 'flex' : 'none';
+    $('quickTokenRow').style.display = e.target.checked ? 'flex' : 'none';
+    updateDisperseMaxHint();
+  });
+
+  const QUICK_TOKENS = {
+    usdc: { address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', label: 'USDC' },
+    usdt: { address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', label: 'USDT' },
+  };
+  $('quickUsdc').onclick = () => { $('disperseTokenAddr').value = QUICK_TOKENS.usdc.address; setErc20Mode(true); updateDisperseMaxHint(); };
+  $('quickUsdt').onclick = () => { $('disperseTokenAddr').value = QUICK_TOKENS.usdt.address; setErc20Mode(true); updateDisperseMaxHint(); };
+
+  $('disperseTokenSearch').onclick = async () => {
+    const addr = $('disperseTokenAddr').value.trim();
+    if(!/^0x[a-fA-F0-9]{40}$/.test(addr)){ alert('Enter a valid token contract address first.'); return; }
+    try{
+      const iface = new ethers.Interface(['function symbol() view returns (string)', 'function name() view returns (string)']);
+      const contract = new ethers.Contract(addr, iface, getProvider());
+      const [symbol, name] = await Promise.all([contract.symbol().catch(()=>'?'), contract.name().catch(()=>'Unknown token')]);
+      setErc20Mode(true);
+      updateDisperseMaxHint();
+      alert(`Found: ${name} (${symbol})`);
+    }catch(e){ alert('Could not read this contract — check the address and chain.'); }
+  };
+  $('disperseTokenAddr').addEventListener('keydown', (e) => {
+    if(e.key === 'Enter') $('disperseTokenSearch').click();
+  });
+
+  $('disperseMode').addEventListener('change', () => {
+    const isFlat = $('disperseMode').value === 'flat';
+    $('disperseAmountLabel').textContent = isFlat ? 'Per wallet' : 'Total to split';
+    updateDisperseMaxHint();
+  });
+
+  $('disperseUnitNative').onclick = () => {
+    state.unit = 'native';
+    $('disperseUnitNative').classList.add('active'); $('disperseUnitUsd').classList.remove('active');
+    $('usdToggle').checked = false;
+    updateUnitButtons(); refreshUnitDisplays(); updateDisperseMaxHint();
+  };
+  $('disperseUnitUsd').onclick = () => {
+    state.unit = 'usd';
+    $('disperseUnitUsd').classList.add('active'); $('disperseUnitNative').classList.remove('active');
+    $('usdToggle').checked = true;
+    updateUnitButtons(); refreshUnitDisplays(); updateDisperseMaxHint();
+  };
+
+  function updateDisperseMaxHint(){
+    const amount = parseFloat($('disperseAmount').value) || 0;
+    const isErc20 = $('disperseErc20Toggle').checked;
+    if(isErc20){ $('disperseMaxHint').textContent = `ⓘ ${amount} tokens`; return; }
+    const usd = state.priceUsd != null ? (amount * state.priceUsd).toFixed(2) : '?';
+    $('disperseMaxHint').textContent = `ⓘ MAX · ${amount} ${CHAINS[state.chain].nativeSymbol} ($${usd})`;
+  }
+
+  $('disperseAmount').addEventListener('input', updateDisperseMaxHint);
+
+  $('disperseMinus').onclick = () => { $('disperseAmount').value = Math.max(0, (parseFloat($('disperseAmount').value)||0) - 0.001).toFixed(4); updateDisperseMaxHint(); };
+  $('dispersePlus').onclick = () => { $('disperseAmount').value = ((parseFloat($('disperseAmount').value)||0) + 0.001).toFixed(4); updateDisperseMaxHint(); };
+
+  $('disperseSwap').onclick = () => {
+    const tmp = state.senderSel;
+    state.senderSel = state.recipientSel;
+    state.recipientSel = tmp;
+    renderDisperseSelectors();
+  };
+
+  $('disperseReset').onclick = () => {
+    disperseExternal = [];
+    state.senderSel = new Set();
+    state.recipientSel = new Set();
+    disperseFilters.sendersSelect = { query:'', hideSmall:false, sortDir:null };
+    disperseFilters.recipientsSelect = { query:'', hideSmall:false, sortDir:null };
+    $('disperseExternalAddr').value = '';
+    $('disperseAmount').value = '0';
+    $('disperseMode').value = 'flat';
+    setErc20Mode(false);
+    $('disperseTokenAddr').value = '';
+    $('disperseAmountLabel').textContent = 'Per wallet';
+    updateDisperseMaxHint();
+    $('disperseLog').innerHTML = '';
+    $('disperseMaxHint').textContent = 'Select senders to see available balance.';
+    renderDisperseSelectors();
+  };
+
+  $('disperseMaxBtn').onclick = async () => {
+    const senderIdx = getCheckedIndices('sender-check');
+    if(!senderIdx.length){ alert('Check at least one sender first.'); return; }
+    if($('disperseErc20Toggle').checked){ alert('MAX auto-fill is native-ETH only for now — enter a token amount manually.'); return; }
+    const provider = getProvider();
+    let total = 0;
+    for(const i of senderIdx){
+      try{ const bal = await provider.getBalance(state.wallets[i].address); total += Number(ethers.formatEther(bal)); }catch(e){}
+    }
+    const buffer = 0.0015 * senderIdx.length; // rough gas buffer
+    const usable = Math.max(0, total - buffer);
+    const recipCount = getCheckedIndices('recipient-check').length + disperseExternal.length || 1;
+    const isFlat = $('disperseMode').value === 'flat';
+    const val = isFlat ? usable / recipCount : usable;
+    $('disperseAmount').value = val.toFixed(4);
+    $('disperseMaxHint').textContent = `MAX ≈ ${usable.toFixed(4)} ETH available across ${senderIdx.length} sender(s) after a small gas buffer.`;
+  };
+
+  function populateDisperseFrom(){
+    renderDisperseChainRow();
+    renderDisperseSelectors();
+    $('disperseUnitNative').classList.toggle('active', state.unit !== 'usd');
+    $('disperseUnitUsd').classList.toggle('active', state.unit === 'usd');
+    updateDisperseMaxHint();
+  }
+
+  $('disperseGo').onclick = async () => {
+    const senderIdx = getCheckedIndices('sender-check');
+    const recipIdx = getCheckedIndices('recipient-check');
+    const recipients = [...recipIdx.map(i => state.wallets[i].address), ...disperseExternal];
+    if(!senderIdx.length){ alert('Check at least one sender.'); return; }
+    if(!recipients.length){ alert('Check at least one recipient or add an external address.'); return; }
+    const amount = parseFloat($('disperseAmount').value) || 0;
+    if(amount <= 0){ alert('Enter an amount above 0.'); return; }
+    const isFlat = $('disperseMode').value === 'flat';
+    const perRecipient = isFlat ? amount : amount / recipients.length;
+    const isErc20 = $('disperseErc20Toggle').checked;
+    const tokenAddr = $('disperseTokenAddr').value.trim();
+    if(isErc20 && !/^0x[a-fA-F0-9]{40}$/.test(tokenAddr)){ alert('Enter a valid ERC20 token contract address.'); return; }
+
+    const provider = getProvider();
+    const log = $('disperseLog');
+    log.innerHTML = '';
+    const erc20Iface = new ethers.Interface(['function transfer(address,uint256) returns (bool)', 'function decimals() view returns (uint8)']);
+    let decimals = 18;
+    if(isErc20){
+      try{ decimals = await new ethers.Contract(tokenAddr, erc20Iface, provider).decimals(); }catch(e){ /* assume 18 */ }
+    }
+
+    for(let idx = 0; idx < recipients.length; idx++){
+      const addr = recipients[idx];
+      const sender = state.wallets[senderIdx[idx % senderIdx.length]];
+      const signer = await getSignerForWallet(sender, provider);
+      const rowDiv = document.createElement('div');
+      rowDiv.style.cssText = 'font-family:var(--mono); font-size:12px; padding:6px 0; border-bottom:1px solid var(--border-soft);';
+      rowDiv.textContent = `${sender.address.slice(0,6)}... → ${addr.slice(0,6)}...${addr.slice(-4)} : ${perRecipient.toFixed(4)} ${isErc20 ? 'tokens' : 'ETH'} … sending`;
+      log.appendChild(rowDiv);
+      try{
+        let tx;
+        if(isErc20){
+          const data = erc20Iface.encodeFunctionData('transfer', [addr, ethers.parseUnits(perRecipient.toFixed(decimals), decimals)]);
+          tx = await signer.sendTransaction({ to: tokenAddr, data });
+        } else {
+          tx = await signer.sendTransaction({ to: addr, value: ethers.parseEther(perRecipient.toFixed(8)) });
+        }
+        rowDiv.textContent = `${sender.address.slice(0,6)}... → ${addr.slice(0,6)}...${addr.slice(-4)} : sent (${tx.hash.slice(0,10)}...)`;
+        await tx.wait();
+        rowDiv.textContent = `${sender.address.slice(0,6)}... → ${addr.slice(0,6)}...${addr.slice(-4)} : confirmed ✓`;
+      }catch(e){
+        rowDiv.textContent = `${sender.address.slice(0,6)}... → ${addr.slice(0,6)}...${addr.slice(-4)} : failed (${(e.shortMessage||e.message||'error').slice(0,40)})`;
+      }
+    }
+  };
+
+  $('pasteAbi').onclick = () => { $('abiPasteWrap').style.display = $('abiPasteWrap').style.display === 'none' ? 'block' : 'none'; };
+
+  $('parseAbi').onclick = () => {
+    try{
+      loadAbi(JSON.parse($('abiRaw').value));
+      const addr = $('contractAddr').value.trim();
+      if(addr) updateTargetHeader(addr); else { $('targetCard').removeAttribute('hidden'); $('phasesCard').removeAttribute('hidden'); }
+    }
+    catch(e){ alert('Could not parse ABI JSON: ' + e.message); }
+  };
+
+  $('fetchAbi').onclick = async () => {
+    const addr = $('contractAddr').value.trim();
+    const key = $('apiKey').value.trim();
+    if(!addr){ alert('Enter a contract address first.'); return; }
+    if(!key){ alert('Add an Etherscan-family API key in Settings, or use "Paste ABI instead".'); return; }
+    $('fetchAbi').textContent = 'Fetching…'; $('fetchAbi').disabled = true;
+    try{
+      const url = `${CHAINS[state.chain].explorerApi}?chainid=${CHAINS[state.chain].id}&module=contract&action=getabi&address=${addr}&apikey=${key}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if(data.status !== '1') throw new Error(data.result || 'ABI not found — contract may be unverified');
+      loadAbi(JSON.parse(data.result));
+      updateTargetHeader(addr);
+    }catch(e){
+      setDiag('err', 'ABI fetch failed: ' + e.message);
+    }
+    $('fetchAbi').textContent = 'Fetch ABI'; $('fetchAbi').disabled = false;
+  };
+
+  function setScanStep(id, mode){ // mode: 'active' | 'done' | 'reset'
+    const el = $(id);
+    el.classList.remove('active','done');
+    if(mode !== 'reset') el.classList.add(mode);
+  }
+  function setScanText(id, text){ $(id).lastChild.textContent = ' ' + text; }
+
+  function getInjectedProvider(){
+    if(!window.ethereum) return null;
+    // Some setups (multiple extensions) expose window.ethereum.providers — prefer the real MetaMask among them.
+    if(Array.isArray(window.ethereum.providers) && window.ethereum.providers.length){
+      return window.ethereum.providers.find(p => p.isMetaMask) || window.ethereum.providers[0];
+    }
+    return window.ethereum;
+  }
+
+  // Wallet extensions sometimes inject window.ethereum a beat after the page's own
+  // script runs — checking synchronously at load can wrongly conclude "not installed."
+  // Wait briefly for the injection event before giving up.
+  function waitForInjectedProvider(timeoutMs){
+    return new Promise((resolve) => {
+      const existing = getInjectedProvider();
+      if(existing) return resolve(existing);
+      let done = false;
+      const finish = () => { if(done) return; done = true; window.removeEventListener('ethereum#initialized', finish); resolve(getInjectedProvider()); };
+      window.addEventListener('ethereum#initialized', finish, { once:true });
+      setTimeout(finish, timeoutMs || 1500);
+    });
+  }
+
+  async function connectInjectedWallet(){
+    const injected = getInjectedProvider();
+    if(!injected) return { address:null, error:'No browser wallet extension detected — import a private key instead, or install one and reload.' };
+    try{
+      const accounts = await injected.request({ method:'eth_requestAccounts' });
+      if(!accounts || !accounts.length) return { address:null, error:'Wallet returned no account.' };
+      const address = ethers.getAddress(accounts[0]);
+      if(!state.wallets.some(w => w.address.toLowerCase() === address.toLowerCase())){
+        state.wallets.push({ pk:null, address, balance:null, injected:true, name: (injected.isMetaMask ? 'MetaMask' : 'Wallet') + ' ' + (state.wallets.length + 1) });
+        renderWallets(); updateSidebarWalletInfo();
+      }
+      return { address, error:null };
+    }catch(e){
+      const msg = e && e.code === 4001 ? 'Connection request rejected in wallet.' : (e.message || 'Wallet connection failed.');
+      return { address:null, error: msg };
+    }
+  }
+
+  // Keep the wallet list in sync if the user switches accounts or networks inside MetaMask itself.
+  (async function wireInjectedWalletEvents(){
+    const injected = await waitForInjectedProvider();
+    if(!injected || !injected.on) return;
+    injected.on('accountsChanged', (accounts) => {
+      if(!accounts.length) return;
+      const address = ethers.getAddress(accounts[0]);
+      const existing = state.wallets.find(w => w.injected);
+      if(existing){ existing.address = address; renderWallets(); updateSidebarWalletInfo(); }
+    });
+    injected.on('chainChanged', () => {
+      setDiag('warn', 'Network changed in your wallet — reselect the chain in Settings if it no longer matches.');
+    });
+  })();
+
+  // If this site already has permission from a previous visit, MetaMask will
+  // return the account here with NO popup at all — smoothest possible reconnect.
+  (async function checkAlreadyConnected(){
+    const injected = await waitForInjectedProvider();
+    if(!injected) return;
+    try{
+      const accounts = await injected.request({ method:'eth_accounts' });
+      if(accounts && accounts.length){
+        const address = ethers.getAddress(accounts[0]);
+        if(!state.wallets.some(w => w.address.toLowerCase() === address.toLowerCase())){
+          state.wallets.push({ pk:null, address, balance:null, injected:true, name: (injected.isMetaMask ? 'MetaMask' : 'Wallet') + ' ' + (state.wallets.length + 1) });
+          renderWallets(); updateSidebarWalletInfo();
+        }
+      }
+    }catch(e){ /* silent — this is just a background convenience check */ }
+  })();
+
+  function setConnectBtnState(text, opts){
+    const btn = $('connectWalletBtn');
+    btn.textContent = text;
+    btn.disabled = !!(opts && opts.disabled);
+  }
+
+  function showConnectWalletStatus(text, isError){
+    const el = $('connectWalletStatus');
+    if(!text){ el.style.display = 'none'; return; }
+    el.textContent = text;
+    el.style.color = isError ? 'var(--fail)' : 'var(--text-dim)';
+    el.style.display = 'block';
+  }
+
+  $('acctLogout').onclick = async () => {
+    if(!confirm('Log out the connected wallet? This only clears it from FUSE for this session — it does not affect your MetaMask itself.')) return;
+    const injected = getInjectedProvider();
+    if(injected && injected.request){
+      try{
+        // Newer MetaMask versions support revoking the eth_accounts permission directly.
+        await injected.request({ method:'wallet_revokePermissions', params:[{ eth_accounts:{} }] });
+      }catch(e){ /* not supported by this wallet — falling back to local disconnect only */ }
+    }
+    state.wallets = state.wallets.filter(w => !w.injected);
+    state.senderSel = new Set();
+    state.recipientSel = new Set();
+    renderWallets(); updateSidebarWalletInfo(); checkReadiness();
+    showConnectWalletStatus('Disconnected.', false);
+  };
+
+  (async function setupConnectWalletButton(){
+    const btn = $('connectWalletBtn');
+    btn.textContent = 'Checking for wallet…';
+    btn.disabled = true;
+    await waitForInjectedProvider();
+    btn.disabled = false;
+    btn.textContent = '🦊 Connect Wallet';
+    btn.onclick = async () => {
+      setConnectBtnState('Connecting…', { disabled:true });
+      showConnectWalletStatus(null);
+      const { address, error } = await connectInjectedWallet();
+      if(address){
+        setConnectBtnState('Connected ✓');
+        showConnectWalletStatus(`Connected ${address.slice(0,6)}...${address.slice(-4)}`, false);
+        setTimeout(() => setConnectBtnState('🦊 Connect Wallet'), 1800);
+      } else {
+        setConnectBtnState('🦊 Connect Wallet');
+        showConnectWalletStatus(error || 'Could not connect.', true);
+      }
+    };
+  })();
+
+  async function getSignerForWallet(w, provider){
+    if(w.injected){
+      const injected = getInjectedProvider();
+      if(!injected) throw new Error('Browser wallet no longer available for ' + w.address.slice(0,6) + '...');
+      const browserProvider = new ethers.BrowserProvider(injected);
+      return await browserProvider.getSigner(w.address);
+    }
+    return new ethers.Wallet(w.pk, provider);
+  }
+
+  async function resolveViaOpenSea(input){
+    const m = input.match(/opensea\.io\/collection\/([a-zA-Z0-9_-]+)/i);
+    if(!m) return null;
+    const slug = m[1];
+    const proxyUrl = $('openseaProxyUrl').value.trim();
+    const key = $('openseaKey').value.trim();
+
+    try{
+      let res;
+      if(proxyUrl){
+        res = await fetch(`${proxyUrl.replace(/\/$/,'')}?slug=${encodeURIComponent(slug)}`);
+      } else {
+        res = await fetch(`https://api.opensea.io/api/v2/collections/${slug}`, {
+          headers: key ? { 'x-api-key': key } : {}
+        });
+      }
+      if(res.status === 401 || res.status === 403) throw new Error('OpenSea API key missing or invalid');
+      if(res.status === 404) throw new Error(`No OpenSea collection found for slug "${slug}"`);
+      if(!res.ok) throw new Error('OpenSea lookup returned ' + res.status);
+      const data = await res.json();
+      const contract = (data.contracts || [])[0];
+      if(!contract) throw new Error('Collection found but has no on-chain contract listed yet (pre-mint or off-chain)');
+      const chainKey = OPENSEA_CHAIN_TO_KEY[contract.chain] || null;
+      return { address: contract.address, chainKey, name: data.name || slug, source:'opensea' };
+    }catch(e){
+      if(!proxyUrl && (e.message === 'Failed to fetch' || e instanceof TypeError)){
+        throw new Error('Direct browser calls to OpenSea are blocked (CORS) — set an OpenSea proxy URL in Settings instead');
+      }
+      throw e;
+    }
+  }
+
+  async function tryResolveAddressFromInput(input){
+    if(/^0x[a-fA-F0-9]{40}$/.test(input)) return { address: input, chainKey:null, source:'direct' };
+
+    if(/opensea\.io/i.test(input)){
+      try{
+        const viaOpensea = await resolveViaOpenSea(input);
+        if(viaOpensea) return viaOpensea;
+      }catch(e){
+        return { address:null, chainKey:null, source:'opensea-error', error: e.message };
+      }
+    }
+
+    try{
+      const res = await fetch(input, { mode:'cors' });
+      const text = await res.text();
+      const match = text.match(/0x[a-fA-F0-9]{40}/);
+      if(match) return { address: match[0], chainKey:null, source:'scrape' };
+    }catch(e){ /* CORS or network block — expected on most sites */ }
+    return null;
+  }
+
+  async function runScanSequence(input){
+    $('scanCard').style.display = 'block';
+    ['scanStep1','scanStep2','scanStep3'].forEach(id => setScanStep(id, 'reset'));
+    setScanStep('scanStep1', 'active'); setScanText('scanStep1', 'Scanning page for contract');
+
+    const result = await tryResolveAddressFromInput(input.trim());
+
+    if(result && result.address){
+      let chainNote = '';
+      if(result.chainKey && result.chainKey !== state.chain){
+        if(ACTIVE_CHAINS.includes(result.chainKey)){
+          state.chain = result.chainKey;
+          renderChainGrid();
+          onChainChanged();
+        } else {
+          chainNote = ` — heads up, this collection is on ${CHAINS[result.chainKey] ? CHAINS[result.chainKey].name : result.chainKey}, but FUSE is Ethereum-only right now`;
+        }
+      }
+      $('contractAddr').value = result.address;
+      updateTargetHeader(result.address);
+      const via = result.source === 'opensea' ? ' via OpenSea API' : '';
+      setScanStep('scanStep1', 'done'); setScanText('scanStep1', `Found contract ${result.address.slice(0,6)}...${result.address.slice(-4)}${via}${chainNote}`);
+    } else if(result && result.source === 'opensea-error'){
+      setScanStep('scanStep1', 'done'); setScanText('scanStep1', `OpenSea lookup failed: ${result.error} — enter contract manually below in Advanced`);
+      $('targetCard').removeAttribute('hidden'); $('phasesCard').removeAttribute('hidden');
+      $('advBody').removeAttribute('hidden'); $('advToggleBtn').textContent = '▾ Advanced — contract, ABI, mint function, gas limits';
+    } else {
+      setScanStep('scanStep1', 'done'); setScanText('scanStep1', 'Could not auto-detect a contract (cross-origin block) — enter it below in Advanced');
+      $('targetCard').removeAttribute('hidden'); $('phasesCard').removeAttribute('hidden');
+      $('advBody').removeAttribute('hidden'); $('advToggleBtn').textContent = '▾ Advanced — contract, ABI, mint function, gas limits';
+    }
+
+    setScanStep('scanStep2', 'active'); setScanText('scanStep2', 'Connecting wallet');
+    const { address: connAddr, error: connErr } = await connectInjectedWallet();
+    if(connAddr){ setScanStep('scanStep2', 'done'); setScanText('scanStep2', `Connected ${connAddr.slice(0,6)}...${connAddr.slice(-4)}`); }
+    else { setScanStep('scanStep2', 'done'); setScanText('scanStep2', connErr ? connErr : 'No browser wallet found — using imported keys from Wallets'); }
+
+    setScanStep('scanStep3', 'active'); setScanText('scanStep3', 'Checking eligibility');
+    let seadropFound = false;
+    if(result && result.address){
+      if($('apiKey').value.trim()) await autoFetchAbi(result.address);
+      seadropFound = await tryAutoDetectSeaDropPhase(result.address);
+    }
+    const eligText = seadropFound
+      ? 'public mint stage auto-detected from SeaDrop — see Mint phases below'
+      : (state.fn ? 'mint function selected — verify phase rules match' : 'select the mint function in Advanced to confirm');
+    setScanStep('scanStep3', 'done'); setScanText('scanStep3', `Done — ${eligText}`);
+    $('eligibleBadge').textContent = state.fn ? 'likely' : '?';
+    checkReadiness();
+  }
+
+  async function autoFetchAbi(addr){
+    const key = $('apiKey').value.trim();
+    try{
+      const url = `${CHAINS[state.chain].explorerApi}?chainid=${CHAINS[state.chain].id}&module=contract&action=getabi&address=${addr}&apikey=${key}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if(data.status === '1') loadAbi(JSON.parse(data.result));
+    }catch(e){ /* silent — user can still fetch manually in Advanced */ }
+  }
+
+  // SeaDrop is OpenSea Studio's own open-source drop contract — same address across chains.
+  // Its public mint stage (price + start/end time) is stored on-chain and readable directly,
+  // unlike OpenSea's REST API which doesn't expose mint-stage data at all.
+  const SEADROP_ADDRESS = '0x00005EA00Ac477B1030CE78506496e8C2dE24bf5';
+  const SEADROP_ABI = ['function getPublicDrop(address nftContract) view returns (uint80 mintPrice, uint48 startTime, uint48 endTime, uint16 maxTotalMintableByWallet, uint16 feeBps, bool restrictFeeRecipients)'];
+
+  async function tryAutoDetectSeaDropPhase(nftContract){
+    try{
+      const seadrop = new ethers.Contract(SEADROP_ADDRESS, SEADROP_ABI, getProvider());
+      const drop = await seadrop.getPublicDrop(nftContract);
+      if(drop.startTime === 0n && drop.mintPrice === 0n) return false; // not a SeaDrop collection / no public stage configured
+      const price = ethers.formatEther(drop.mintPrice);
+      const startISO = new Date(Number(drop.startTime) * 1000).toISOString().slice(0,19);
+      const existingIdx = state.phases.findIndex(p => p.name === 'PUBLIC');
+      const phase = { name: 'PUBLIC', price, start: startISO };
+      if(existingIdx >= 0) state.phases[existingIdx] = phase; else state.phases.push(phase);
+      renderPhases();
+      return true;
+    }catch(e){ return false; }
+  }
+
+  $('autoDetectPhases').onclick = async () => {
+    const addr = $('contractAddr').value.trim();
+    if(!/^0x[a-fA-F0-9]{40}$/.test(addr)){ alert('Load a target contract first (paste a link/address above).'); return; }
+    $('autoDetectPhases').textContent = 'Checking…'; $('autoDetectPhases').disabled = true;
+    const found = await tryAutoDetectSeaDropPhase(addr);
+    setDiag(found ? 'ok' : 'warn', found
+      ? 'Detected a public mint stage directly from the SeaDrop contract — price and start time filled in below.'
+      : 'This doesn\'t look like an OpenSea Studio (SeaDrop) drop, or no public stage is configured yet — add phases manually below.');
+    $('autoDetectPhases').textContent = '⟳ Auto-detect from contract'; $('autoDetectPhases').disabled = false;
+  };
+
+  $('topSearchGo').onclick = () => {
+    const v = $('topSearch').value.trim();
+    if(!v) return;
+    runScanSequence(v);
+  };
+
+  $('topSearch').addEventListener('keydown', (e) => {
+    if(e.key === 'Enter') $('topSearchGo').click();
+  });
+
+  $('scanCardClose').onclick = () => resetTarget();
+
+  function resetTarget(){
+    if(state.scheduleTimer) clearInterval(state.scheduleTimer);
+    state.abi = null; state.fn = null; state.args = {}; state.armed = false; state.phases = [];
+
+    $('scanCard').style.display = 'none';
+    $('topSearch').value = '';
+    $('targetCard').setAttribute('hidden','');
+    $('phasesCard').setAttribute('hidden','');
+
+    $('contractAddr').value = '';
+    $('abiRaw').value = '';
+    $('abiPasteWrap').style.display = 'none';
+    $('fnList').innerHTML = '';
+    $('argForm').innerHTML = '';
+
+    $('targetAvatar').textContent = '?';
+    $('targetName').textContent = 'No target loaded';
+    $('targetAddrDisplay').textContent = 'Paste a contract address above';
+    $('explorerLink').style.display = 'none';
+
+    $('mintValue').value = '';
+    $('priceUsdHint').textContent = '';
+    $('mintQty').value = 1;
+    $('sweepAddr').value = '';
+    $('scheduleTime').value = '';
+    $('countdownHint').textContent = '';
+    $('phaseCardTitle').textContent = 'MINT';
+    $('eligibleBadge').textContent = '?';
+    $('maxPerWalletBadge').textContent = '—';
+    $('fireBtn').disabled = true;
+
+    $('advBody').setAttribute('hidden',''); $('advToggleBtn').textContent = '▸ Advanced — contract, ABI, mint function, gas limits';
+
+    renderPhases();
+    checkReadiness();
+  }
+
+  function updateTargetHeader(addr){
+    $('targetCard').removeAttribute('hidden');
+    $('phasesCard').removeAttribute('hidden');
+    $('targetAvatar').textContent = addr.slice(2,4).toUpperCase();
+    $('targetName').textContent = 'Target ' + addr.slice(0,6) + '...' + addr.slice(-4);
+    $('targetAddrDisplay').textContent = addr;
+    $('explorerLink').href = CHAINS[state.chain].addr + addr;
+    $('explorerLink').style.display = 'inline';
+  }
+
+  function loadAbi(abiJson){
+    state.abi = abiJson;
+    state.fn = null;
+    const candidates = abiJson.filter(f => f.type==='function' && (f.stateMutability==='payable'||f.stateMutability==='nonpayable') && /mint|claim|purchase|buy/i.test(f.name));
+    const fnList = $('fnList');
+    fnList.innerHTML = '';
+    if(!candidates.length){ fnList.innerHTML = '<div class="hint">No obvious mint function found. Check the full ABI — non-standard name?</div>'; return; }
+    candidates.forEach(f => {
+      const sig = `${f.name}(${f.inputs.map(i=>i.type).join(',')})`;
+      const el = document.createElement('div');
+      el.className = 'fn-candidate';
+      el.innerHTML = `<span>${sig}</span><span class="fn-tag">${f.stateMutability}</span>`;
+      el.onclick = () => { document.querySelectorAll('.fn-candidate').forEach(x=>x.classList.remove('selected')); el.classList.add('selected'); selectFn(f); };
+      fnList.appendChild(el);
+    });
+  }
+
+  function selectFn(f){
+    state.fn = f; state.args = {};
+    const form = $('argForm');
+    form.innerHTML = '';
+    if(!f.inputs.length){ form.innerHTML = '<div class="hint">No arguments needed.</div>'; checkReadiness(); return; }
+    f.inputs.forEach(inp => {
+      const row = document.createElement('div');
+      row.className = 'arg-row';
+      row.innerHTML = `<div class="arg-label">${inp.name||inp.type}</div><input type="text" placeholder="${inp.type}${/proof|merkle/i.test(inp.name||'') ? ' — merkle proof array' : ''}" data-arg="${inp.name}">`;
+      form.appendChild(row);
+    });
+    form.querySelectorAll('input').forEach(inp => { inp.oninput = () => { state.args[inp.dataset.arg] = inp.value; checkReadiness(); }; });
+    checkReadiness();
+  }
+
+  function phaseCountdownText(start){
+    if(!start) return 'Manual fire';
+    const diff = new Date(start).getTime() - Date.now();
+    if(diff <= 0) return 'Live now';
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    if(h > 0) return `Starts in ${h}h ${m}m`;
+    if(m > 0) return `Starts in ${m}m ${s}s`;
+    return `Starts in ${s}s`;
+  }
+
+  function renderPhases(){
+    const list = $('phaseList');
+    if(!state.phases.length){ list.innerHTML = '<div class="empty-note">No phases added — for drops with multiple stages (team/GTD/FCFS/public), add each with its own price and start time. Click a phase card to arm it.</div>'; return; }
+    list.innerHTML = '';
+    state.phases.forEach((p, i) => {
+      const card = document.createElement('div');
+      card.className = 'phase-list-item';
+      card.dataset.arm = i;
+      card.innerHTML = `
+        <div class="phase-list-top">
+          <span class="phase-countdown-badge" data-countdown="${i}">${phaseCountdownText(p.start)}</span>
+          <button class="wallet-x" data-del="${i}">✕</button>
+        </div>
+        <div class="phase-list-name">${p.name}</div>
+        <div class="phase-badges" style="margin-top:6px;">
+          <span class="phase-badge">PRICE <b>${p.price}</b> ETH</span>
+          <span class="phase-badge">ELIGIBLE <b>?</b></span>
+        </div>`;
+      list.appendChild(card);
+    });
+    list.querySelectorAll('.phase-list-item').forEach(card => {
+      card.addEventListener('click', (e) => {
+        if(e.target.closest('.wallet-x')) return;
+        const p = state.phases[+card.dataset.arm];
+        $('mintValue').value = p.price;
+        $('scheduleTime').value = p.start || '';
+        $('phaseCardTitle').textContent = p.name.toUpperCase();
+        checkReadiness();
+        if(!$('armBtn').disabled) $('armBtn').click();
+        else setDiag('warn', `Loaded "${p.name}" settings — select a target contract and mint function to arm.`);
+      });
+    });
+    list.querySelectorAll('[data-del]').forEach(btn => {
+      btn.onclick = () => { state.phases.splice(+btn.dataset.del,1); renderPhases(); };
+    });
+  }
+
+  setInterval(() => {
+    document.querySelectorAll('[data-countdown]').forEach(el => {
+      const p = state.phases[+el.dataset.countdown];
+      if(p) el.textContent = phaseCountdownText(p.start);
+    });
+  }, 1000);
+
+  $('addPhase').onclick = () => {
+    const name = $('phaseName').value.trim() || 'Phase';
+    const price = $('phasePrice').value.trim() || '0';
+    const start = $('phaseStart').value;
+    state.phases.push({ name, price, start });
+    $('phaseName').value=''; $('phasePrice').value=''; $('phaseStart').value='';
+    renderPhases();
+  };
+
+  function setDiag(level, text){
+    const banner = $('diagBanner');
+    banner.className = 'diag-banner' + (level==='ok' ? '' : ' '+level);
+    $('diagText').textContent = text;
+  }
+
+  function checkReadiness(){
+    const ok = state.wallets.length > 0 && state.fn && $('contractAddr').value.trim();
+    $('armBtn').disabled = !ok;
+    $('simulateBtn').disabled = !ok;
+    if(!ok){
+      setDiag('warn', 'Not armed — load a wallet, a target contract, and select a mint function.');
+    }
+  }
+  checkReadiness();
+
+  $('armBtn').onclick = () => {
+    if(!state.wallets.length || !state.fn){ alert('Load wallets and select a mint function first.'); return; }
+    state.armed = true;
+    setDiag('ok', `Armed — ${state.wallets.length} wallet(s) · ${state.fn.name}() · ${CHAINS[state.chain].name} · value ${$('mintValue').value||'0'} ETH × ${$('mintQty').value}`);
+    $('fireBtn').disabled = false;
+    setupSchedule();
+  };
+
+  function disarm(){
+    state.armed = false;
+    $('fireBtn').disabled = true;
+    if(state.scheduleTimer) clearInterval(state.scheduleTimer);
+    $('countdownHint').textContent = '';
+    checkReadiness();
+  }
+
+  function setupSchedule(){
+    if(state.scheduleTimer) clearInterval(state.scheduleTimer);
+    const target = $('scheduleTime').value;
+    if(!target){ $('countdownHint').textContent = 'Manual fire — click "Fire now" when ready.'; return; }
+    const targetMs = new Date(target).getTime();
+    state.scheduleTimer = setInterval(() => {
+      const diff = targetMs - Date.now();
+      if(diff <= 0){ clearInterval(state.scheduleTimer); $('countdownHint').textContent = 'Firing now...'; fireAll(); return; }
+      const m = Math.floor(diff/60000), s = Math.floor((diff%60000)/1000);
+      $('countdownHint').textContent = `Firing in ${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }, 250);
+  }
+
+  $('fireBtn').onclick = () => fireAll();
+
+  $('simulateBtn').onclick = async () => {
+    if(!state.wallets.length || !state.fn){ alert('Load a wallet and select a mint function first.'); return; }
+    setDiag('warn', 'Simulating…');
+    const provider = getProvider();
+    const iface = new ethers.Interface(state.abi);
+    const argValues = state.fn.inputs.map(inp => coerceArg(state.args[inp.name], inp.type));
+    const value = $('mintValue').value ? ethers.parseEther($('mintValue').value) : 0n;
+    const contractAddr = $('contractAddr').value.trim();
+    const data = iface.encodeFunctionData(state.fn.name, argValues);
+    const from = state.wallets[0].address;
+    try{
+      await provider.call({ to: contractAddr, data, value, from });
+      setDiag('ok', `Simulation passed for ${from.slice(0,6)}...${from.slice(-4)} — call would succeed at current state. Real conditions can still change before you fire.`);
+    }catch(e){
+      setDiag('err', 'Simulation reverted: ' + (e.shortMessage || e.reason || e.message || 'unknown error') + ' — fix this before spending real gas.');
+    }
+  };
+
+  function logRow(){
+    [$('logBody'), $('logBody2')].forEach(body => { if(body.querySelector('.log-empty')) body.innerHTML=''; });
+    const tr1 = document.createElement('tr'), tr2 = document.createElement('tr');
+    const cells = () => `<td class="h-cell">—</td><td class="w-cell"></td><td class="am-cell"></td><td class="g-cell">—</td><td class="s-cell"></td>`;
+    tr1.innerHTML = cells(); tr2.innerHTML = cells();
+    $('logBody').prepend(tr1); $('logBody2').prepend(tr2);
+    return [tr1, tr2];
+  }
+  function setStatus(trs, status, text){ trs.forEach(tr => tr.querySelector('.s-cell').innerHTML = `<span class="status-pill status-${status}">${text}</span>`); }
+  function setCell(trs, cls, html){ trs.forEach(tr => tr.querySelector(cls).innerHTML = html); }
+
+  function renderStats(){
+    $('statTotal').textContent = state.stats.total;
+    $('statSuccess').textContent = state.stats.success;
+    $('statFail').textContent = state.stats.fail;
+    $('statGas').textContent = state.stats.gasCount ? (state.stats.gasSum/state.stats.gasCount).toFixed(1) : '—';
+  }
+
+  async function fireAll(){
+    if(!state.armed || !state.wallets.length || !state.fn) return;
+    const provider = getProvider();
+    const iface = new ethers.Interface(state.abi);
+    const argValues = state.fn.inputs.map(inp => coerceArg(state.args[inp.name], inp.type));
+    const value = $('mintValue').value ? ethers.parseEther($('mintValue').value) : 0n;
+    const maxAttempts = parseInt($('maxAttempts').value) || 1;
+    const bumpGwei = parseFloat($('bumpGwei').value) || 0;
+    const gasCap = parseFloat($('maxGasCap').value) || 150;
+    const autoBump = $('autoBump').checked;
+    const contractAddr = $('contractAddr').value.trim();
+
+    setDiag('warn', `Firing ${state.wallets.length} wallet(s)…`);
+    await Promise.allSettled(state.wallets.map(w => mintOne(w, provider, iface, argValues, value, contractAddr, maxAttempts, bumpGwei, gasCap, autoBump)));
+    setDiag('ok', `Done — ${state.stats.success} minted, ${state.stats.fail} failed this session.`);
+    renderStats();
+  }
+
+  function coerceArg(val, type){
+    if(type.startsWith('uint') || type.startsWith('int')) return BigInt(val || 0);
+    if(type === 'bool') return val === 'true' || val === true;
+    if(type.endsWith('[]')){ try{ return JSON.parse(val); }catch(e){ return (val||'').split(',').map(s=>s.trim()).filter(Boolean); } }
+    return val || '';
+  }
+
+  async function mintOne(w, provider, iface, argValues, value, contractAddr, maxAttempts, bumpGwei, gasCap, autoBump){
+    const trs = logRow();
+    setCell(trs, '.w-cell', w.address.slice(0,6)+'...'+w.address.slice(-4));
+    setCell(trs, '.am-cell', $('mintQty').value + 'x');
+    setStatus(trs, 'armed', 'preparing');
+
+    const signer = await getSignerForWallet(w, provider);
+    const data = iface.encodeFunctionData(state.fn.name, argValues);
+
+    let attempt = 0, priorityBumpGwei = 0;
+    while(attempt < maxAttempts){
+      attempt++;
+      setStatus(trs, 'pending', `sending (${attempt}/${maxAttempts})`);
+      try{
+        const feeData = await provider.getFeeData();
+        let maxPriorityFeePerGas = (feeData.maxPriorityFeePerGas ?? ethers.parseUnits('1.5','gwei')) + ethers.parseUnits(String(priorityBumpGwei),'gwei');
+        let maxFeePerGas = (feeData.maxFeePerGas ?? ethers.parseUnits('30','gwei')) + ethers.parseUnits(String(priorityBumpGwei),'gwei');
+        const capWei = ethers.parseUnits(String(gasCap),'gwei');
+        if(maxFeePerGas > capWei) maxFeePerGas = capWei;
+        setCell(trs, '.g-cell', Number(ethers.formatUnits(maxFeePerGas,'gwei')).toFixed(1));
+
+        const tx = await signer.sendTransaction({ to: contractAddr, data, value, maxPriorityFeePerGas, maxFeePerGas });
+        setCell(trs, '.h-cell', `<a href="${CHAINS[state.chain].tx}${tx.hash}" target="_blank">${tx.hash.slice(0,8)}...</a>`);
+        setStatus(trs, 'pending', 'confirming');
+
+        const receipt = await tx.wait();
+        state.stats.total++; state.stats.gasSum += Number(ethers.formatUnits(maxFeePerGas,'gwei')); state.stats.gasCount++;
+        if(receipt.status === 1){
+          state.stats.success++; setStatus(trs, 'success', 'minted');
+          const sweepAddr = $('sweepAddr').value.trim();
+          if(sweepAddr) await sweepMinted(w, signer, contractAddr, receipt, sweepAddr, trs);
+          return;
+        }
+        else throw new Error('reverted on-chain');
+      }catch(e){
+        setStatus(trs, 'fail', shortErr(e));
+        if(attempt >= maxAttempts || !autoBump){ state.stats.total++; state.stats.fail++; return; }
+        priorityBumpGwei += bumpGwei;
+      }
+    }
+  }
+
+  const TRANSFER_TOPIC = ethers.id('Transfer(address,address,uint256)');
+  async function sweepMinted(w, signer, contractAddr, receipt, sweepAddr, trs){
+    try{
+      const tokenIds = receipt.logs
+        .filter(l => l.address.toLowerCase() === contractAddr.toLowerCase() && l.topics[0] === TRANSFER_TOPIC && l.topics.length === 4)
+        .filter(l => ethers.getAddress('0x'+l.topics[2].slice(26)).toLowerCase() === w.address.toLowerCase())
+        .map(l => BigInt(l.topics[3]));
+      if(!tokenIds.length){ setStatus(trs, 'success', 'minted (no tokenId found to sweep)'); return; }
+      const sweepIface = new ethers.Interface(['function safeTransferFrom(address,address,uint256)']);
+      for(const tokenId of tokenIds){
+        setStatus(trs, 'pending', `sweeping #${tokenId}`);
+        const data = sweepIface.encodeFunctionData('safeTransferFrom', [w.address, sweepAddr, tokenId]);
+        const tx = await signer.sendTransaction({ to: contractAddr, data });
+        await tx.wait();
+      }
+      setStatus(trs, 'success', `minted + swept to ${sweepAddr.slice(0,6)}...`);
+    }catch(e){
+      setStatus(trs, 'success', 'minted (sweep failed: ' + shortErr(e) + ')');
+    }
+  }
+
+  function shortErr(e){
+    const msg = (e && e.shortMessage) || (e && e.message) || 'error';
+    if(/insufficient funds/i.test(msg)) return 'no funds';
+    if(/underpriced/i.test(msg)) return 'underpriced';
+    if(/reverted/i.test(msg)) return 'reverted';
+    if(/nonce/i.test(msg)) return 'nonce err';
+    return msg.slice(0,22);
+  }
+
+  ['contractAddr','mintValue','mintQty','scheduleTime'].forEach(id => {
+    $(id).addEventListener('input', () => { if(state.armed) disarm(); checkReadiness(); if(id==='mintValue') refreshUnitDisplays(); });
+  });
+
+  updateSidebarWalletInfo();
+  renderPhases();
+
+  async function pollGas(){
+    try{
+      const provider = getProvider();
+      const feeData = await provider.getFeeData();
+      const gwei = feeData.maxFeePerGas ? Number(ethers.formatUnits(feeData.maxFeePerGas,'gwei')) : null;
+      $('gasLiveVal').textContent = gwei ? `${gwei.toFixed(1)} gwei` : '—';
+    }catch(e){ $('gasLiveVal').textContent = '—'; }
+  }
+  pollGas();
+  setInterval(pollGas, 12000);
+})();
+</script>
+</body>
+</html>
