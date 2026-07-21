@@ -969,6 +969,25 @@
     return new ethers.JsonRpcProvider(rpc, CHAINS[state.chain].id);
   }
 
+  // Public RPCs occasionally rate-limit or hiccup — for something as basic as a
+  // balance read, try a couple of alternates before giving up silently.
+  const FALLBACK_RPCS = {
+    ethereum: ['https://eth.llamarpc.com', 'https://ethereum-rpc.publicnode.com', 'https://rpc.ankr.com/eth', 'https://cloudflare-eth.com'],
+  };
+
+  async function fetchBalanceRobust(address){
+    const custom = $('rpcUrl').value.trim();
+    const candidates = custom ? [custom] : (FALLBACK_RPCS[state.chain] || [CHAINS[state.chain].defaultRpc]);
+    for(const rpc of candidates){
+      try{
+        const provider = new ethers.JsonRpcProvider(rpc, CHAINS[state.chain].id);
+        const bal = await provider.getBalance(address);
+        return Number(ethers.formatEther(bal)).toFixed(4);
+      }catch(e){ /* try next candidate */ }
+    }
+    return null;
+  }
+
   function updateSidebarWalletInfo(){
     $('navWalletCount').textContent = state.wallets.length;
     $('planWalletCount').textContent = state.wallets.length;
@@ -1019,7 +1038,7 @@
         <td><input type="checkbox" class="wallet-select" data-i="${i}"></td>
         <td><input type="text" class="wallet-name-input" data-i="${i}" value="${w.name || 'Wallet ' + (i+1)}"></td>
         <td>${w.address.slice(0,6)}...${w.address.slice(-4)}</td>
-        <td>${w.balance != null ? fmtNative(parseFloat(w.balance)) : '—'} <span class="wallet-token-badge" style="background:${CHAINS[state.chain].color}; color:#fff;">${chainGlyphSvg(state.chain, 10)}</span></td>
+        <td>${w.balance === 'err' ? 'error' : (w.balance != null ? fmtNative(parseFloat(w.balance)) : '—')} <span class="wallet-token-badge" style="background:${CHAINS[state.chain].color}; color:#fff;">${chainGlyphSvg(state.chain, 10)}</span></td>
         <td><button class="wallet-x" data-i="${i}">✕</button></td>`;
       list.appendChild(tr);
     });
@@ -1147,10 +1166,9 @@
   $('clearWallets').onclick = () => { if(confirm('Clear all loaded wallets?')){ state.wallets = []; state.senderSel = new Set(); state.recipientSel = new Set(); renderWallets(); updateSidebarWalletInfo(); checkReadiness(); updateConnectWalletBtnStatus(); } };
 
   $('refreshBalances').onclick = async () => {
-    const provider = getProvider();
     for(const w of state.wallets){
-      try{ const bal = await provider.getBalance(w.address); w.balance = Number(ethers.formatEther(bal)).toFixed(4); }
-      catch(e){ w.balance = 'err'; }
+      const bal = await fetchBalanceRobust(w.address);
+      w.balance = bal != null ? bal : 'err';
     }
     renderWallets();
   };
@@ -1210,7 +1228,7 @@
           <td><input type="checkbox" class="${checkedClass}" data-i="${i}" ${sel.has(i) ? 'checked' : ''}></td>
           <td>${w.name || 'Wallet '+(i+1)}</td>
           <td>${w.address.slice(0,6)}...${w.address.slice(-4)}</td>
-          <td style="text-align:right;">${w.balance != null ? fmtNative(parseFloat(w.balance)) : '—'}</td>
+          <td style="text-align:right;">${w.balance === 'err' ? 'error' : (w.balance != null ? fmtNative(parseFloat(w.balance)) : '—')}</td>
         </tr>`).join('')
       : `<tr><td colspan="4" class="multi-select-empty">No matching wallets.</td></tr>`;
 
@@ -1570,11 +1588,8 @@
         const newWallet = { pk:null, address, balance:null, injected:true, name: (injected.isMetaMask ? 'MetaMask' : 'Wallet') + ' ' + (state.wallets.length + 1) };
         state.wallets.push(newWallet);
         renderWallets(); updateSidebarWalletInfo(); updateConnectWalletBtnStatus();
-        try{
-          const bal = await getProvider().getBalance(address);
-          newWallet.balance = Number(ethers.formatEther(bal)).toFixed(4);
-          renderWallets();
-        }catch(e){ /* balance fetch failed — row just shows — until "Refresh balances" is clicked */ }
+        const bal = await fetchBalanceRobust(address);
+        if(bal != null){ newWallet.balance = bal; renderWallets(); }
       }
       return { address, error:null };
     }catch(e){
@@ -1611,11 +1626,8 @@
           const newWallet = { pk:null, address, balance:null, injected:true, name: (injected.isMetaMask ? 'MetaMask' : 'Wallet') + ' ' + (state.wallets.length + 1) };
           state.wallets.push(newWallet);
           renderWallets(); updateSidebarWalletInfo(); updateConnectWalletBtnStatus();
-          try{
-            const bal = await getProvider().getBalance(address);
-            newWallet.balance = Number(ethers.formatEther(bal)).toFixed(4);
-            renderWallets();
-          }catch(e){ /* balance fetch failed — row just shows — until "Refresh balances" is clicked */ }
+          const bal = await fetchBalanceRobust(address);
+          if(bal != null){ newWallet.balance = bal; renderWallets(); }
         }
       }
     }catch(e){ /* silent — this is just a background convenience check */ }
