@@ -41,7 +41,7 @@
     --warn-border: #f0dca0; --err-border: #f3b8b8;
   }
 
-  *{ box-sizing:border-box; }
+  *{ box-sizing:border-box; -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   html,body{ margin:0; padding:0; background:var(--bg); color:var(--text); font-family:var(--sans); }
   body{ min-height:100vh; display:flex; flex-direction:column; align-items:center; }
   @media (min-width:881px){ body{ zoom:0.82; } }
@@ -137,6 +137,17 @@
     .mobile-tabbar{ display:flex; }
     .mobile-fab{ display:flex; }
     .main{ padding:12px; }
+    .disperse-header-row{ flex-direction:column; align-items:stretch !important; }
+    .disperse-header-row > .btn-row{ width:100%; }
+    .disperse-token-group{ flex-wrap:wrap; width:100% !important; }
+    .disperse-token-group > .toggle-row{ width:calc(50% - 4px) !important; flex:0 0 auto !important; }
+    #disperseTokenRow{ flex-basis:100% !important; min-width:0 !important; width:100%; }
+    #quickTokenRow{ width:100% !important; }
+    .wallets-toolbar{ justify-content:stretch !important; }
+    .wallets-toolbar .search-input{ width:100% !important; flex:1 1 100% !important; order:-1; }
+    .wallets-toolbar #connectWalletBtn,
+    .wallets-toolbar #genWallet,
+    .wallets-toolbar #importToggle{ flex:1 1 auto; }
   }
   .page{ display:flex; flex-direction:column; gap:16px; }
   .page[hidden]{ display:none; }
@@ -629,7 +640,7 @@
         <a href="#" id="walletSecurityLink" style="color:var(--accent-text);">Learn more</a>
       </div>
 
-      <div class="topbar" style="justify-content:flex-end;">
+      <div class="topbar wallets-toolbar" style="justify-content:flex-end;">
         <input class="search-input" id="walletSearch" placeholder="Search wallets…" style="flex:none; width:260px;">
         <button class="btn btn-primary" id="connectWalletBtn">🦊 Connect Wallet</button>
         <button class="btn btn-secondary" id="genWallet">+ Create</button>
@@ -664,8 +675,8 @@
       <div class="card">
         <div class="chain-icon-row" id="disperseChainRow"></div>
 
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap; justify-content:space-between;">
-          <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
+        <div class="disperse-header-row" style="display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap; justify-content:space-between;">
+          <div class="disperse-token-group" style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
             <div class="toggle-row" style="margin-bottom:0; flex:none; border:1px solid var(--border); padding:9px 14px; gap:14px; width:190px;">
               <span style="font-weight:600; font-size:12.5px;">NFT/ERC20</span>
               <label class="switch"><input type="checkbox" id="disperseErc20Toggle"><span class="slider"></span></label>
@@ -1522,12 +1533,14 @@
     state.unit = 'native';
     $('disperseUnitNative').classList.add('active'); $('disperseUnitUsd').classList.remove('active');
     $('usdToggle').checked = false;
+    $('mUsdToggle').checked = false;
     updateUnitButtons(); refreshUnitDisplays(); updateDisperseMaxHint();
   };
   $('disperseUnitUsd').onclick = () => {
     state.unit = 'usd';
     $('disperseUnitUsd').classList.add('active'); $('disperseUnitNative').classList.remove('active');
     $('usdToggle').checked = true;
+    $('mUsdToggle').checked = true;
     updateUnitButtons(); refreshUnitDisplays(); updateDisperseMaxHint();
   };
 
