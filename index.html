@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -351,7 +351,7 @@
   .gas-row b{ color:var(--text); margin-left:auto; }
 </style>
 </head>
-<body data-theme="dark">
+<body>
 
 <div class="mobile-topbar">
   <div class="mobile-acct">
@@ -952,12 +952,12 @@
   });
 
   $('mThemeToggle').addEventListener('change', e => {
-    document.body.setAttribute('data-theme', e.target.checked ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', e.target.checked ? 'dark' : 'light');
     $('themeToggle').checked = e.target.checked;
   });
 
   $('themeToggle').addEventListener('change', e => {
-    document.body.setAttribute('data-theme', e.target.checked ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', e.target.checked ? 'dark' : 'light');
     $('mThemeToggle').checked = e.target.checked;
   });
 
