@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FUSE — Mint Execution Terminal</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -184,6 +184,8 @@
     padding:8px 10px; border-radius:0; font-family:var(--mono); font-size:12.5px; outline:none;
     transition: border-color .15s, box-shadow .15s;
   }
+  input[type=datetime-local]{ color-scheme: dark; }
+  [data-theme="light"] input[type=datetime-local]{ color-scheme: light; }
   input:focus, textarea:focus{ border-color:var(--accent); box-shadow: 0 0 0 3px rgba(59,43,229,.18); }
   textarea{ resize:vertical; min-height:64px; line-height:1.5; }
   .field{ margin-bottom:11px; }
@@ -327,6 +329,10 @@
   .scan-icon{ width:20px; height:20px; border-radius:50%; background:var(--surface-raised); display:flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:700; flex-shrink:0; }
   .scan-step.active .scan-icon{ background:var(--accent-dim); color:var(--accent-text); animation:spin 1s linear infinite; }
   .scan-step.done .scan-icon{ background:var(--success-bg); color:var(--success); }
+  .scan-step.fail{ color:var(--fail); }
+  .scan-step.fail .scan-icon{ background:var(--err-bg); color:var(--fail); }
+  .scan-step.warn{ color:var(--pending); }
+  .scan-step.warn .scan-icon{ background:var(--warn-bg); color:var(--pending); }
   @keyframes spin{ from{ transform:rotate(0deg);} to{ transform:rotate(360deg);} }
   .scan-line{ width:1px; height:14px; background:var(--border); margin-left:10px; }
 
@@ -1769,9 +1775,9 @@
     $('fetchAbi').textContent = 'Fetch ABI'; $('fetchAbi').disabled = false;
   };
 
-  function setScanStep(id, mode){ // mode: 'active' | 'done' | 'reset'
+  function setScanStep(id, mode){ // mode: 'active' | 'done' | 'warn' | 'fail' | 'reset'
     const el = $(id);
-    el.classList.remove('active','done');
+    el.classList.remove('active','done','warn','fail');
     if(mode !== 'reset') el.classList.add(mode);
   }
   function setScanText(id, text){ $(id).lastChild.textContent = ' ' + text; }
@@ -1956,7 +1962,9 @@
           headers: key ? { 'x-api-key': key } : {}
         });
       }
-      if(res.status === 401 || res.status === 403) throw new Error('OpenSea API key missing or invalid');
+      if(res.status === 401 || res.status === 403) throw new Error(proxyUrl
+        ? 'OpenSea rejected the proxy\'s API key — check the OPENSEA_API_KEY secret on your worker'
+        : (key ? 'OpenSea API key is invalid — update it in Settings' : 'no OpenSea API key set — add one in Settings'));
       if(res.status === 404) throw new Error(`No OpenSea collection found for slug "${slug}"`);
       if(!res.ok) throw new Error('OpenSea lookup returned ' + res.status);
       const data = await res.json();
@@ -2086,11 +2094,11 @@
       const via = result.source === 'opensea' ? ' via OpenSea API' : '';
       setScanStep('scanStep1', 'done'); setScanText('scanStep1', `Found contract ${result.address.slice(0,6)}...${result.address.slice(-4)}${via}${chainNote}`);
     } else if(result && result.source === 'opensea-error'){
-      setScanStep('scanStep1', 'done'); setScanText('scanStep1', `OpenSea lookup failed: ${result.error} — enter contract manually below in Advanced`);
+      setScanStep('scanStep1', 'fail'); setScanText('scanStep1', `OpenSea lookup failed: ${result.error} — enter contract manually below in Advanced`);
       $('targetCard').removeAttribute('hidden'); $('phasesCard').removeAttribute('hidden');
       $('advBody').removeAttribute('hidden'); $('advToggleBtn').textContent = '▾ Advanced — contract, ABI, mint function, gas limits';
     } else {
-      setScanStep('scanStep1', 'done'); setScanText('scanStep1', proxyBase()
+      setScanStep('scanStep1', 'fail'); setScanText('scanStep1', proxyBase()
         ? 'Could not find a contract address on that page — enter it below in Advanced'
         : 'Could not read that page from the browser (cross-origin block) — set a proxy URL in Settings, or enter the contract below in Advanced');
       $('targetCard').removeAttribute('hidden'); $('phasesCard').removeAttribute('hidden');
@@ -2100,7 +2108,7 @@
     setScanStep('scanStep2', 'active'); setScanText('scanStep2', 'Connecting wallet');
     const { address: connAddr, error: connErr } = await connectInjectedWallet();
     if(connAddr){ setScanStep('scanStep2', 'done'); setScanText('scanStep2', `Connected ${connAddr.slice(0,6)}...${connAddr.slice(-4)}`); }
-    else { setScanStep('scanStep2', 'done'); setScanText('scanStep2', connErr ? connErr : 'No browser wallet found — using imported keys from Wallets'); }
+    else { setScanStep('scanStep2', 'warn'); setScanText('scanStep2', connErr ? connErr : 'No browser wallet found — using imported keys from Wallets'); }
 
     setScanStep('scanStep3', 'active'); setScanText('scanStep3', 'Checking eligibility');
     let seadropFound = false;
@@ -2108,10 +2116,15 @@
       if(canFetchAbi()) await autoFetchAbi(result.address);
       seadropFound = await tryAutoDetectSeaDropPhase(result.address);
     }
-    const eligText = seadropFound
-      ? 'public mint stage auto-detected from SeaDrop — see Mint phases below'
-      : (state.fn ? 'mint function selected — verify phase rules match' : 'select the mint function in Advanced to confirm');
-    setScanStep('scanStep3', 'done'); setScanText('scanStep3', `Done — ${eligText}`);
+    if(!(result && result.address)){
+      setScanStep('scanStep3', 'warn'); setScanText('scanStep3', 'Skipped — no contract to check yet. Enter the contract address in Advanced');
+    } else if(seadropFound){
+      setScanStep('scanStep3', 'done'); setScanText('scanStep3', 'Done — public mint stage auto-detected from SeaDrop — see Mint phases below');
+    } else if(state.fn){
+      setScanStep('scanStep3', 'done'); setScanText('scanStep3', 'Done — mint function selected — verify phase rules match');
+    } else {
+      setScanStep('scanStep3', 'warn'); setScanText('scanStep3', 'Needs input — select the mint function in Advanced to confirm');
+    }
     $('eligibleBadge').textContent = state.fn ? 'likely' : '?';
     // No function picked yet — the choice lives in Advanced, so don't leave it collapsed.
     if(!state.fn){ $('advBody').removeAttribute('hidden'); $('advToggleBtn').textContent = '▾ Advanced — contract, ABI, mint function, gas limits'; }
