@@ -317,6 +317,10 @@
   .external-addr-chip button{ background:none; color:var(--text-dim); padding:0; font-size:12px; }
 
   .modal-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:100; display:flex; align-items:center; justify-content:center; }
+  .wallet-pick-btn{ display:flex; align-items:center; gap:10px; width:100%; padding:10px 12px; margin-bottom:6px; background:var(--surface-raised); border:1px solid var(--border); color:var(--text); font-size:13px; font-weight:600; text-align:left; }
+  .wallet-pick-btn:hover{ border-color:var(--accent); }
+  .wallet-pick-btn img, .wallet-pick-ph{ width:24px; height:24px; flex:none; }
+  .wallet-pick-ph{ display:flex; align-items:center; justify-content:center; background:var(--accent-dim); color:var(--accent-text); font-size:12px; }
   .modal-box{ background:var(--surface); border:1px solid var(--border); padding:20px 22px; width:360px; max-width:90vw; max-height:85vh; overflow-y:auto; }
   .modal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
   .modal-title{ font-size:13px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; }
@@ -649,7 +653,7 @@
 
       <div class="topbar wallets-toolbar" style="justify-content:flex-end;">
         <input class="search-input" id="walletSearch" placeholder="Search wallets…" style="flex:none; width:260px;">
-        <button class="btn btn-primary" id="connectWalletBtn">🦊 Connect Wallet</button>
+        <button class="btn btn-primary" id="connectWalletBtn">Connect Wallet</button>
         <button class="btn btn-secondary" id="genWallet">+ Create</button>
         <button class="btn btn-secondary" id="importToggle">⇵ Import</button>
       </div>
@@ -861,6 +865,17 @@
     </label>
 
     <button class="btn btn-primary" id="nwDone" style="width:100%;" disabled>Done</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="walletPickerModal" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title">Choose a wallet</div>
+      <button class="modal-x" id="walletPickerClose">✕</button>
+    </div>
+    <div class="hint" style="margin-bottom:10px;">More than one wallet extension is installed — pick the one to connect.</div>
+    <div id="walletPickerList"></div>
   </div>
 </div>
 
@@ -1782,84 +1797,162 @@
   }
   function setScanText(id, text){ $(id).lastChild.textContent = ' ' + text; }
 
-  function getInjectedProvider(){
-    if(!window.ethereum) return null;
-    // Some setups (multiple extensions) expose window.ethereum.providers — prefer the real MetaMask among them.
-    if(Array.isArray(window.ethereum.providers) && window.ethereum.providers.length){
-      return window.ethereum.providers.find(p => p.isMetaMask) || window.ethereum.providers[0];
-    }
-    return window.ethereum;
+  // ---------- browser wallets ----------
+  // EIP-6963: every modern wallet extension (Zerion, Rabby, MetaMask, Coinbase, OKX…)
+  // announces itself with its real name and icon. Relying on window.ethereum instead
+  // mislabels wallets — most set isMetaMask=true for compatibility — and can pick the
+  // wrong extension when several are installed.
+  const announcedWallets = new Map(); // uuid -> { info, provider }
+  window.addEventListener('eip6963:announceProvider', (e) => {
+    const d = e.detail;
+    if(d && d.info && d.provider && !announcedWallets.has(d.info.uuid)) announcedWallets.set(d.info.uuid, { info: d.info, provider: d.provider });
+  });
+  window.dispatchEvent(new Event('eip6963:requestProvider'));
+
+  // Fallback for wallets that don't announce: name them from their own flags. isMetaMask
+  // goes last because nearly every wallet sets it.
+  function legacyWalletName(p){
+    if(p.isZerion) return 'Zerion';
+    if(p.isRabby) return 'Rabby';
+    if(p.isCoinbaseWallet) return 'Coinbase Wallet';
+    if(p.isBraveWallet) return 'Brave Wallet';
+    if(p.isPhantom) return 'Phantom';
+    if(p.isOkxWallet || p.isOKExWallet) return 'OKX Wallet';
+    if(p.isTrust || p.isTrustWallet) return 'Trust Wallet';
+    if(p.isRainbow) return 'Rainbow';
+    if(p.isFrame) return 'Frame';
+    if(p.isMetaMask) return 'MetaMask';
+    return 'Browser wallet';
   }
 
-  // Wallet extensions sometimes inject window.ethereum a beat after the page's own
-  // script runs — checking synchronously at load can wrongly conclude "not installed."
-  // Wait briefly for the injection event before giving up.
-  function waitForInjectedProvider(timeoutMs){
+  function listBrowserWallets(){
+    if(announcedWallets.size) return [...announcedWallets.values()].map(w => ({ name: w.info.name, icon: w.info.icon, id: w.info.rdns || w.info.uuid, provider: w.provider }));
+    if(!window.ethereum) return [];
+    const legacy = Array.isArray(window.ethereum.providers) && window.ethereum.providers.length ? window.ethereum.providers : [window.ethereum];
+    return legacy.map((p, i) => ({ name: legacyWalletName(p), icon: null, id: 'legacy:' + legacyWalletName(p) + ':' + i, provider: p }));
+  }
+
+  // Wallets announce (or inject window.ethereum) a beat after the page's script runs —
+  // checking synchronously at load can wrongly conclude "not installed".
+  function waitForBrowserWallets(timeoutMs){
     return new Promise((resolve) => {
-      const existing = getInjectedProvider();
-      if(existing) return resolve(existing);
+      if(listBrowserWallets().length) return resolve(listBrowserWallets());
       let done = false;
-      const finish = () => { if(done) return; done = true; window.removeEventListener('ethereum#initialized', finish); resolve(getInjectedProvider()); };
+      const finish = () => { if(done) return; done = true; window.removeEventListener('ethereum#initialized', finish); resolve(listBrowserWallets()); };
       window.addEventListener('ethereum#initialized', finish, { once:true });
-      setTimeout(finish, timeoutMs || 1500);
+      window.dispatchEvent(new Event('eip6963:requestProvider'));
+      setTimeout(finish, timeoutMs || 800);
     });
   }
 
+  const LAST_WALLET_KEY = 'fuse.lastBrowserWallet';
+  function rememberWallet(id){ try{ if(id) localStorage.setItem(LAST_WALLET_KEY, id); else localStorage.removeItem(LAST_WALLET_KEY); }catch(e){} }
+  function rememberedWallet(){ try{ return localStorage.getItem(LAST_WALLET_KEY); }catch(e){ return null; } }
+
+  // More than one extension installed → let the user say which one, instead of guessing.
+  function pickBrowserWallet(wallets){
+    if(wallets.length <= 1) return Promise.resolve(wallets[0] || null);
+    return new Promise((resolve) => {
+      const list = $('walletPickerList');
+      list.innerHTML = '';
+      const close = (choice) => { $('walletPickerModal').style.display = 'none'; resolve(choice); };
+      wallets.forEach(w => {
+        const btn = document.createElement('button');
+        btn.className = 'wallet-pick-btn';
+        if(w.icon && /^data:image\/|^https:\/\//.test(w.icon)){
+          const img = document.createElement('img'); img.src = w.icon; img.alt = ''; btn.appendChild(img);
+        } else {
+          const ph = document.createElement('span'); ph.className = 'wallet-pick-ph'; ph.textContent = w.name.slice(0,1); btn.appendChild(ph);
+        }
+        const label = document.createElement('span'); label.textContent = w.name; btn.appendChild(label);
+        btn.onclick = () => close(w);
+        list.appendChild(btn);
+      });
+      $('walletPickerClose').onclick = () => close(null);
+      $('walletPickerModal').onclick = (e) => { if(e.target.id === 'walletPickerModal') close(null); };
+      $('walletPickerModal').style.display = 'flex';
+    });
+  }
+
+  function connectedBrowserWallet(){ return state.wallets.find(w => w.injected) || null; }
+
+  // Track account switches inside whichever extension is actually connected.
+  const wiredProviders = new WeakSet();
+  function wireWalletEvents(provider){
+    if(!provider || !provider.on || wiredProviders.has(provider)) return;
+    wiredProviders.add(provider);
+    provider.on('accountsChanged', (accounts) => {
+      const w = connectedBrowserWallet();
+      if(!w || w.provider !== provider) return;
+      if(!accounts || !accounts.length){ removeBrowserWallet(); return; }
+      w.address = ethers.getAddress(accounts[0]); w.balance = null;
+      renderWallets(); updateSidebarWalletInfo(); updateConnectWalletBtnStatus();
+      fetchBalanceRobust(w.address).then(bal => { if(bal != null){ w.balance = bal; renderWallets(); } });
+    });
+    provider.on('chainChanged', () => {
+      const w = connectedBrowserWallet();
+      if(w && w.provider === provider) setDiag('warn', 'Network changed in your wallet — reselect the chain in Settings if it no longer matches.');
+    });
+  }
+
+  async function addBrowserWallet(choice, address){
+    const existing = state.wallets.find(w => w.address.toLowerCase() === address.toLowerCase());
+    if(existing){
+      // Same address already imported as a key — just note where it's connected.
+      if(existing.injected){ existing.provider = choice.provider; existing.walletName = choice.name; }
+      return;
+    }
+    const newWallet = { pk:null, address, balance:null, injected:true, provider: choice.provider, walletName: choice.name, name: choice.name + ' ' + (state.wallets.length + 1) };
+    state.wallets.push(newWallet);
+    renderWallets(); updateSidebarWalletInfo(); updateConnectWalletBtnStatus();
+    const bal = await fetchBalanceRobust(address);
+    if(bal != null){ newWallet.balance = bal; renderWallets(); }
+  }
+
   async function connectInjectedWallet(){
-    const injected = getInjectedProvider();
-    if(!injected) return { address:null, error:'No browser wallet extension detected — import a private key instead, or install one and reload.' };
+    const current = connectedBrowserWallet();
+    if(current) return { address: current.address, name: current.walletName, error:null };
+    const wallets = await waitForBrowserWallets();
+    if(!wallets.length) return { address:null, error:'No browser wallet extension detected — import a private key instead, or install one and reload.' };
+    const choice = await pickBrowserWallet(wallets);
+    if(!choice) return { address:null, error:'No wallet chosen.' };
     try{
-      const accounts = await injected.request({ method:'eth_requestAccounts' });
-      if(!accounts || !accounts.length) return { address:null, error:'Wallet returned no account.' };
+      const accounts = await choice.provider.request({ method:'eth_requestAccounts' });
+      if(!accounts || !accounts.length) return { address:null, error: choice.name + ' returned no account.' };
       const address = ethers.getAddress(accounts[0]);
-      if(!state.wallets.some(w => w.address.toLowerCase() === address.toLowerCase())){
-        const newWallet = { pk:null, address, balance:null, injected:true, name: (injected.isMetaMask ? 'MetaMask' : 'Wallet') + ' ' + (state.wallets.length + 1) };
-        state.wallets.push(newWallet);
-        renderWallets(); updateSidebarWalletInfo(); updateConnectWalletBtnStatus();
-        const bal = await fetchBalanceRobust(address);
-        if(bal != null){ newWallet.balance = bal; renderWallets(); }
-      }
-      return { address, error:null };
+      await addBrowserWallet(choice, address);
+      wireWalletEvents(choice.provider);
+      rememberWallet(choice.id);
+      return { address, name: choice.name, error:null };
     }catch(e){
-      const msg = e && e.code === 4001 ? 'Connection request rejected in wallet.' : (e.message || 'Wallet connection failed.');
+      const msg = e && e.code === 4001 ? `Connection request rejected in ${choice.name}.` : (e.message || 'Wallet connection failed.');
       return { address:null, error: msg };
     }
   }
 
-  // Keep the wallet list in sync if the user switches accounts or networks inside MetaMask itself.
-  (async function wireInjectedWalletEvents(){
-    const injected = await waitForInjectedProvider();
-    if(!injected || !injected.on) return;
-    injected.on('accountsChanged', (accounts) => {
-      if(!accounts.length) return;
-      const address = ethers.getAddress(accounts[0]);
-      const existing = state.wallets.find(w => w.injected);
-      if(existing){ existing.address = address; renderWallets(); updateSidebarWalletInfo(); updateConnectWalletBtnStatus(); }
-    });
-    injected.on('chainChanged', () => {
-      setDiag('warn', 'Network changed in your wallet — reselect the chain in Settings if it no longer matches.');
-    });
-  })();
-
-  // If this site already has permission from a previous visit, MetaMask will
-  // return the account here with NO popup at all — smoothest possible reconnect.
+  // If the wallet used last time already has permission for this site, reconnect with
+  // no popup at all. Only that wallet is asked, so other extensions stay untouched.
   (async function checkAlreadyConnected(){
-    const injected = await waitForInjectedProvider();
-    if(!injected) return;
+    const wallets = await waitForBrowserWallets();
+    const lastId = rememberedWallet();
+    const choice = wallets.find(w => w.id === lastId) || (wallets.length === 1 && !lastId ? wallets[0] : null);
+    if(!choice) return;
     try{
-      const accounts = await injected.request({ method:'eth_accounts' });
-      if(accounts && accounts.length){
-        const address = ethers.getAddress(accounts[0]);
-        if(!state.wallets.some(w => w.address.toLowerCase() === address.toLowerCase())){
-          const newWallet = { pk:null, address, balance:null, injected:true, name: (injected.isMetaMask ? 'MetaMask' : 'Wallet') + ' ' + (state.wallets.length + 1) };
-          state.wallets.push(newWallet);
-          renderWallets(); updateSidebarWalletInfo(); updateConnectWalletBtnStatus();
-          const bal = await fetchBalanceRobust(address);
-          if(bal != null){ newWallet.balance = bal; renderWallets(); }
-        }
+      const accounts = await choice.provider.request({ method:'eth_accounts' });
+      if(accounts && accounts.length && !connectedBrowserWallet()){
+        await addBrowserWallet(choice, ethers.getAddress(accounts[0]));
+        wireWalletEvents(choice.provider);
       }
     }catch(e){ /* silent — this is just a background convenience check */ }
   })();
+
+  function removeBrowserWallet(){
+    state.wallets = state.wallets.filter(w => !w.injected);
+    state.senderSel = new Set();
+    state.recipientSel = new Set();
+    renderWallets(); updateSidebarWalletInfo(); checkReadiness();
+    updateConnectWalletBtnStatus();
+  }
 
   function setConnectBtnState(text, opts){
     const btn = $('connectWalletBtn');
@@ -1877,14 +1970,14 @@
 
   function updateConnectWalletBtnStatus(){
     const btn = $('connectWalletBtn');
-    const connected = state.wallets.find(w => w.injected);
+    const connected = connectedBrowserWallet();
     if(connected){
-      btn.textContent = `✓ Connected ${connected.address.slice(0,6)}...${connected.address.slice(-4)}`;
+      btn.textContent = `✓ ${connected.walletName || 'Wallet'} ${connected.address.slice(0,6)}...${connected.address.slice(-4)}`;
       btn.classList.remove('btn-primary'); btn.classList.add('btn-secondary');
       btn.style.color = 'var(--success)';
       btn.disabled = false;
     } else {
-      btn.textContent = '🦊 Connect Wallet';
+      btn.textContent = 'Connect Wallet';
       btn.classList.remove('btn-secondary'); btn.classList.add('btn-primary');
       btn.style.color = '';
       btn.disabled = false;
@@ -1892,20 +1985,18 @@
   }
 
   async function doWalletLogout(){
-    if(!confirm('Log out the connected wallet? This only clears it from FUSE for this session — it does not affect your MetaMask itself.')) return;
-    const injected = getInjectedProvider();
-    if(injected && injected.request){
+    const w = connectedBrowserWallet();
+    const name = (w && w.walletName) || 'wallet';
+    if(!confirm(`Log out ${name}? This only disconnects it from FUSE — it doesn't change anything inside ${name} itself.`)) return;
+    if(w && w.provider && w.provider.request){
       try{
-        // Newer MetaMask versions support revoking the eth_accounts permission directly.
-        await injected.request({ method:'wallet_revokePermissions', params:[{ eth_accounts:{} }] });
+        // Wallets that support it drop this site's permission, so the next connect asks again.
+        await w.provider.request({ method:'wallet_revokePermissions', params:[{ eth_accounts:{} }] });
       }catch(e){ /* not supported by this wallet — falling back to local disconnect only */ }
     }
-    state.wallets = state.wallets.filter(w => !w.injected);
-    state.senderSel = new Set();
-    state.recipientSel = new Set();
-    renderWallets(); updateSidebarWalletInfo(); checkReadiness();
+    rememberWallet(null);
+    removeBrowserWallet();
     showConnectWalletStatus('Disconnected.', false);
-    updateConnectWalletBtnStatus();
   }
   $('acctLogout').onclick = doWalletLogout;
   $('mAcctLogout').onclick = doWalletLogout;
@@ -1913,11 +2004,6 @@
   (async function setupConnectWalletButton(){
     const btn = $('connectWalletBtn');
     updateConnectWalletBtnStatus();
-    // Some wallet extensions inject a beat after page load — catch that silently
-    // in the background without blocking or relabeling the button in the meantime.
-    waitForInjectedProvider().then(() => {
-      if(!state.wallets.some(w => w.injected)) updateConnectWalletBtnStatus();
-    });
     btn.onclick = async () => {
       if(state.wallets.some(w => w.injected)){
         showConnectWalletStatus('Already connected — use the logout icon next to your account to disconnect.', false);
@@ -1925,12 +2011,12 @@
       }
       setConnectBtnState('Connecting…', { disabled:true });
       showConnectWalletStatus(null);
-      const { address, error } = await connectInjectedWallet();
+      const { address, name, error } = await connectInjectedWallet();
       if(address){
-        showConnectWalletStatus(`Connected ${address.slice(0,6)}...${address.slice(-4)}`, false);
+        showConnectWalletStatus(`Connected ${name || 'wallet'} ${address.slice(0,6)}...${address.slice(-4)}`, false);
         updateConnectWalletBtnStatus();
       } else {
-        setConnectBtnState('🦊 Connect Wallet');
+        updateConnectWalletBtnStatus();
         showConnectWalletStatus(error || 'Could not connect.', true);
       }
     };
@@ -1938,9 +2024,9 @@
 
   async function getSignerForWallet(w, provider){
     if(w.injected){
-      const injected = getInjectedProvider();
-      if(!injected) throw new Error('Browser wallet no longer available for ' + w.address.slice(0,6) + '...');
-      const browserProvider = new ethers.BrowserProvider(injected);
+      // Sign with the extension the user actually connected, not whichever owns window.ethereum.
+      if(!w.provider) throw new Error((w.walletName || 'Browser wallet') + ' is no longer available for ' + w.address.slice(0,6) + '...');
+      const browserProvider = new ethers.BrowserProvider(w.provider);
       return await browserProvider.getSigner(w.address);
     }
     return new ethers.Wallet(w.pk, provider);
@@ -2106,8 +2192,8 @@
     }
 
     setScanStep('scanStep2', 'active'); setScanText('scanStep2', 'Connecting wallet');
-    const { address: connAddr, error: connErr } = await connectInjectedWallet();
-    if(connAddr){ setScanStep('scanStep2', 'done'); setScanText('scanStep2', `Connected ${connAddr.slice(0,6)}...${connAddr.slice(-4)}`); }
+    const { address: connAddr, name: connName, error: connErr } = await connectInjectedWallet();
+    if(connAddr){ setScanStep('scanStep2', 'done'); setScanText('scanStep2', `Connected ${connName || 'wallet'} ${connAddr.slice(0,6)}...${connAddr.slice(-4)}`); }
     else { setScanStep('scanStep2', 'warn'); setScanText('scanStep2', connErr ? connErr : 'No browser wallet found — using imported keys from Wallets'); }
 
     setScanStep('scanStep3', 'active'); setScanText('scanStep3', 'Checking eligibility');
