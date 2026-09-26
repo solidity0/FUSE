@@ -50,7 +50,7 @@
   a:hover{ text-decoration:underline; }
   button{ font-family:var(--sans); cursor:pointer; border:none; }
 
-  .shell{ display:grid; grid-template-columns: 250px 1fr; gap:20px; width:1180px; padding:26px 24px 60px; align-items:start; }
+  .shell{ display:grid; grid-template-columns: 250px 1fr; gap:20px; width:100%; max-width:1180px; padding:26px 24px 60px; align-items:start; }
   .mobile-topbar{
     display:none; align-items:center; gap:10px; padding:12px 14px; width:100%;
     background:var(--surface); border-bottom:1px solid var(--border-soft);
@@ -457,7 +457,7 @@
 
     <div class="side-card">
       <button class="s-link" data-page="settings"><span class="ic">⚙</span> Settings</button>
-      <a class="s-link" href="https://github.com" target="_blank"><span class="ic">↗</span> Source / repo</a>
+      <a class="s-link" href="https://github.com/solidity0/FUSE" target="_blank" rel="noopener"><span class="ic">↗</span> Source / repo</a>
 
       <div class="s-divider"></div>
 
@@ -678,11 +678,11 @@
         <div class="disperse-header-row" style="display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap; justify-content:space-between;">
           <div class="disperse-token-group" style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
             <div class="toggle-row" style="margin-bottom:0; flex:none; border:1px solid var(--border); padding:9px 14px; gap:14px; width:190px;">
-              <span style="font-weight:600; font-size:12.5px;">NFT/ERC20</span>
+              <span style="font-weight:600; font-size:12.5px;">ERC20</span>
               <label class="switch"><input type="checkbox" id="disperseErc20Toggle"><span class="slider"></span></label>
             </div>
             <div id="disperseTokenRow" style="display:none; align-items:center; gap:10px; flex:1; min-width:200px;">
-              <input type="text" id="disperseTokenAddr" placeholder="Paste NFT/ERC20 address" style="flex:1; min-width:160px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px; font-family:var(--mono); font-size:12px;">
+              <input type="text" id="disperseTokenAddr" placeholder="Paste ERC20 token address" style="flex:1; min-width:160px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px; font-family:var(--mono); font-size:12px;">
               <button class="icon-search-btn" id="disperseTokenSearch" style="flex:none;" title="Search token">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2"/>
@@ -777,11 +777,12 @@
         <div class="field">
           <label>Etherscan-family API key (optional, for ABI auto-fetch)</label>
           <input type="password" id="apiKey" placeholder="works across chains via Etherscan v2 API">
+          <div class="hint">Not needed if your OpenSea proxy worker has ETHERSCAN_API_KEY set — ABI lookups then go through the worker.</div>
         </div>
         <div class="field">
           <label>OpenSea proxy URL <span style="color:var(--text-dim); font-weight:400;">— recommended</span></label>
           <input type="text" id="openseaProxyUrl" placeholder="https://your-worker.workers.dev">
-          <div class="hint">OpenSea's own docs say their API key can't be safely used in a browser, and their API blocks direct cross-origin calls anyway. A tiny serverless proxy (e.g. Cloudflare Worker) holds the key server-side and fixes both — see the worker.js file provided alongside this app.</div>
+          <div class="hint">OpenSea's own docs say their API key can't be safely used in a browser, and their API blocks direct cross-origin calls anyway. A tiny serverless proxy (e.g. Cloudflare Worker) holds the key server-side and fixes both — see the worker.js file provided alongside this app. The same worker also reads mint pages server-side so pasted mint-site links can be scanned for a contract address.</div>
         </div>
         <div class="field">
           <label>OpenSea API key <span style="color:var(--text-dim); font-weight:400;">— direct fallback, less reliable</span></label>
@@ -918,6 +919,7 @@
     wallets: [],
     abi: null,
     fn: null,
+    mintTo: null, // set when the mint call goes somewhere other than the NFT contract (SeaDrop)
     args: {},
     armed: false,
     scheduleTimer: null,
@@ -934,6 +936,23 @@
   };
 
   const $ = id => document.getElementById(id);
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  // Non-secret connection settings survive a reload. Private keys are never stored.
+  const SETTINGS_KEY = 'fuse.settings.v1';
+  const PERSISTED_FIELDS = ['rpcUrl', 'apiKey', 'openseaProxyUrl'];
+  try{
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+    PERSISTED_FIELDS.forEach(id => { if(typeof saved[id] === 'string') $(id).value = saved[id]; });
+  }catch(e){ /* storage unavailable — settings just won't persist */ }
+  PERSISTED_FIELDS.forEach(id => $(id).addEventListener('change', () => {
+    try{
+      const out = {};
+      PERSISTED_FIELDS.forEach(f => { out[f] = $(f).value.trim(); });
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(out));
+    }catch(e){}
+  }));
+  function proxyBase(){ return $('openseaProxyUrl').value.trim().replace(/\/$/, ''); }
 
   document.querySelectorAll('[data-page]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1087,16 +1106,25 @@
     gcCompute();
   };
 
+  // One provider per (chain, RPC) — creating a fresh JsonRpcProvider on every call leaks
+  // instances, and without staticNetwork a dead RPC makes ethers retry network
+  // detection forever in the background.
+  const providerCache = new Map();
+  function providerFor(rpc){
+    const key = state.chain + '|' + rpc;
+    if(!providerCache.has(key)) providerCache.set(key, new ethers.JsonRpcProvider(rpc, CHAINS[state.chain].id, { staticNetwork:true }));
+    return providerCache.get(key);
+  }
+
   function getProvider(){
     const custom = $('rpcUrl').value.trim();
-    const rpc = custom || CHAINS[state.chain].defaultRpc;
-    return new ethers.JsonRpcProvider(rpc, CHAINS[state.chain].id);
+    return providerFor(custom || CHAINS[state.chain].defaultRpc);
   }
 
   // Public RPCs occasionally rate-limit or hiccup — for something as basic as a
   // balance read, try a couple of alternates before giving up silently.
   const FALLBACK_RPCS = {
-    ethereum: ['https://eth.llamarpc.com', 'https://ethereum-rpc.publicnode.com', 'https://rpc.ankr.com/eth', 'https://cloudflare-eth.com'],
+    ethereum: ['https://eth.llamarpc.com', 'https://ethereum-rpc.publicnode.com', 'https://1rpc.io/eth', 'https://eth.drpc.org'],
   };
 
   async function fetchBalanceRobust(address){
@@ -1104,8 +1132,7 @@
     const candidates = custom ? [custom] : (FALLBACK_RPCS[state.chain] || [CHAINS[state.chain].defaultRpc]);
     for(const rpc of candidates){
       try{
-        const provider = new ethers.JsonRpcProvider(rpc, CHAINS[state.chain].id);
-        const bal = await provider.getBalance(address);
+        const bal = await providerFor(rpc).getBalance(address);
         return Number(ethers.formatEther(bal)).toFixed(4);
       }catch(e){ /* try next candidate */ }
     }
@@ -1165,7 +1192,7 @@
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><input type="checkbox" class="wallet-select" data-i="${i}"></td>
-        <td><input type="text" class="wallet-name-input" data-i="${i}" value="${w.name || 'Wallet ' + (i+1)}"></td>
+        <td><input type="text" class="wallet-name-input" data-i="${i}" value="${esc(w.name || 'Wallet ' + (i+1))}"></td>
         <td>${w.address.slice(0,6)}...${w.address.slice(-4)}</td>
         <td>${w.balance === 'err' ? 'error' : (w.balance != null ? fmtNative(parseFloat(w.balance)) : '—')} <span class="wallet-token-badge" style="background:${CHAINS[state.chain].color}; color:#fff;">${chainGlyphSvg(state.chain, 10)}</span></td>
         <td><button class="wallet-x" data-i="${i}">✕</button></td>`;
@@ -1363,7 +1390,7 @@
       ? filtered.map(({w, i}) => `
         <tr>
           <td><input type="checkbox" class="${checkedClass}" data-i="${i}" ${sel.has(i) ? 'checked' : ''}></td>
-          <td>${w.name || 'Wallet '+(i+1)}</td>
+          <td>${esc(w.name || 'Wallet '+(i+1))}</td>
           <td>${w.address.slice(0,6)}...${w.address.slice(-4)}</td>
           <td style="text-align:right;">${w.balance === 'err' ? 'error' : (w.balance != null ? fmtNative(parseFloat(w.balance)) : '—')}</td>
         </tr>`).join('')
@@ -1433,7 +1460,7 @@
     } else if(count === 1){
       const w = state.wallets[idxs[0]];
       const balText = w.balance != null ? fmtNative(parseFloat(w.balance)) : '—';
-      btn.innerHTML = `<span class="trigger-badge">1</span> <span class="trigger-chip">${w.name || 'Wallet'} · ${w.address.slice(0,6)}...${w.address.slice(-4)}</span> <span class="trigger-chip-bal">${balText}</span> <span class="chev">⌄</span>`;
+      btn.innerHTML = `<span class="trigger-badge">1</span> <span class="trigger-chip">${esc(w.name || 'Wallet')} · ${w.address.slice(0,6)}...${w.address.slice(-4)}</span> <span class="trigger-chip-bal">${balText}</span> <span class="chev">⌄</span>`;
     } else {
       btn.innerHTML = `<span class="trigger-badge">${count}</span> ${count} ${noun}s selected <span class="chev">⌄</span>`;
     }
@@ -1544,12 +1571,22 @@
     updateUnitButtons(); refreshUnitDisplays(); updateDisperseMaxHint();
   };
 
+  // The amount box is in whatever unit the ETH/USD switch shows. Native transfers
+  // always go out in ETH, so USD input has to be converted first.
+  function disperseUsdMode(){ return state.unit === 'usd' && !$('disperseErc20Toggle').checked; }
+
   function updateDisperseMaxHint(){
     const amount = parseFloat($('disperseAmount').value) || 0;
     const isErc20 = $('disperseErc20Toggle').checked;
+    const sym = CHAINS[state.chain].nativeSymbol;
     if(isErc20){ $('disperseMaxHint').textContent = `ⓘ ${amount} tokens`; return; }
+    if(disperseUsdMode()){
+      const native = state.priceUsd ? (amount / state.priceUsd).toFixed(6) : '?';
+      $('disperseMaxHint').textContent = `ⓘ $${amount.toFixed(2)} ≈ ${native} ${sym}`;
+      return;
+    }
     const usd = state.priceUsd != null ? (amount * state.priceUsd).toFixed(2) : '?';
-    $('disperseMaxHint').textContent = `ⓘ MAX · ${amount} ${CHAINS[state.chain].nativeSymbol} ($${usd})`;
+    $('disperseMaxHint').textContent = `ⓘ MAX · ${amount} ${sym} ($${usd})`;
   }
 
   $('disperseAmount').addEventListener('input', updateDisperseMaxHint);
@@ -1596,7 +1633,8 @@
     const recipCount = getCheckedIndices('recipient-check').length + disperseExternal.length || 1;
     const isFlat = $('disperseMode').value === 'flat';
     const val = isFlat ? usable / recipCount : usable;
-    $('disperseAmount').value = val.toFixed(4);
+    if(disperseUsdMode() && state.priceUsd) $('disperseAmount').value = (val * state.priceUsd).toFixed(2);
+    else $('disperseAmount').value = val.toFixed(4);
     $('disperseMaxHint').textContent = `MAX ≈ ${usable.toFixed(4)} ETH available across ${senderIdx.length} sender(s) after a small gas buffer.`;
   };
 
@@ -1614,13 +1652,14 @@
     const recipients = [...recipIdx.map(i => state.wallets[i].address), ...disperseExternal];
     if(!senderIdx.length){ alert('Check at least one sender.'); return; }
     if(!recipients.length){ alert('Check at least one recipient or add an external address.'); return; }
-    const amount = parseFloat($('disperseAmount').value) || 0;
+    const amountStr = $('disperseAmount').value.trim();
+    const amount = parseFloat(amountStr) || 0;
     if(amount <= 0){ alert('Enter an amount above 0.'); return; }
     const isFlat = $('disperseMode').value === 'flat';
-    const perRecipient = isFlat ? amount : amount / recipients.length;
     const isErc20 = $('disperseErc20Toggle').checked;
     const tokenAddr = $('disperseTokenAddr').value.trim();
     if(isErc20 && !/^0x[a-fA-F0-9]{40}$/.test(tokenAddr)){ alert('Enter a valid ERC20 token contract address.'); return; }
+    if(disperseUsdMode() && !state.priceUsd){ alert('USD price is unavailable right now — switch to ETH to enter the amount directly.'); return; }
 
     const provider = getProvider();
     const log = $('disperseLog');
@@ -1628,24 +1667,40 @@
     const erc20Iface = new ethers.Interface(['function transfer(address,uint256) returns (bool)', 'function decimals() view returns (uint8)']);
     let decimals = 18;
     if(isErc20){
-      try{ decimals = await new ethers.Contract(tokenAddr, erc20Iface, provider).decimals(); }catch(e){ /* assume 18 */ }
+      // ethers v6 returns uint8 as a bigint — normalise so the unit maths below works.
+      try{ decimals = Number(await new ethers.Contract(tokenAddr, erc20Iface, provider).decimals()); }catch(e){ /* assume 18 */ }
     }
+
+    // Work in base units (wei / token units) so splits are exact and never round up.
+    let totalUnits;
+    try{
+      if(isErc20) totalUnits = ethers.parseUnits(amountStr, decimals);
+      else if(disperseUsdMode()) totalUnits = ethers.parseEther((amount / state.priceUsd).toFixed(18));
+      else totalUnits = ethers.parseEther(amountStr);
+    }catch(e){ alert('Could not read that amount — use a plain number like 0.05.'); return; }
+    const perUnits = isFlat ? totalUnits : totalUnits / BigInt(recipients.length);
+    if(perUnits <= 0n){ alert('Amount per recipient rounds to zero.'); return; }
+    const perLabel = `${ethers.formatUnits(perUnits, isErc20 ? decimals : 18)} ${isErc20 ? 'tokens' : CHAINS[state.chain].nativeSymbol}`;
 
     for(let idx = 0; idx < recipients.length; idx++){
       const addr = recipients[idx];
       const sender = state.wallets[senderIdx[idx % senderIdx.length]];
-      const signer = await getSignerForWallet(sender, provider);
       const rowDiv = document.createElement('div');
       rowDiv.style.cssText = 'font-family:var(--mono); font-size:12px; padding:6px 0; border-bottom:1px solid var(--border-soft);';
-      rowDiv.textContent = `${sender.address.slice(0,6)}... → ${addr.slice(0,6)}...${addr.slice(-4)} : ${perRecipient.toFixed(4)} ${isErc20 ? 'tokens' : 'ETH'} … sending`;
+      rowDiv.textContent = `${sender.address.slice(0,6)}... → ${addr.slice(0,6)}...${addr.slice(-4)} : ${perLabel} … sending`;
       log.appendChild(rowDiv);
+      if(sender.address.toLowerCase() === addr.toLowerCase()){
+        rowDiv.textContent = `${sender.address.slice(0,6)}... → ${addr.slice(0,6)}...${addr.slice(-4)} : skipped (sender is the recipient)`;
+        continue;
+      }
       try{
+        const signer = await getSignerForWallet(sender, provider);
         let tx;
         if(isErc20){
-          const data = erc20Iface.encodeFunctionData('transfer', [addr, ethers.parseUnits(perRecipient.toFixed(decimals), decimals)]);
+          const data = erc20Iface.encodeFunctionData('transfer', [addr, perUnits]);
           tx = await signer.sendTransaction({ to: tokenAddr, data });
         } else {
-          tx = await signer.sendTransaction({ to: addr, value: ethers.parseEther(perRecipient.toFixed(8)) });
+          tx = await signer.sendTransaction({ to: addr, value: perUnits });
         }
         rowDiv.textContent = `${sender.address.slice(0,6)}... → ${addr.slice(0,6)}...${addr.slice(-4)} : sent (${tx.hash.slice(0,10)}...)`;
         await tx.wait();
@@ -1667,18 +1722,45 @@
     catch(e){ alert('Could not parse ABI JSON: ' + e.message); }
   };
 
+  function canFetchAbi(){ return !!($('apiKey').value.trim() || proxyBase()); }
+
+  // Etherscan v2 getabi — directly with the user's key, or through the proxy worker
+  // (which holds ETHERSCAN_API_KEY server-side) when no key is set here.
+  async function fetchAbiFor(addr){
+    const key = $('apiKey').value.trim();
+    const chainId = CHAINS[state.chain].id;
+    let url;
+    if(key) url = `${CHAINS[state.chain].explorerApi}?chainid=${chainId}&module=contract&action=getabi&address=${addr}&apikey=${encodeURIComponent(key)}`;
+    else if(proxyBase()) url = `${proxyBase()}?abi=${addr}&chainid=${chainId}`;
+    else throw new Error('Add an Etherscan API key or an OpenSea proxy URL in Settings, or use "Paste ABI instead"');
+    const res = await fetch(url);
+    const data = await res.json();
+    if(data.status !== '1') throw new Error(data.result || data.error || 'ABI not found — contract may be unverified');
+    return JSON.parse(data.result);
+  }
+
+  // Most modern drops are upgradeable proxies: the verified ABI at the address has no
+  // mint function, the implementation behind the EIP-1967 slot does. Merge both.
+  const EIP1967_IMPL_SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
+  async function fetchAbiWithImplementation(addr){
+    const abi = await fetchAbiFor(addr);
+    if(mintCandidates(abi).length) return abi;
+    try{
+      const raw = await getProvider().getStorage(addr, EIP1967_IMPL_SLOT);
+      const impl = ethers.getAddress('0x' + raw.slice(26));
+      if(impl === ethers.ZeroAddress) return abi;
+      const implAbi = await fetchAbiFor(impl);
+      return [...implAbi, ...abi.filter(f => f.type !== 'constructor')];
+    }catch(e){ return abi; }
+  }
+
   $('fetchAbi').onclick = async () => {
     const addr = $('contractAddr').value.trim();
-    const key = $('apiKey').value.trim();
     if(!addr){ alert('Enter a contract address first.'); return; }
-    if(!key){ alert('Add an Etherscan-family API key in Settings, or use "Paste ABI instead".'); return; }
+    if(!canFetchAbi()){ alert('Add an Etherscan API key or an OpenSea proxy URL in Settings, or use "Paste ABI instead".'); return; }
     $('fetchAbi').textContent = 'Fetching…'; $('fetchAbi').disabled = true;
     try{
-      const url = `${CHAINS[state.chain].explorerApi}?chainid=${CHAINS[state.chain].id}&module=contract&action=getabi&address=${addr}&apikey=${key}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if(data.status !== '1') throw new Error(data.result || 'ABI not found — contract may be unverified');
-      loadAbi(JSON.parse(data.result));
+      loadAbi(await fetchAbiWithImplementation(addr));
       updateTargetHeader(addr);
     }catch(e){
       setDiag('err', 'ABI fetch failed: ' + e.message);
@@ -1889,8 +1971,65 @@
     }
   }
 
+  // SeaDrop is OpenSea Studio's own open-source drop contract — same address across chains.
+  // Its public mint stage (price + start/end time) is stored on-chain and readable directly,
+  // unlike OpenSea's REST API which doesn't expose mint-stage data at all.
+  const SEADROP_ADDRESS = '0x00005EA00Ac477B1030CE78506496e8C2dE24bf5';
+  const SEADROP_ABI = ['function getPublicDrop(address nftContract) view returns (uint80 mintPrice, uint48 startTime, uint48 endTime, uint16 maxTotalMintableByWallet, uint16 feeBps, bool restrictFeeRecipients)'];
+  // SeaDrop drops are NOT minted on the NFT contract (its mintSeaDrop() is callable only by
+  // SeaDrop) — the public mint is SeaDrop.mintPublic(), paying OpenSea's allowed fee recipient.
+  const OPENSEA_FEE_RECIPIENT = '0x0000a26b00c1F0DF003000390027140000fAa719';
+  const SEADROP_MINT_FN = {
+    type:'function', name:'mintPublic', stateMutability:'payable', outputs:[],
+    inputs:[
+      { name:'nftContract', type:'address' },
+      { name:'feeRecipient', type:'address' },
+      { name:'minterIfNotPayer', type:'address' },
+      { name:'quantity', type:'uint256' },
+    ],
+  };
+
+  // A 40-hex address not embedded in a longer hex string (tx hashes are 64 hex).
+  const ADDR_RE = /(?<![0-9a-fA-F])0x[a-fA-F0-9]{40}(?![0-9a-fA-F])/g;
+  // Addresses that show up on nearly every mint page but are never the drop itself.
+  const NOT_A_DROP = new Set([
+    '0x0000000000000000000000000000000000000000',
+    SEADROP_ADDRESS.toLowerCase(),
+    '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', // WETH
+    '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // USDC
+    '0xdac17f958d2ee523a2206206994597c13d831ec7', // USDT
+    '0x00000000000000adc04c56bf30ac9d3c0aaf14dc', // Seaport 1.5
+    '0x0000000000000068f116a894984e2db1123eb395', // Seaport 1.6
+    '0x1e0049783f008a0085193e00003d00cd54003c71', // OpenSea conduit
+    OPENSEA_FEE_RECIPIENT.toLowerCase(),
+  ]);
+
+  // Rank candidate addresses by how often they appear, then keep the first that is
+  // actually a contract on the selected chain.
+  async function pickContractFromText(text){
+    const counts = new Map();
+    for(const m of (text.match(ADDR_RE) || [])){
+      const a = m.toLowerCase();
+      if(NOT_A_DROP.has(a)) continue;
+      counts.set(a, (counts.get(a) || 0) + 1);
+    }
+    const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([a]) => a).slice(0, 8);
+    for(const a of ranked){
+      try{ if((await getProvider().getCode(a)) !== '0x') return ethers.getAddress(a); }catch(e){ /* RPC hiccup — try next */ }
+    }
+    return ranked.length ? ethers.getAddress(ranked[0]) : null;
+  }
+
   async function tryResolveAddressFromInput(input){
-    if(/^0x[a-fA-F0-9]{40}$/.test(input)) return { address: input, chainKey:null, source:'direct' };
+    if(/^0x[a-fA-F0-9]{40}$/.test(input)) return { address: ethers.getAddress(input.toLowerCase()), chainKey:null, source:'direct' };
+
+    // Explorer links, OpenSea item links, mint sites with the address in the URL…
+    const inUrl = input.match(ADDR_RE);
+    if(inUrl){
+      const chainMatch = input.match(/opensea\.io\/(?:assets|item)\/([a-z_-]+)\/0x/i);
+      const chainKey = chainMatch ? (OPENSEA_CHAIN_TO_KEY[chainMatch[1].toLowerCase()] || null) : null;
+      return { address: ethers.getAddress(inUrl[0].toLowerCase()), chainKey, source:'url' };
+    }
 
     if(/opensea\.io/i.test(input)){
       try{
@@ -1901,11 +2040,24 @@
       }
     }
 
+    if(!/^https?:\/\//i.test(input)) input = 'https://' + input;
+
+    // Browsers can't read other sites' HTML (CORS), so let the proxy worker fetch the
+    // page — plus its first-party scripts, where SPA mint sites keep the address.
+    if(proxyBase()){
+      try{
+        const res = await fetch(`${proxyBase()}?url=${encodeURIComponent(input)}`);
+        const data = await res.json();
+        if(!res.ok) throw new Error(data.error || ('proxy returned ' + res.status));
+        const address = await pickContractFromText((data.addresses || []).join(' '));
+        if(address) return { address, chainKey:null, source:'scrape' };
+      }catch(e){ /* fall through to a direct attempt */ }
+    }
+
     try{
       const res = await fetch(input, { mode:'cors' });
-      const text = await res.text();
-      const match = text.match(/0x[a-fA-F0-9]{40}/);
-      if(match) return { address: match[0], chainKey:null, source:'scrape' };
+      const address = await pickContractFromText(await res.text());
+      if(address) return { address, chainKey:null, source:'scrape' };
     }catch(e){ /* CORS or network block — expected on most sites */ }
     return null;
   }
@@ -1937,7 +2089,9 @@
       $('targetCard').removeAttribute('hidden'); $('phasesCard').removeAttribute('hidden');
       $('advBody').removeAttribute('hidden'); $('advToggleBtn').textContent = '▾ Advanced — contract, ABI, mint function, gas limits';
     } else {
-      setScanStep('scanStep1', 'done'); setScanText('scanStep1', 'Could not auto-detect a contract (cross-origin block) — enter it below in Advanced');
+      setScanStep('scanStep1', 'done'); setScanText('scanStep1', proxyBase()
+        ? 'Could not find a contract address on that page — enter it below in Advanced'
+        : 'Could not read that page from the browser (cross-origin block) — set a proxy URL in Settings, or enter the contract below in Advanced');
       $('targetCard').removeAttribute('hidden'); $('phasesCard').removeAttribute('hidden');
       $('advBody').removeAttribute('hidden'); $('advToggleBtn').textContent = '▾ Advanced — contract, ABI, mint function, gas limits';
     }
@@ -1950,7 +2104,7 @@
     setScanStep('scanStep3', 'active'); setScanText('scanStep3', 'Checking eligibility');
     let seadropFound = false;
     if(result && result.address){
-      if($('apiKey').value.trim()) await autoFetchAbi(result.address);
+      if(canFetchAbi()) await autoFetchAbi(result.address);
       seadropFound = await tryAutoDetectSeaDropPhase(result.address);
     }
     const eligText = seadropFound
@@ -1958,24 +2112,15 @@
       : (state.fn ? 'mint function selected — verify phase rules match' : 'select the mint function in Advanced to confirm');
     setScanStep('scanStep3', 'done'); setScanText('scanStep3', `Done — ${eligText}`);
     $('eligibleBadge').textContent = state.fn ? 'likely' : '?';
+    // No function picked yet — the choice lives in Advanced, so don't leave it collapsed.
+    if(!state.fn){ $('advBody').removeAttribute('hidden'); $('advToggleBtn').textContent = '▾ Advanced — contract, ABI, mint function, gas limits'; }
     checkReadiness();
   }
 
   async function autoFetchAbi(addr){
-    const key = $('apiKey').value.trim();
-    try{
-      const url = `${CHAINS[state.chain].explorerApi}?chainid=${CHAINS[state.chain].id}&module=contract&action=getabi&address=${addr}&apikey=${key}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if(data.status === '1') loadAbi(JSON.parse(data.result));
-    }catch(e){ /* silent — user can still fetch manually in Advanced */ }
+    try{ loadAbi(await fetchAbiWithImplementation(addr)); }
+    catch(e){ /* silent — user can still fetch manually in Advanced */ }
   }
-
-  // SeaDrop is OpenSea Studio's own open-source drop contract — same address across chains.
-  // Its public mint stage (price + start/end time) is stored on-chain and readable directly,
-  // unlike OpenSea's REST API which doesn't expose mint-stage data at all.
-  const SEADROP_ADDRESS = '0x00005EA00Ac477B1030CE78506496e8C2dE24bf5';
-  const SEADROP_ABI = ['function getPublicDrop(address nftContract) view returns (uint80 mintPrice, uint48 startTime, uint48 endTime, uint16 maxTotalMintableByWallet, uint16 feeBps, bool restrictFeeRecipients)'];
 
   async function tryAutoDetectSeaDropPhase(nftContract){
     try{
@@ -1988,6 +2133,9 @@
       const phase = { name: 'PUBLIC', price, start: startISO };
       if(existingIdx >= 0) state.phases[existingIdx] = phase; else state.phases.push(phase);
       renderPhases();
+      $('mintValue').value = price;
+      if(drop.maxTotalMintableByWallet > 0n) $('maxPerWalletBadge').textContent = String(drop.maxTotalMintableByWallet);
+      addSeaDropCandidate(nftContract);
       return true;
     }catch(e){ return false; }
   }
@@ -2017,7 +2165,7 @@
 
   function resetTarget(){
     if(state.scheduleTimer) clearInterval(state.scheduleTimer);
-    state.abi = null; state.fn = null; state.args = {}; state.armed = false; state.phases = [];
+    state.abi = null; state.fn = null; state.mintTo = null; state.args = {}; state.armed = false; state.phases = [];
 
     $('scanCard').style.display = 'none';
     $('topSearch').value = '';
@@ -2062,36 +2210,88 @@
     $('explorerLink').style.display = 'inline';
   }
 
-  function loadAbi(abiJson){
-    state.abi = abiJson;
-    state.fn = null;
-    const candidates = abiJson.filter(f => f.type==='function' && (f.stateMutability==='payable'||f.stateMutability==='nonpayable') && /mint|claim|purchase|buy/i.test(f.name));
-    const fnList = $('fnList');
-    fnList.innerHTML = '';
-    if(!candidates.length){ fnList.innerHTML = '<div class="hint">No obvious mint function found. Check the full ABI — non-standard name?</div>'; return; }
-    candidates.forEach(f => {
-      const sig = `${f.name}(${f.inputs.map(i=>i.type).join(',')})`;
-      const el = document.createElement('div');
-      el.className = 'fn-candidate';
-      el.innerHTML = `<span>${sig}</span><span class="fn-tag">${f.stateMutability}</span>`;
-      el.onclick = () => { document.querySelectorAll('.fn-candidate').forEach(x=>x.classList.remove('selected')); el.classList.add('selected'); selectFn(f); };
-      fnList.appendChild(el);
-    });
+  function mintCandidates(abiJson){
+    return abiJson.filter(f => f.type==='function' && (f.stateMutability==='payable'||f.stateMutability==='nonpayable') && /mint|claim|purchase|buy/i.test(f.name) && !/seadrop/i.test(f.name));
   }
 
-  function selectFn(f){
-    state.fn = f; state.args = {};
+  function addFnCandidate(f, label, tag, opts, prepend){
+    const el = document.createElement('div');
+    el.className = 'fn-candidate';
+    el.innerHTML = `<span>${esc(label)}</span><span class="fn-tag">${esc(tag)}</span>`;
+    el.onclick = () => { document.querySelectorAll('.fn-candidate').forEach(x=>x.classList.remove('selected')); el.classList.add('selected'); selectFn(f, opts); };
+    const fnList = $('fnList');
+    if(fnList.querySelector('.hint')) fnList.innerHTML = '';
+    if(prepend) fnList.prepend(el); else fnList.appendChild(el);
+    return el;
+  }
+
+  function loadAbi(abiJson){
+    const keepSeaDrop = state.fn && state.mintTo === SEADROP_ADDRESS;
+    state.abi = abiJson;
+    const candidates = mintCandidates(abiJson);
+    const fnList = $('fnList');
+    const seaDropEl = fnList.querySelector('.fn-candidate[data-seadrop]');
+    fnList.innerHTML = '';
+    if(seaDropEl) fnList.appendChild(seaDropEl);
+    if(!keepSeaDrop){ state.fn = null; state.mintTo = null; }
+    if(!candidates.length && !seaDropEl){ fnList.innerHTML = '<div class="hint">No obvious mint function found. Check the full ABI — non-standard name?</div>'; return; }
+    candidates.forEach(f => addFnCandidate(f, `${f.name}(${f.inputs.map(i=>i.type).join(',')})`, f.stateMutability));
+  }
+
+  function addSeaDropCandidate(nftContract){
+    const old = $('fnList').querySelector('.fn-candidate[data-seadrop]');
+    if(old) old.remove();
+    const opts = { to: SEADROP_ADDRESS, presets: { nftContract, feeRecipient: OPENSEA_FEE_RECIPIENT, minterIfNotPayer: ethers.ZeroAddress } };
+    const el = addFnCandidate(SEADROP_MINT_FN, 'SeaDrop.mintPublic(nftContract, feeRecipient, minterIfNotPayer, quantity)', 'payable · via SeaDrop', opts, true);
+    el.dataset.seadrop = '1';
+    el.click();
+  }
+
+  // Common names for "how many" arguments — left blank, they follow the Quantity stepper.
+  const QTY_ARG_RE = /^_?(qty|quantity|amount|count|num|numtokens|numberoftokens|mintamount|mintcount|tokenquantity|quantity_)$/i;
+  function isQtyInput(inp){ return /^uint/.test(inp.type) && QTY_ARG_RE.test(inp.name || ''); }
+
+  function selectFn(f, opts){
+    opts = opts || {};
+    state.fn = f; state.args = {}; state.mintTo = opts.to || null;
+    const presets = opts.presets || {};
     const form = $('argForm');
     form.innerHTML = '';
     if(!f.inputs.length){ form.innerHTML = '<div class="hint">No arguments needed.</div>'; checkReadiness(); return; }
-    f.inputs.forEach(inp => {
+    f.inputs.forEach((inp, idx) => {
+      const key = inp.name || ('arg' + idx);
       const row = document.createElement('div');
       row.className = 'arg-row';
-      row.innerHTML = `<div class="arg-label">${inp.name||inp.type}</div><input type="text" placeholder="${inp.type}${/proof|merkle/i.test(inp.name||'') ? ' — merkle proof array' : ''}" data-arg="${inp.name}">`;
+      const hint = isQtyInput(inp) ? ' — blank = Quantity above' : (/proof|merkle/i.test(inp.name||'') ? ' — merkle proof array' : '');
+      row.innerHTML = `<div class="arg-label">${esc(inp.name||inp.type)}</div><input type="text" placeholder="${esc(inp.type + hint)}" data-arg="${esc(key)}">`;
       form.appendChild(row);
+      if(presets[key] != null){ row.querySelector('input').value = presets[key]; state.args[key] = presets[key]; }
     });
-    form.querySelectorAll('input').forEach(inp => { inp.oninput = () => { state.args[inp.dataset.arg] = inp.value; checkReadiness(); }; });
+    form.querySelectorAll('input').forEach(inp => { inp.oninput = () => { state.args[inp.dataset.arg] = inp.value; if(state.armed) disarm(); checkReadiness(); }; });
     checkReadiness();
+  }
+
+  // Everything needed to send one mint tx: calldata, value (price × quantity), destination,
+  // and how many txs each wallet should send (functions without a quantity arg mint one each).
+  function buildMintCall(){
+    const fn = state.fn;
+    const iface = new ethers.Interface([fn]);
+    const qty = Math.max(1, parseInt($('mintQty').value) || 1);
+    const qtyIdx = fn.inputs.findIndex(isQtyInput);
+    const argValues = fn.inputs.map((inp, idx) => {
+      const raw = state.args[inp.name || ('arg' + idx)];
+      if((raw === undefined || raw === '') && idx === qtyIdx) return BigInt(qty);
+      return coerceArg(raw, inp.type);
+    });
+    const priceStr = $('mintValue').value.trim();
+    const unitPrice = priceStr ? ethers.parseEther(priceStr) : 0n;
+    const perTxQty = qtyIdx >= 0 ? BigInt(argValues[qtyIdx]) : 1n;
+    return {
+      to: state.mintTo || $('contractAddr').value.trim(),
+      data: iface.encodeFunctionData(iface.fragments[0], argValues),
+      value: unitPrice * perTxQty,
+      txPerWallet: qtyIdx >= 0 ? 1 : qty,
+    };
   }
 
   function phaseCountdownText(start){
@@ -2171,14 +2371,18 @@
     $('simulateBtn').disabled = !ok;
     if(!ok){
       setDiag('warn', 'Not armed — load a wallet, a target contract, and select a mint function.');
+    } else if(!state.armed){
+      setDiag('warn', 'Ready — Simulate to check the call, then Arm.');
     }
   }
   checkReadiness();
 
   $('armBtn').onclick = () => {
     if(!state.wallets.length || !state.fn){ alert('Load wallets and select a mint function first.'); return; }
+    let call;
+    try{ call = buildMintCall(); }catch(e){ setDiag('err', 'Can\'t arm — ' + (e.shortMessage || e.message)); return; }
     state.armed = true;
-    setDiag('ok', `Armed — ${state.wallets.length} wallet(s) · ${state.fn.name}() · ${CHAINS[state.chain].name} · value ${$('mintValue').value||'0'} ETH × ${$('mintQty').value}`);
+    setDiag('ok', `Armed — ${state.wallets.length} wallet(s) · ${state.fn.name}() · ${CHAINS[state.chain].name} · ${ethers.formatEther(call.value)} ETH per tx × ${call.txPerWallet} tx/wallet`);
     $('fireBtn').disabled = false;
     setupSchedule();
   };
@@ -2210,14 +2414,10 @@
     if(!state.wallets.length || !state.fn){ alert('Load a wallet and select a mint function first.'); return; }
     setDiag('warn', 'Simulating…');
     const provider = getProvider();
-    const iface = new ethers.Interface(state.abi);
-    const argValues = state.fn.inputs.map(inp => coerceArg(state.args[inp.name], inp.type));
-    const value = $('mintValue').value ? ethers.parseEther($('mintValue').value) : 0n;
-    const contractAddr = $('contractAddr').value.trim();
-    const data = iface.encodeFunctionData(state.fn.name, argValues);
     const from = state.wallets[0].address;
     try{
-      await provider.call({ to: contractAddr, data, value, from });
+      const { to, data, value } = buildMintCall();
+      await provider.call({ to, data, value, from });
       setDiag('ok', `Simulation passed for ${from.slice(0,6)}...${from.slice(-4)} — call would succeed at current state. Real conditions can still change before you fire.`);
     }catch(e){
       setDiag('err', 'Simulation reverted: ' + (e.shortMessage || e.reason || e.message || 'unknown error') + ' — fix this before spending real gas.');
@@ -2245,17 +2445,23 @@
   async function fireAll(){
     if(!state.armed || !state.wallets.length || !state.fn) return;
     const provider = getProvider();
-    const iface = new ethers.Interface(state.abi);
-    const argValues = state.fn.inputs.map(inp => coerceArg(state.args[inp.name], inp.type));
-    const value = $('mintValue').value ? ethers.parseEther($('mintValue').value) : 0n;
-    const maxAttempts = parseInt($('maxAttempts').value) || 1;
-    const bumpGwei = parseFloat($('bumpGwei').value) || 0;
-    const gasCap = parseFloat($('maxGasCap').value) || 150;
-    const autoBump = $('autoBump').checked;
-    const contractAddr = $('contractAddr').value.trim();
+    let call;
+    try{ call = buildMintCall(); }
+    catch(e){ setDiag('err', 'Could not build the mint call: ' + (e.shortMessage || e.message)); return; }
+    const opts = {
+      maxAttempts: parseInt($('maxAttempts').value) || 1,
+      bumpGwei: parseFloat($('bumpGwei').value) || 0,
+      gasCap: parseFloat($('maxGasCap').value) || 150,
+      autoBump: $('autoBump').checked,
+      nftContract: $('contractAddr').value.trim(),
+      sweepAddr: $('sweepAddr').value.trim(),
+    };
 
     setDiag('warn', `Firing ${state.wallets.length} wallet(s)…`);
-    await Promise.allSettled(state.wallets.map(w => mintOne(w, provider, iface, argValues, value, contractAddr, maxAttempts, bumpGwei, gasCap, autoBump)));
+    // Wallets fire in parallel; a single wallet's txs go out one after another so nonces never collide.
+    await Promise.allSettled(state.wallets.map(async w => {
+      for(let k = 0; k < call.txPerWallet; k++) await mintOne(w, provider, call, opts);
+    }));
     setDiag('ok', `Done — ${state.stats.success} minted, ${state.stats.fail} failed this session.`);
     renderStats();
   }
@@ -2267,14 +2473,16 @@
     return val || '';
   }
 
-  async function mintOne(w, provider, iface, argValues, value, contractAddr, maxAttempts, bumpGwei, gasCap, autoBump){
+  async function mintOne(w, provider, call, opts){
+    const { maxAttempts, bumpGwei, gasCap, autoBump, nftContract, sweepAddr } = opts;
     const trs = logRow();
     setCell(trs, '.w-cell', w.address.slice(0,6)+'...'+w.address.slice(-4));
-    setCell(trs, '.am-cell', $('mintQty').value + 'x');
+    setCell(trs, '.am-cell', ethers.formatEther(call.value) + ' ETH');
     setStatus(trs, 'armed', 'preparing');
 
-    const signer = await getSignerForWallet(w, provider);
-    const data = iface.encodeFunctionData(state.fn.name, argValues);
+    let signer;
+    try{ signer = await getSignerForWallet(w, provider); }
+    catch(e){ setStatus(trs, 'fail', shortErr(e)); state.stats.total++; state.stats.fail++; return; }
 
     let attempt = 0, priorityBumpGwei = 0;
     while(attempt < maxAttempts){
@@ -2286,21 +2494,21 @@
         let maxFeePerGas = (feeData.maxFeePerGas ?? ethers.parseUnits('30','gwei')) + ethers.parseUnits(String(priorityBumpGwei),'gwei');
         const capWei = ethers.parseUnits(String(gasCap),'gwei');
         if(maxFeePerGas > capWei) maxFeePerGas = capWei;
+        // The node rejects a tip above the fee cap, which the gas cap above can cause.
+        if(maxPriorityFeePerGas > maxFeePerGas) maxPriorityFeePerGas = maxFeePerGas;
         setCell(trs, '.g-cell', Number(ethers.formatUnits(maxFeePerGas,'gwei')).toFixed(1));
 
-        const tx = await signer.sendTransaction({ to: contractAddr, data, value, maxPriorityFeePerGas, maxFeePerGas });
+        const tx = await signer.sendTransaction({ to: call.to, data: call.data, value: call.value, maxPriorityFeePerGas, maxFeePerGas });
         setCell(trs, '.h-cell', `<a href="${CHAINS[state.chain].tx}${tx.hash}" target="_blank">${tx.hash.slice(0,8)}...</a>`);
         setStatus(trs, 'pending', 'confirming');
 
         const receipt = await tx.wait();
-        state.stats.total++; state.stats.gasSum += Number(ethers.formatUnits(maxFeePerGas,'gwei')); state.stats.gasCount++;
-        if(receipt.status === 1){
-          state.stats.success++; setStatus(trs, 'success', 'minted');
-          const sweepAddr = $('sweepAddr').value.trim();
-          if(sweepAddr) await sweepMinted(w, signer, contractAddr, receipt, sweepAddr, trs);
-          return;
-        }
-        else throw new Error('reverted on-chain');
+        if(!receipt || receipt.status !== 1) throw new Error('reverted on-chain');
+        state.stats.total++; state.stats.success++;
+        state.stats.gasSum += Number(ethers.formatUnits(maxFeePerGas,'gwei')); state.stats.gasCount++;
+        setStatus(trs, 'success', 'minted');
+        if(sweepAddr) await sweepMinted(w, signer, nftContract, receipt, sweepAddr, trs);
+        return;
       }catch(e){
         setStatus(trs, 'fail', shortErr(e));
         if(attempt >= maxAttempts || !autoBump){ state.stats.total++; state.stats.fail++; return; }
@@ -2356,6 +2564,7 @@
   }
   pollGas();
   setInterval(pollGas, 12000);
+  $('rpcUrl').addEventListener('change', pollGas);
 })();
 </script>
 </body>
