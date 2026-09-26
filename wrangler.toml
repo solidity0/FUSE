@@ -1,0 +1,12 @@
+# Deploy the FUSE proxy worker:  npx wrangler deploy
+# Then set secrets (never commit them):
+#   npx wrangler secret put OPENSEA_API_KEY
+#   npx wrangler secret put ETHERSCAN_API_KEY   # optional, enables ?abi=
+name = "fuse-proxy"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+# Comma-separated origins allowed to use this worker ("null" = FUSE opened as a local file).
+# Leave empty to allow any origin.
+ALLOWED_ORIGINS = ""
