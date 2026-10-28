@@ -1174,6 +1174,7 @@
       const res = await withTimeout(fetch(base), 8000);
       const data = await res.json().catch(() => ({}));
       if(res.status === 403) return ['bad', 'Proxy', `refused this site — add ${location.protocol === 'file:' ? 'null' : location.origin} to ALLOWED_ORIGINS on the worker`];
+      if(res.status === 400 && /^use \?/.test(data.error || '') && !/collection=/.test(data.error || '')) return ['bad', 'Proxy', 'reachable, but it\'s an older worker.js — no collection details or Robinhood relay. Ctrl+C it, git pull, start it again'];
       if(res.status === 400 && /slug/.test(data.error || '')) return ['ok', 'Proxy', isLocal ? 'local FUSE worker is reachable — keep its terminal running' : 'FUSE worker is reachable'];
       return ['bad', 'Proxy', `answered, but it doesn't look like the FUSE worker (HTTP ${res.status}) — redeploy worker.js`];
     }catch(e){
@@ -1186,6 +1187,7 @@
     const btn = $('saveSettings');
     if(btn.disabled) return;
     const stored = saveSettings();
+    relayStatus.clear(); await probeRelay();
     showSaveState(stored ? 'Saved ✓ — checking connections…' : 'Couldn\'t save (browser storage is blocked) — settings apply until you reload');
     btn.disabled = true;
     const box = $('settingsChecks');
@@ -1291,7 +1293,7 @@
     $('rpcLabel').textContent = `Custom RPC URL for ${c.name === 'ETH' ? 'Ethereum' : c.name + ' Chain'} (strongly recommended)`;
     $('rpcUrl').placeholder = state.chain === 'robinhood' ? 'https://… your Robinhood Chain RPC (Alchemy / QuickNode / Chainstack)' : 'https://eth-mainnet.g.alchemy.com/v2/...';
     if($('quickTokenRow')) $('quickTokenRow').style.display = ($('disperseErc20Toggle').checked && state.chain === 'ethereum') ? 'flex' : 'none';
-    setTimeout(pollGas, 0); // after start-up finishes defining the RPC helpers
+    setTimeout(() => { probeRelay().finally(pollGas); }, 0); // after start-up finishes defining the RPC helpers
   }
 
   function updateUnitButtons(){
@@ -1424,14 +1426,54 @@
   // instances, and without staticNetwork a dead RPC makes ethers retry network
   // detection forever in the background.
   const providerCache = new Map();
-  function providerFor(rpc){
-    const key = state.chain + '|' + rpc;
-    if(!providerCache.has(key)) providerCache.set(key, new ethers.JsonRpcProvider(rpc, CHAINS[state.chain].id, { staticNetwork:true }));
+  function providerFor(rpc, chainKey){
+    chainKey = chainKey || state.chain;
+    const key = chainKey + '|' + rpc;
+    if(!providerCache.has(key)) providerCache.set(key, new ethers.JsonRpcProvider(rpc, CHAINS[chainKey].id, { staticNetwork:true }));
     return providerCache.get(key);
   }
 
+  // When only an address is known (no OpenSea chain info), find the supported chain the
+  // contract actually lives on — current chain first.
+  async function detectChainFor(addr){
+    const order = [state.chain, ...ACTIVE_CHAINS.filter(k => k !== state.chain)];
+    for(const k of order){
+      const urls = [...new Set([k === state.chain ? $('rpcUrl').value.trim() : rpcUrls[k], ...(FALLBACK_RPCS[k] || [CHAINS[k].defaultRpc])].filter(Boolean))];
+      for(const url of urls){
+        try{
+          const code = await withTimeout(providerFor(url, k).getCode(addr), 6000);
+          if(code && code !== '0x') return k;
+          break; // this RPC answered: no contract on this chain
+        }catch(e){ /* try the next RPC for this chain */ }
+      }
+    }
+    return null;
+  }
+
   // Order: your custom RPC → the proxy worker's relay (for chains that need it) → public RPCs.
-  function proxyRpcUrl(){ return CHAINS[state.chain].rpcViaProxy && proxyBase() ? `${proxyBase()}?rpc=${state.chain}` : null; }
+  // The relay is only used once it has answered on the right chain (an older worker has no relay).
+  const relayStatus = new Map(); // relay URL -> 'ok' | 'bad' | Promise
+  function proxyRpcUrl(){
+    const url = CHAINS[state.chain].rpcViaProxy && proxyBase() ? `${proxyBase()}?rpc=${state.chain}` : null;
+    return url && relayStatus.get(url) === 'ok' ? url : null;
+  }
+  async function probeRelay(){
+    const url = CHAINS[state.chain].rpcViaProxy && proxyBase() ? `${proxyBase()}?rpc=${state.chain}` : null;
+    if(!url) return;
+    const known = relayStatus.get(url);
+    if(known === 'ok' || known === 'bad') return;
+    if(known) return known;
+    const want = CHAINS[state.chain].id;
+    const p = (async () => {
+      try{
+        const res = await withTimeout(fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'eth_chainId', params:[] }) }), 6000);
+        const out = await res.json();
+        relayStatus.set(url, res.ok && parseInt(out.result, 16) === want ? 'ok' : 'bad');
+      }catch(e){ relayStatus.set(url, 'bad'); }
+    })();
+    relayStatus.set(url, p);
+    return p;
+  }
   function rpcCandidates(){
     const list = [$('rpcUrl').value.trim(), proxyRpcUrl(), ...(FALLBACK_RPCS[state.chain] || [CHAINS[state.chain].defaultRpc])].filter(Boolean);
     return [...new Set(list)];
@@ -2151,8 +2193,12 @@
     } else if(key) url = `${CHAINS[state.chain].explorerApi}?chainid=${chainId}&module=contract&action=getabi&address=${addr}&apikey=${encodeURIComponent(key)}`;
     else if(proxyBase()) url = `${proxyBase()}?abi=${addr}&chainid=${chainId}`;
     else throw new Error('Add an Etherscan API key or an OpenSea proxy URL in Settings, or use "Paste ABI instead"');
-    const res = await fetch(url);
-    const data = await res.json();
+    let data;
+    try{ data = await (await fetch(url)).json(); }catch(e){ data = {}; }
+    // An older worker sends every ?abi= to Etherscan, which doesn't index Blockscout chains.
+    if(data.status !== '1' && CHAINS[state.chain].abiSource === 'blockscout' && url.startsWith(proxyBase() || '\u0000')){
+      try{ data = await (await fetch(`${CHAINS[state.chain].blockscoutApi}?module=contract&action=getabi&address=${addr}`)).json(); }catch(e){}
+    }
     if(data.status !== '1') throw new Error(data.result || data.error || 'ABI not found — contract may be unverified');
     return JSON.parse(data.result);
   }
@@ -2449,11 +2495,16 @@
       if(res.status === 401 || res.status === 403) throw new Error(data.error === 'origin not allowed'
         ? 'your proxy worker refused this site — add it to ALLOWED_ORIGINS'
         : 'OpenSea rejected the proxy\'s API key — check the OPENSEA_API_KEY secret on your worker');
-      if(res.status === 400 && /collection=/.test(data.error || '')) throw new Error('your proxy worker is an older version — redeploy the latest worker.js');
-      if(!res.ok) throw new Error(data.error || ('OpenSea lookup returned ' + res.status));
-      if(!data.contract) throw new Error('Collection found but has no on-chain contract listed yet (pre-mint or off-chain)');
-      state.collection = data;
-      return { address: data.contract, chainKey: OPENSEA_CHAIN_TO_KEY[data.chain] || null, chainName: data.chain, name: data.name, source:'opensea' };
+      // An older worker doesn't know ?collection= and answers with its usage line. Fall back to
+      // its basic ?slug= lookup below (name, images, chain) and say what's missing.
+      const outdated = res.status === 400 && /^use \?/.test(data.error || '') && !/collection=/.test(data.error || '');
+      if(!outdated){
+        if(!res.ok) throw new Error(data.error || ('OpenSea lookup returned ' + res.status));
+        if(!data.contract) throw new Error('Collection found but has no on-chain contract listed yet (pre-mint or off-chain)');
+        state.collection = data;
+        return { address: data.contract, chainKey: OPENSEA_CHAIN_TO_KEY[data.chain] || null, chainName: data.chain, name: data.name, source:'opensea' };
+      }
+      state.workerOutdated = true;
     }
 
     try{
@@ -2468,13 +2519,15 @@
       if(res.status === 401 || res.status === 403) throw new Error(proxyUrl
         ? 'OpenSea rejected the proxy\'s API key — check the OPENSEA_API_KEY secret on your worker'
         : (key ? 'OpenSea API key is invalid — update it in Settings' : 'no OpenSea API key set — add one in Settings'));
-      if(res.status === 404) throw new Error(`No OpenSea collection found for slug "${slug}"`);
+      if(res.status === 404) throw new Error(state.workerOutdated
+        ? 'your proxy worker is an older version — restart it with the latest worker.js (git pull, then start it again) to get collection details'
+        : `No OpenSea collection found for slug "${slug}"`);
       if(!res.ok) throw new Error('OpenSea lookup returned ' + res.status);
       const data = await res.json();
       const contract = (data.contracts || [])[0];
       if(!contract) throw new Error('Collection found but has no on-chain contract listed yet (pre-mint or off-chain)');
       const chainKey = OPENSEA_CHAIN_TO_KEY[contract.chain] || null;
-      state.collection = { slug, name: data.name || slug, image: data.image_url, banner: data.banner_image_url, chain: contract.chain,
+      state.collection = { outdatedWorker: !!state.workerOutdated, slug, name: data.name || slug, image: data.image_url, banner: data.banner_image_url, chain: contract.chain,
         contract: contract.address, supply: Number(data.total_supply) || null, openseaUrl: data.opensea_url, stats: {}, items: [], drop: null };
       return { address: contract.address, chainKey, chainName: contract.chain, name: data.name || slug, source:'opensea' };
     }catch(e){
@@ -2592,12 +2645,17 @@
     setScanStep('scanStep1', 'active'); setScanText('scanStep1', 'Scanning page for contract');
 
     stopCollectionRefresh();
-    state.collection = null; state.targetChainUnsupported = null;
+    await probeRelay();
+    state.collection = null; state.targetChainUnsupported = null; state.workerOutdated = false;
     $('collectionCard').setAttribute('hidden', '');
     const result = await tryResolveAddressFromInput(input.trim());
 
     if(result && result.address){
       let chainNote = '';
+      if(!result.chainKey && !result.chainName){
+        const found = await detectChainFor(result.address);
+        if(found) result.chainKey = found;
+      }
       if(result.chainKey && result.chainKey !== state.chain){
         if(ACTIVE_CHAINS.includes(result.chainKey)){
           setChain(result.chainKey);
@@ -2903,6 +2961,8 @@
     const itemsHtml = (c.items || []).length ? `<div class="coll-items">${c.items.slice(0, 20).map(it =>
       httpsUrl(it.image) ? `<img src="${esc(it.image)}" alt="${esc(it.name)}" title="${esc(it.name)}" loading="lazy" referrerpolicy="no-referrer">` : '').join('')}</div>` : '';
 
+    const outdatedNote = state.workerOutdated
+      ? `<div class="coll-note">Your proxy worker is an older version, so OpenSea stages, stats and images are missing. Restart it with the latest worker.js: in its terminal press Ctrl+C, run <b>git pull</b>, then start it again.</div>` : '';
     const note = state.targetChainUnsupported
       ? `<div class="coll-note">This collection is on <b>${esc(prettyChain(state.targetChainUnsupported))}</b>. FUSE can show it, but only mints on ${esc(supportedChainsText())} right now — arming and firing are disabled for it.</div>` : '';
     const name = c.name || ('Contract ' + c.contract.slice(0, 6) + '...' + c.contract.slice(-4));
@@ -2916,7 +2976,7 @@
           <div class="coll-title"><div class="coll-name">${esc(name)}</div><div class="coll-badges">${badges.join('')}</div></div>
           ${osLink}
         </div>
-        ${statsHtml}${progressHtml}${stagesHtml}${itemsHtml}${note}
+        ${statsHtml}${progressHtml}${stagesHtml}${itemsHtml}${outdatedNote}${note}
         <div class="coll-foot"><span>${esc(c.contract)}</span><span>${c.fetchedAt || !state.targetChainUnsupported ? 'Live · updates every ' + (state.targetChainUnsupported ? '30' : '15') + 's' : ''}</span></div>
       </div>`;
     if(!c.banner) card.querySelector('.coll-banner').style.height = '48px';
@@ -3111,7 +3171,7 @@
     if(!mintWallets().length || !state.fn){ alert('Tick at least one wallet and select a mint function first.'); return; }
     let call;
     try{ call = buildMintCall(); }catch(e){ setDiag('err', 'Can\'t arm — ' + (e.shortMessage || e.message)); return; }
-    try{ await verifyChain(); }catch(e){ if(state.armed) disarm(); setDiag('err', 'Can\'t arm — ' + e.message); return; }
+    try{ await probeRelay(); await verifyChain(); }catch(e){ if(state.armed) disarm(); setDiag('err', 'Can\'t arm — ' + e.message); return; }
     state.armed = true;
     setDiag('ok', `Armed — ${mintWallets().length} wallet(s) · ${state.fn.name}() · ${CHAINS[state.chain].name} · ${ethers.formatEther(call.value)} ETH per tx × ${call.txPerWallet} tx/wallet`);
     $('fireBtn').disabled = false;
@@ -3147,7 +3207,7 @@
     const provider = getProvider();
     const from = mintWallets()[0].address;
     try{
-      await verifyChain();
+      await probeRelay(); await verifyChain();
       const { to, data, value } = buildMintCall();
       await provider.call({ to, data, value, from });
       setDiag('ok', `Simulation passed for ${from.slice(0,6)}...${from.slice(-4)} — call would succeed at current state. Real conditions can still change before you fire.`);
