@@ -193,6 +193,11 @@
   }
   /* API keys are masked with CSS on a plain text box, not type=password — any password box
      makes Chrome treat FUSE as a login page and offer to save "passwords". */
+  .settings-save-row{ display:flex; align-items:center; gap:12px; margin-top:16px; padding-top:14px; border-top:1px solid var(--border-soft); }
+  .settings-save-row .btn{ padding:8px 22px; }
+  #settingsChecks{ margin-top:10px; display:flex; flex-direction:column; gap:4px; }
+  .check-line{ font-size:12px; color:var(--text-mid); }
+  .check-line.ok b{ color:var(--success); } .check-line.bad b{ color:var(--fail); } .check-line.info b{ color:var(--text-dim); }
   .secret-wrap{ position:relative; }
   .secret-wrap .secret-input{ width:100%; padding-right:58px; }
   .secret-input:not(.revealed){ -webkit-text-security:disc; text-security:disc; }
@@ -842,6 +847,11 @@
           <div class="secret-wrap"><input type="text" class="secret-input" id="openseaKey" placeholder="only used if no proxy URL is set above"><button type="button" class="secret-toggle" data-for="openseaKey" title="Show / hide">Show</button></div>
           <div class="hint">Calling OpenSea directly from the browser with this key will often fail (CORS) and isn't how OpenSea recommends using API keys. Set the proxy URL above instead if you can.</div>
         </div>
+        <div class="settings-save-row">
+          <button class="btn btn-primary" id="saveSettings" type="button">Save</button>
+          <span class="hint" id="settingsSaveState"></span>
+        </div>
+        <div id="settingsChecks"></div>
       </div>
     </div>
 
@@ -1037,18 +1047,90 @@
 
   // Non-secret connection settings survive a reload. Private keys are never stored.
   const SETTINGS_KEY = 'fuse.settings.v1';
-  const PERSISTED_FIELDS = ['rpcUrl', 'apiKey', 'openseaProxyUrl'];
+  const PERSISTED_FIELDS = ['rpcUrl', 'apiKey', 'openseaProxyUrl', 'openseaKey'];
+  const settingsSnapshot = () => JSON.stringify(Object.fromEntries(PERSISTED_FIELDS.map(f => [f, $(f).value.trim()])));
+  let savedSettings = null;
   try{
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
     PERSISTED_FIELDS.forEach(id => { if(typeof saved[id] === 'string') $(id).value = saved[id]; });
   }catch(e){ /* storage unavailable — settings just won't persist */ }
-  PERSISTED_FIELDS.forEach(id => $(id).addEventListener('change', () => {
+  savedSettings = settingsSnapshot();
+
+  function saveSettings(){
+    PERSISTED_FIELDS.forEach(f => { $(f).value = $(f).value.trim(); });
+    savedSettings = settingsSnapshot();
+    try{ localStorage.setItem(SETTINGS_KEY, savedSettings); return true; }
+    catch(e){ return false; }
+  }
+  function showSaveState(text){ $('settingsSaveState').textContent = text; }
+  // Still saved when you leave a field, so nothing is lost by switching pages; the button
+  // saves and then tests each connection.
+  PERSISTED_FIELDS.forEach(id => {
+    $(id).addEventListener('input', () => showSaveState(settingsSnapshot() === savedSettings ? '' : 'Unsaved changes'));
+    $(id).addEventListener('change', () => { if(settingsSnapshot() !== savedSettings){ saveSettings(); showSaveState('Saved'); } });
+    $(id).addEventListener('keydown', e => { if(e.key === 'Enter') $('saveSettings').click(); });
+  });
+
+  const withTimeout = (promise, ms) => Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error('timed out')), ms))]);
+
+  async function checkRpc(){
+    const url = $('rpcUrl').value;
+    if(!url) return ['info', 'RPC', 'none set — using public RPCs (slower, rate-limited under mint load)'];
     try{
-      const out = {};
-      PERSISTED_FIELDS.forEach(f => { out[f] = $(f).value.trim(); });
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(out));
-    }catch(e){}
-  }));
+      const res = await withTimeout(fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify([{ jsonrpc:'2.0', id:1, method:'eth_chainId', params:[] }, { jsonrpc:'2.0', id:2, method:'eth_blockNumber', params:[] }]) }), 8000);
+      if(res.status === 401 || res.status === 403) return ['bad', 'RPC', `rejected (HTTP ${res.status}) — check the API key in the URL`];
+      const out = await res.json();
+      const byId = Object.fromEntries((Array.isArray(out) ? out : [out]).map(r => [r.id, r]));
+      if(!byId[1] || byId[1].error) throw new Error((byId[1] && byId[1].error && byId[1].error.message) || 'bad response');
+      const chainId = parseInt(byId[1].result, 16);
+      const nameOf = id => { const k = Object.keys(CHAINS).find(k => CHAINS[k].id === id); return k ? k.charAt(0).toUpperCase() + k.slice(1) : 'chain ' + id; };
+      if(chainId !== CHAINS[state.chain].id) return ['bad', 'RPC', `connected, but it's ${nameOf(chainId)}, not ${nameOf(CHAINS[state.chain].id)} — use a mainnet URL`];
+      const block = byId[2] && byId[2].result ? ' · block ' + parseInt(byId[2].result, 16).toLocaleString('en-US') : '';
+      return ['ok', 'RPC', `connected to ${nameOf(chainId)}${block}`];
+    }catch(e){ return ['bad', 'RPC', `couldn't reach it (${e.message}) — check the URL`]; }
+  }
+
+  async function checkEtherscan(){
+    const key = $('apiKey').value;
+    if(!key) return ['info', 'Etherscan', proxyBase() ? 'no key here — ABI lookups go through your proxy worker' : 'no key — ABI auto-fetch is off unless the proxy worker has one'];
+    try{
+      const res = await withTimeout(fetch(`${CHAINS[state.chain].explorerApi}?chainid=${CHAINS[state.chain].id}&module=stats&action=ethprice&apikey=${encodeURIComponent(key)}`), 8000);
+      const data = await res.json();
+      if(data.status === '1') return ['ok', 'Etherscan', 'key works'];
+      return ['bad', 'Etherscan', String(data.result || data.message || 'key rejected')];
+    }catch(e){ return ['bad', 'Etherscan', `couldn't check the key (${e.message})`]; }
+  }
+
+  async function checkProxy(){
+    const base = proxyBase();
+    if(!base) return ['info', 'Proxy', 'not set — OpenSea links and mint-site scanning need it'];
+    if(!/^https:\/\//i.test(base)) return ['bad', 'Proxy', 'must start with https://'];
+    try{
+      const res = await withTimeout(fetch(base), 8000);
+      const data = await res.json().catch(() => ({}));
+      if(res.status === 403) return ['bad', 'Proxy', `refused this site — add ${location.protocol === 'file:' ? 'null' : location.origin} to ALLOWED_ORIGINS on the worker`];
+      if(res.status === 400 && /slug/.test(data.error || '')) return ['ok', 'Proxy', 'FUSE worker is reachable'];
+      return ['bad', 'Proxy', `answered, but it doesn't look like the FUSE worker (HTTP ${res.status}) — redeploy worker.js`];
+    }catch(e){ return ['bad', 'Proxy', `couldn't reach it (${e.message === 'Failed to fetch' ? 'not deployed, wrong URL, or blocked' : e.message})`]; }
+  }
+
+  $('saveSettings').onclick = async () => {
+    const btn = $('saveSettings');
+    if(btn.disabled) return;
+    const stored = saveSettings();
+    showSaveState(stored ? 'Saved ✓ — checking connections…' : 'Couldn\'t save (browser storage is blocked) — settings apply until you reload');
+    btn.disabled = true;
+    const box = $('settingsChecks');
+    box.innerHTML = '';
+    pollGas();
+    try{
+      const results = await Promise.all([checkRpc(), checkEtherscan(), checkProxy()]);
+      box.innerHTML = results.map(([kind, label, text]) =>
+        `<div class="check-line ${kind}"><b>${kind === 'ok' ? '✓' : kind === 'bad' ? '✕' : '–'} ${label}</b> · ${esc(text)}</div>`).join('');
+      if(stored) showSaveState(results.some(r => r[0] === 'bad') ? 'Saved — but something needs attention below' : 'Saved ✓');
+    }finally{ btn.disabled = false; }
+  };
   document.querySelectorAll('.secret-toggle').forEach(btn => btn.addEventListener('click', () => {
     const input = $(btn.dataset.for);
     const show = !input.classList.contains('revealed');
