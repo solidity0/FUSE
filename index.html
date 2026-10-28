@@ -191,6 +191,12 @@
     -webkit-text-fill-color: var(--text); caret-color: var(--text);
     box-shadow: 0 0 0 1000px var(--bg) inset; transition: background-color 9999s;
   }
+  /* API keys are masked with CSS on a plain text box, not type=password — any password box
+     makes Chrome treat FUSE as a login page and offer to save "passwords". */
+  .secret-wrap{ position:relative; }
+  .secret-wrap .secret-input{ width:100%; padding-right:58px; }
+  .secret-input:not(.revealed){ -webkit-text-security:disc; text-security:disc; }
+  .secret-toggle{ position:absolute; right:6px; top:50%; transform:translateY(-50%); background:none; color:var(--accent-text); font-size:11px; font-weight:600; padding:4px 6px; }
   input:focus, textarea:focus{ border-color:var(--accent); box-shadow: 0 0 0 3px rgba(59,43,229,.18); }
   textarea{ resize:vertical; min-height:64px; line-height:1.5; }
   .field{ margin-bottom:11px; }
@@ -823,7 +829,7 @@
         </div>
         <div class="field">
           <label>Etherscan-family API key (optional, for ABI auto-fetch)</label>
-          <input type="password" id="apiKey" placeholder="works across chains via Etherscan v2 API">
+          <div class="secret-wrap"><input type="text" class="secret-input" id="apiKey" placeholder="works across chains via Etherscan v2 API"><button type="button" class="secret-toggle" data-for="apiKey" title="Show / hide">Show</button></div>
           <div class="hint">Not needed if your OpenSea proxy worker has ETHERSCAN_API_KEY set — ABI lookups then go through the worker.</div>
         </div>
         <div class="field">
@@ -833,7 +839,7 @@
         </div>
         <div class="field">
           <label>OpenSea API key <span style="color:var(--text-dim); font-weight:400;">— direct fallback, less reliable</span></label>
-          <input type="password" id="openseaKey" placeholder="only used if no proxy URL is set above">
+          <div class="secret-wrap"><input type="text" class="secret-input" id="openseaKey" placeholder="only used if no proxy URL is set above"><button type="button" class="secret-toggle" data-for="openseaKey" title="Show / hide">Show</button></div>
           <div class="hint">Calling OpenSea directly from the browser with this key will often fail (CORS) and isn't how OpenSea recommends using API keys. Set the proxy URL above instead if you can.</div>
         </div>
       </div>
@@ -1042,6 +1048,12 @@
       PERSISTED_FIELDS.forEach(f => { out[f] = $(f).value.trim(); });
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(out));
     }catch(e){}
+  }));
+  document.querySelectorAll('.secret-toggle').forEach(btn => btn.addEventListener('click', () => {
+    const input = $(btn.dataset.for);
+    const show = !input.classList.contains('revealed');
+    input.classList.toggle('revealed', show);
+    btn.textContent = show ? 'Hide' : 'Show';
   }));
   function proxyBase(){ return $('openseaProxyUrl').value.trim().replace(/\/$/, ''); }
 
