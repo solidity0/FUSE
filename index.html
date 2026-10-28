@@ -186,6 +186,11 @@
   }
   input[type=datetime-local]{ color-scheme: dark; }
   [data-theme="light"] input[type=datetime-local]{ color-scheme: light; }
+  /* Browser autofill paints fields light blue and ignores the theme — keep them on-theme. */
+  input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus{
+    -webkit-text-fill-color: var(--text); caret-color: var(--text);
+    box-shadow: 0 0 0 1000px var(--bg) inset; transition: background-color 9999s;
+  }
   input:focus, textarea:focus{ border-color:var(--accent); box-shadow: 0 0 0 3px rgba(59,43,229,.18); }
   textarea{ resize:vertical; min-height:64px; line-height:1.5; }
   .field{ margin-bottom:11px; }
@@ -507,7 +512,7 @@
       </div>
 
       <div class="topbar">
-        <input class="search-input" id="topSearch" placeholder="Paste a mint link, OpenSea URL, or contract address…">
+        <input class="search-input" id="topSearch" type="text" name="fuse-target" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" placeholder="Paste a mint link, OpenSea URL, or 0x contract…">
         <button class="icon-search-btn" id="topSearchGo" title="Scan">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2"/>
@@ -958,6 +963,26 @@
   };
 
   const $ = id => document.getElementById(id);
+  // Nothing in FUSE is a personal-details form. Chrome guessed the search box was a street
+  // address (from the word "address") and autofilled it; password managers could also offer
+  // to save private keys. Opt every field — including ones added later — out of autofill.
+  function hardenInput(el){
+    if(!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return;
+    if(el.type === 'checkbox' || el.type === 'range') return;
+    el.setAttribute('autocomplete', 'off');
+    el.setAttribute('autocorrect', 'off');
+    el.setAttribute('autocapitalize', 'off');
+    el.setAttribute('spellcheck', 'false');
+    el.setAttribute('data-1p-ignore', '');
+    el.setAttribute('data-lpignore', 'true');
+  }
+  document.querySelectorAll('input, textarea').forEach(hardenInput);
+  new MutationObserver(muts => muts.forEach(m => m.addedNodes.forEach(n => {
+    if(n.nodeType !== 1) return;
+    hardenInput(n);
+    n.querySelectorAll && n.querySelectorAll('input, textarea').forEach(hardenInput);
+  }))).observe(document.body, { childList:true, subtree:true });
+
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   // Non-secret connection settings survive a reload. Private keys are never stored.
@@ -2192,8 +2217,13 @@
     }
 
     setScanStep('scanStep2', 'active'); setScanText('scanStep2', 'Connecting wallet');
-    const { address: connAddr, name: connName, error: connErr } = await connectInjectedWallet();
-    if(connAddr){ setScanStep('scanStep2', 'done'); setScanText('scanStep2', `Connected ${connName || 'wallet'} ${connAddr.slice(0,6)}...${connAddr.slice(-4)}`); }
+    // Wallets already loaded (imported keys or a connected extension) → don't pop a connect prompt.
+    const imported = state.wallets.filter(w => !w.injected).length;
+    const { address: connAddr, name: connName, error: connErr } = (imported && !connectedBrowserWallet())
+      ? { address:null, error:null, skipped:true }
+      : await connectInjectedWallet();
+    if(!connAddr && imported){ setScanStep('scanStep2', 'done'); setScanText('scanStep2', `Using ${imported} wallet(s) from Wallets`); }
+    else if(connAddr){ setScanStep('scanStep2', 'done'); setScanText('scanStep2', `Connected ${connName || 'wallet'} ${connAddr.slice(0,6)}...${connAddr.slice(-4)}`); }
     else { setScanStep('scanStep2', 'warn'); setScanText('scanStep2', connErr ? connErr : 'No browser wallet found — using imported keys from Wallets'); }
 
     setScanStep('scanStep3', 'active'); setScanText('scanStep3', 'Checking eligibility');
@@ -2251,9 +2281,18 @@
     $('autoDetectPhases').textContent = '⟳ Auto-detect from contract'; $('autoDetectPhases').disabled = false;
   };
 
+  // Only something that can point at a contract is worth scanning: a 0x address or a link.
+  function looksScannable(v){
+    return /0x[a-fA-F0-9]{40}/.test(v) || /^https?:\/\//i.test(v) || /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/|$)/i.test(v);
+  }
+
   $('topSearchGo').onclick = () => {
     const v = $('topSearch').value.trim();
     if(!v) return;
+    if(!looksScannable(v)){
+      setDiag('warn', `"${v.slice(0, 40)}" isn't a link or contract address — paste a mint page URL, an OpenSea collection URL, or a 0x… contract address.`);
+      return;
+    }
     runScanSequence(v);
   };
 
