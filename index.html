@@ -198,7 +198,7 @@
   .settings-save-row .btn{ padding:8px 22px; }
   #settingsChecks{ margin-top:10px; display:flex; flex-direction:column; gap:4px; }
   .check-line{ font-size:12px; color:var(--text-mid); }
-  .check-line.ok b{ color:var(--success); } .check-line.bad b{ color:var(--fail); } .check-line.info b{ color:var(--text-dim); }
+  .check-line.ok b{ color:var(--success); } .check-line.bad b{ color:var(--fail); } .check-line.info b{ color:var(--text-dim); } .check-line.warn b{ color:var(--pending); }
   .secret-wrap{ position:relative; }
   .secret-wrap .secret-input{ width:100%; padding-right:58px; }
   .secret-input:not(.revealed){ -webkit-text-security:disc; text-security:disc; }
@@ -1134,9 +1134,11 @@
 
   async function checkRpc(){
     const url = $('rpcUrl').value;
-    if(!url) return ['info', 'RPC', CHAINS[state.chain].rpcViaProxy && proxyBase()
+    if(!url) return ['info', 'RPC', proxyRpcUrl()
       ? `none set — ${CHAINS[state.chain].name} calls go through your proxy worker`
-      : 'none set — using public RPCs (slower, rate-limited under mint load)'];
+      : CHAINS[state.chain].rpcViaProxy
+        ? `none set — using the public ${CHAINS[state.chain].name} RPC (your worker's relay isn't available)`
+        : 'none set — using public RPCs (slower, rate-limited under mint load)'];
     try{
       const res = await withTimeout(fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify([{ jsonrpc:'2.0', id:1, method:'eth_chainId', params:[] }, { jsonrpc:'2.0', id:2, method:'eth_blockNumber', params:[] }]) }), 8000);
@@ -1174,7 +1176,7 @@
       const res = await withTimeout(fetch(base), 8000);
       const data = await res.json().catch(() => ({}));
       if(res.status === 403) return ['bad', 'Proxy', `refused this site — add ${location.protocol === 'file:' ? 'null' : location.origin} to ALLOWED_ORIGINS on the worker`];
-      if(res.status === 400 && /^use \?/.test(data.error || '') && !/collection=/.test(data.error || '')) return ['bad', 'Proxy', 'reachable, but it\'s an older worker.js — no collection details or Robinhood relay. Ctrl+C it, git pull, start it again'];
+      if(res.status === 400 && /^use \?/.test(data.error || '') && !/collection=/.test(data.error || '')) return ['warn', 'Proxy', 'connected — but it\'s running an older worker.js, so OpenSea banner, stats, mint stages and the Robinhood relay are off. In the worker\'s terminal: Ctrl+C, git pull, start it again'];
       if(res.status === 400 && /slug/.test(data.error || '')) return ['ok', 'Proxy', isLocal ? 'local FUSE worker is reachable — keep its terminal running' : 'FUSE worker is reachable'];
       return ['bad', 'Proxy', `answered, but it doesn't look like the FUSE worker (HTTP ${res.status}) — redeploy worker.js`];
     }catch(e){
@@ -1196,8 +1198,8 @@
     try{
       const results = await Promise.all([checkRpc(), checkEtherscan(), checkProxy()]);
       box.innerHTML = results.map(([kind, label, text]) =>
-        `<div class="check-line ${kind}"><b>${kind === 'ok' ? '✓' : kind === 'bad' ? '✕' : '–'} ${label}</b> · ${esc(text)}</div>`).join('');
-      if(stored) showSaveState(results.some(r => r[0] === 'bad') ? 'Saved — but something needs attention below' : 'Saved ✓');
+        `<div class="check-line ${kind}"><b>${kind === 'ok' ? '✓' : kind === 'bad' ? '✕' : kind === 'warn' ? '!' : '–'} ${label}</b> · ${esc(text)}</div>`).join('');
+      if(stored) showSaveState(results.some(r => r[0] === 'bad') ? 'Saved — but something needs attention below' : results.some(r => r[0] === 'warn') ? 'Saved ✓ — see the note below' : 'Saved ✓');
     }finally{ btn.disabled = false; }
   };
   document.querySelectorAll('.secret-toggle').forEach(btn => btn.addEventListener('click', () => {
