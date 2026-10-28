@@ -272,6 +272,9 @@
   .wallet-row:last-child{ border-bottom:none; }
   .wallet-addr{ font-family:var(--mono); font-size:12.5px; }
   .wallet-bal{ font-family:var(--mono); font-size:11px; color:var(--text-dim); }
+  .wallet-addr-copy{ background:none; color:inherit; font:inherit; padding:0; cursor:pointer; }
+  .wallet-addr-copy:hover{ color:var(--accent-text); text-decoration:underline; }
+  .wallet-kind{ font-size:10px; padding:1px 5px; border:1px solid var(--border); color:var(--text-dim); margin-left:4px; }
   .wallet-x{ background:none; color:var(--text-dim); padding:2px 6px; font-size:14px; }
   .wallet-x:hover{ color:var(--fail); }
   .empty-note{ color:var(--text-dim); font-size:12px; padding:6px 0; }
@@ -670,7 +673,7 @@
         <table>
           <thead>
             <tr>
-              <th style="width:24px;"><input type="checkbox" id="selectAllWallets"></th>
+              <th style="width:24px;"><input type="checkbox" id="selectAllWallets" title="Use all shown wallets for minting" checked></th>
               <th>Name</th>
               <th>Address</th>
               <th>Balance ↕</th>
@@ -681,6 +684,7 @@
         </table>
       </div>
 
+      <div class="hint" id="walletMintHint" style="margin:-6px 0 10px;"></div>
       <div class="btn-row">
         <button class="btn btn-secondary" id="refreshBalances">Refresh balances</button>
         <button class="btn btn-danger" id="clearWallets" style="background:transparent; color:var(--fail); border:1px solid #3a2020;">Clear all</button>
@@ -905,7 +909,7 @@
     </div>
 
     <div id="bulkImportWrap" style="display:none; margin-top:10px;">
-      <textarea id="pkInput" placeholder="0x... — one private key per line"></textarea>
+      <textarea id="pkInput" placeholder="0x... — one private key per line (or: name, 0xkey)"></textarea>
     </div>
 
     <button class="btn btn-primary" id="importWalletsGo" style="width:100%; margin-top:14px;">+ Import</button>
@@ -1186,6 +1190,57 @@
     return null;
   }
 
+  // Wallets ticked in the Wallets table are the ones that mint. Default: all of them.
+  function mintWallets(){ return state.wallets.filter(w => w.enabled !== false); }
+
+  function hasWallet(address){ return state.wallets.some(w => w.address.toLowerCase() === address.toLowerCase()); }
+
+  // Single entry point for keys — the same wallet twice would fire two mints at the same
+  // nonce, and one of them always fails.
+  function addKeyWallet(pk, name){
+    const w = new ethers.Wallet(pk.startsWith('0x') ? pk : '0x' + pk);
+    if(hasWallet(w.address)) return null;
+    const entry = { pk: w.privateKey, address: w.address, balance: null, enabled: true, name: name || 'Wallet ' + (state.wallets.length + 1) };
+    state.wallets.push(entry);
+    return entry;
+  }
+
+  // Balances for many wallets, a few at a time, re-rendering as they arrive.
+  async function loadBalances(wallets){
+
+    const queue = wallets.slice();
+    const worker = async () => {
+      while(queue.length){
+        const w = queue.shift();
+        const bal = await fetchBalanceRobust(w.address);
+        if(!state.wallets.includes(w)) continue;
+        w.balance = bal != null ? bal : 'err';
+        renderWallets();
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
+  }
+
+  function afterWalletsChanged(){
+    renderWallets(); updateSidebarWalletInfo(); checkReadiness(); updateConnectWalletBtnStatus();
+    if(state.armed) disarm();
+  }
+
+  function removeWalletAt(i){
+    const w = state.wallets[i];
+    if(!w) return;
+    if(w.pk && !confirm(`Remove ${w.name || 'this wallet'} (${w.address.slice(0,6)}...${w.address.slice(-4)})? Its private key is only in this tab — make sure you have it saved.`)) return;
+    if(w.injected) rememberWallet(null); // otherwise it silently reconnects on the next reload
+    state.wallets.splice(i, 1);
+    state.senderSel = new Set(); state.recipientSel = new Set();
+    afterWalletsChanged();
+  }
+
+  // Keys live only in this tab — warn before a refresh/close throws them away.
+  window.addEventListener('beforeunload', (e) => {
+    if(state.wallets.some(w => w.pk)){ e.preventDefault(); e.returnValue = ''; }
+  });
+
   function updateSidebarWalletInfo(){
     $('navWalletCount').textContent = state.wallets.length;
     $('planWalletCount').textContent = state.wallets.length;
@@ -1231,6 +1286,11 @@
       .map((w, i) => ({ w, i }))
       .filter(({w}) => !query || w.address.toLowerCase().includes(query) || (w.name||'').toLowerCase().includes(query));
 
+    const enabledCount = mintWallets().length;
+    $('walletMintHint').textContent = state.wallets.length
+      ? `${enabledCount} of ${state.wallets.length} wallet(s) ticked — only ticked wallets mint when you fire.`
+      : '';
+    $('selectAllWallets').checked = filtered.length > 0 && filtered.every(({w}) => w.enabled !== false);
     if(!state.wallets.length){ list.innerHTML = '<tr><td colspan="5" class="log-empty">No wallets loaded — Create a new one or Import a private key.</td></tr>'; return; }
     if(!filtered.length){ list.innerHTML = '<tr><td colspan="5" class="log-empty">No wallets match your search.</td></tr>'; return; }
 
@@ -1238,18 +1298,24 @@
     filtered.forEach(({w, i}) => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><input type="checkbox" class="wallet-select" data-i="${i}"></td>
+        <td><input type="checkbox" class="wallet-select" data-i="${i}" title="Use this wallet for minting" ${w.enabled !== false ? 'checked' : ''}></td>
         <td><input type="text" class="wallet-name-input" data-i="${i}" value="${esc(w.name || 'Wallet ' + (i+1))}"></td>
-        <td>${w.address.slice(0,6)}...${w.address.slice(-4)}</td>
+        <td><button class="wallet-addr-copy" data-i="${i}" title="Copy full address">${w.address.slice(0,6)}...${w.address.slice(-4)}</button>${w.injected ? ' <span class="wallet-kind">' + esc(w.walletName || 'browser') + '</span>' : ''}</td>
         <td>${w.balance === 'err' ? 'error' : (w.balance != null ? fmtNative(parseFloat(w.balance)) : '—')} <span class="wallet-token-badge" style="background:${CHAINS[state.chain].color}; color:#fff;">${chainGlyphSvg(state.chain, 10)}</span></td>
         <td><button class="wallet-x" data-i="${i}">✕</button></td>`;
       list.appendChild(tr);
     });
     list.querySelectorAll('.wallet-x').forEach(btn => {
-      btn.onclick = () => { state.wallets.splice(+btn.dataset.i,1); state.senderSel = new Set(); state.recipientSel = new Set(); renderWallets(); updateSidebarWalletInfo(); checkReadiness(); updateConnectWalletBtnStatus(); };
+      btn.onclick = () => removeWalletAt(+btn.dataset.i);
+    });
+    list.querySelectorAll('.wallet-select').forEach(cb => {
+      cb.onchange = () => { state.wallets[+cb.dataset.i].enabled = cb.checked; afterWalletsChanged(); };
+    });
+    list.querySelectorAll('.wallet-addr-copy').forEach(btn => {
+      btn.onclick = () => copyToClipboard(state.wallets[+btn.dataset.i].address, btn);
     });
     list.querySelectorAll('.wallet-name-input').forEach(inp => {
-      inp.oninput = () => { state.wallets[+inp.dataset.i].name = inp.value; };
+      inp.oninput = () => { state.wallets[+inp.dataset.i].name = inp.value; updateSidebarWalletInfo(); };
     });
   }
 
@@ -1259,7 +1325,9 @@
     alert('Keys you import or generate here stay in this browser tab\'s memory only. Nothing is written to disk or sent anywhere except the RPC you configure in Settings. Refreshing or closing the tab clears them — use a dedicated mint wallet, not your main one.');
   });
   $('selectAllWallets').addEventListener('change', e => {
-    $('walletList').querySelectorAll('.wallet-select').forEach(cb => cb.checked = e.target.checked);
+    // Applies to the rows currently shown (respects the search box).
+    $('walletList').querySelectorAll('.wallet-select').forEach(cb => { state.wallets[+cb.dataset.i].enabled = e.target.checked; });
+    afterWalletsChanged();
   });
 
   let importRowCount = 0;
@@ -1310,37 +1378,47 @@
   });
 
   $('importWalletsGo').onclick = () => {
-    let added = 0;
+    const added = [], dupes = [], bad = [];
+    const tryAdd = (pk, name, label) => {
+      try{
+        const w = addKeyWallet(pk, name);
+        if(w) added.push(w); else dupes.push(label);
+      }catch(e){ bad.push(label); }
+    };
     if($('bulkImportToggle').checked){
-      const lines = $('pkInput').value.split('\n').map(s=>s.trim()).filter(Boolean);
-      lines.forEach(pk => {
-        try{
-          const w = new ethers.Wallet(pk.startsWith('0x') ? pk : '0x'+pk);
-          state.wallets.push({ pk: w.privateKey, address: w.address, balance: null, name: 'Wallet ' + (state.wallets.length + 1) });
-          added++;
-        }catch(e){ /* bad key skipped */ }
+      // One key per line; "name, key" (comma, tab or space separated) also works.
+      $('pkInput').value.split('\n').map(s => s.trim()).filter(Boolean).forEach((line, n) => {
+        const parts = line.split(/[\s,;]+/).filter(Boolean);
+        const pk = parts[parts.length - 1];
+        const name = parts.length > 1 ? parts.slice(0, -1).join(' ') : '';
+        tryAdd(pk, name, 'line ' + (n + 1));
       });
     } else {
-      $('importRowsBody').querySelectorAll('tr').forEach(tr => {
+      $('importRowsBody').querySelectorAll('tr').forEach((tr, n) => {
         const pkVal = tr.querySelector('.import-pk').value.trim();
-        const nameVal = tr.querySelector('.import-name').value.trim();
         if(!pkVal) return;
-        try{
-          const w = new ethers.Wallet(pkVal.startsWith('0x') ? pkVal : '0x'+pkVal);
-          state.wallets.push({ pk: w.privateKey, address: w.address, balance: null, name: nameVal || 'Wallet ' + (state.wallets.length + 1) });
-          added++;
-        }catch(e){ /* bad key skipped */ }
+        tryAdd(pkVal, tr.querySelector('.import-name').value.trim(), 'row ' + (n + 1));
       });
     }
-    if(added === 0){ alert('No valid private keys found — check the format and try again.'); return; }
+    const notes = [];
+    if(dupes.length) notes.push(`${dupes.length} already loaded (${dupes.join(', ')})`);
+    if(bad.length) notes.push(`${bad.length} not a valid private key (${bad.join(', ')})`);
+    if(!added.length){
+      alert(notes.length ? 'Nothing imported — ' + notes.join('; ') + '.' : 'No private keys entered.');
+      return;
+    }
     $('importWalletsModal').style.display = 'none';
-    renderWallets(); updateSidebarWalletInfo(); checkReadiness();
+    $('pkInput').value = '';
+    afterWalletsChanged();
+    loadBalances(added);
+    if(notes.length) alert(`Imported ${added.length} wallet(s). Skipped ${notes.join('; ')}.`);
   };
 
   $('genWallet').onclick = () => {
     const w = ethers.Wallet.createRandom();
-    state.wallets.push({ pk: w.privateKey, address: w.address, balance: null, name: 'Wallet ' + (state.wallets.length + 1) });
-    renderWallets(); updateSidebarWalletInfo();
+    const entry = addKeyWallet(w.privateKey);
+    afterWalletsChanged();
+    loadBalances([entry]);
     $('nwAddress').value = w.address;
     $('nwPrivateKey').value = w.privateKey;
     $('nwConfirmSaved').checked = false;
@@ -1374,14 +1452,21 @@
   $('nwConfirmSaved').addEventListener('change', e => { $('nwDone').disabled = !e.target.checked; });
   $('nwDone').onclick = () => { $('newWalletModal').style.display = 'none'; };
 
-  $('clearWallets').onclick = () => { if(confirm('Clear all loaded wallets?')){ state.wallets = []; state.senderSel = new Set(); state.recipientSel = new Set(); renderWallets(); updateSidebarWalletInfo(); checkReadiness(); updateConnectWalletBtnStatus(); } };
+  $('clearWallets').onclick = () => {
+    if(!state.wallets.length) return;
+    const keyed = state.wallets.filter(w => w.pk).length;
+    if(!confirm(`Clear all ${state.wallets.length} loaded wallet(s)?` + (keyed ? ` ${keyed} of them only exist in this tab — make sure their private keys are saved.` : ''))) return;
+    if(state.wallets.some(w => w.injected)) rememberWallet(null);
+    state.wallets = []; state.senderSel = new Set(); state.recipientSel = new Set();
+    afterWalletsChanged();
+  };
 
   $('refreshBalances').onclick = async () => {
-    for(const w of state.wallets){
-      const bal = await fetchBalanceRobust(w.address);
-      w.balance = bal != null ? bal : 'err';
-    }
-    renderWallets();
+    const btn = $('refreshBalances');
+    if(btn.disabled || !state.wallets.length) return;
+    btn.disabled = true; btn.textContent = 'Refreshing…';
+    try{ await loadBalances(state.wallets.slice()); }
+    finally{ btn.disabled = false; btn.textContent = 'Refresh balances'; }
   };
 
   let disperseExternal = [];
@@ -1910,7 +1995,12 @@
       const w = connectedBrowserWallet();
       if(!w || w.provider !== provider) return;
       if(!accounts || !accounts.length){ removeBrowserWallet(); return; }
-      w.address = ethers.getAddress(accounts[0]); w.balance = null;
+      const next = ethers.getAddress(accounts[0]);
+      // Switched to an account that's already imported as a key — keep one entry, not two.
+      if(state.wallets.some(o => o !== w && o.address.toLowerCase() === next.toLowerCase())){
+        state.wallets = state.wallets.filter(o => o !== w); afterWalletsChanged(); return;
+      }
+      w.address = next; w.balance = null;
       renderWallets(); updateSidebarWalletInfo(); updateConnectWalletBtnStatus();
       fetchBalanceRobust(w.address).then(bal => { if(bal != null){ w.balance = bal; renderWallets(); } });
     });
@@ -1927,7 +2017,7 @@
       if(existing.injected){ existing.provider = choice.provider; existing.walletName = choice.name; }
       return;
     }
-    const newWallet = { pk:null, address, balance:null, injected:true, provider: choice.provider, walletName: choice.name, name: choice.name + ' ' + (state.wallets.length + 1) };
+    const newWallet = { pk:null, address, balance:null, enabled:true, injected:true, provider: choice.provider, walletName: choice.name, name: choice.name + ' ' + (state.wallets.length + 1) };
     state.wallets.push(newWallet);
     renderWallets(); updateSidebarWalletInfo(); updateConnectWalletBtnStatus();
     const bal = await fetchBalanceRobust(address);
@@ -1975,8 +2065,7 @@
     state.wallets = state.wallets.filter(w => !w.injected);
     state.senderSel = new Set();
     state.recipientSel = new Set();
-    renderWallets(); updateSidebarWalletInfo(); checkReadiness();
-    updateConnectWalletBtnStatus();
+    afterWalletsChanged();
   }
 
   function setConnectBtnState(text, opts){
@@ -2218,7 +2307,7 @@
 
     setScanStep('scanStep2', 'active'); setScanText('scanStep2', 'Connecting wallet');
     // Wallets already loaded (imported keys or a connected extension) → don't pop a connect prompt.
-    const imported = state.wallets.filter(w => !w.injected).length;
+    const imported = mintWallets().filter(w => !w.injected).length;
     const { address: connAddr, name: connName, error: connErr } = (imported && !connectedBrowserWallet())
       ? { address:null, error:null, skipped:true }
       : await connectInjectedWallet();
@@ -2505,11 +2594,13 @@
   }
 
   function checkReadiness(){
-    const ok = state.wallets.length > 0 && state.fn && $('contractAddr').value.trim();
+    const ok = mintWallets().length > 0 && state.fn && $('contractAddr').value.trim();
     $('armBtn').disabled = !ok;
     $('simulateBtn').disabled = !ok;
     if(!ok){
-      setDiag('warn', 'Not armed — load a wallet, a target contract, and select a mint function.');
+      setDiag('warn', state.wallets.length && !mintWallets().length
+        ? 'Not armed — no wallets are ticked for minting. Tick at least one on the Wallets page.'
+        : 'Not armed — load a wallet, a target contract, and select a mint function.');
     } else if(!state.armed){
       setDiag('warn', 'Ready — Simulate to check the call, then Arm.');
     }
@@ -2517,11 +2608,11 @@
   checkReadiness();
 
   $('armBtn').onclick = () => {
-    if(!state.wallets.length || !state.fn){ alert('Load wallets and select a mint function first.'); return; }
+    if(!mintWallets().length || !state.fn){ alert('Tick at least one wallet and select a mint function first.'); return; }
     let call;
     try{ call = buildMintCall(); }catch(e){ setDiag('err', 'Can\'t arm — ' + (e.shortMessage || e.message)); return; }
     state.armed = true;
-    setDiag('ok', `Armed — ${state.wallets.length} wallet(s) · ${state.fn.name}() · ${CHAINS[state.chain].name} · ${ethers.formatEther(call.value)} ETH per tx × ${call.txPerWallet} tx/wallet`);
+    setDiag('ok', `Armed — ${mintWallets().length} wallet(s) · ${state.fn.name}() · ${CHAINS[state.chain].name} · ${ethers.formatEther(call.value)} ETH per tx × ${call.txPerWallet} tx/wallet`);
     $('fireBtn').disabled = false;
     setupSchedule();
   };
@@ -2550,10 +2641,10 @@
   $('fireBtn').onclick = () => fireAll();
 
   $('simulateBtn').onclick = async () => {
-    if(!state.wallets.length || !state.fn){ alert('Load a wallet and select a mint function first.'); return; }
+    if(!mintWallets().length || !state.fn){ alert('Tick at least one wallet and select a mint function first.'); return; }
     setDiag('warn', 'Simulating…');
     const provider = getProvider();
-    const from = state.wallets[0].address;
+    const from = mintWallets()[0].address;
     try{
       const { to, data, value } = buildMintCall();
       await provider.call({ to, data, value, from });
@@ -2582,7 +2673,8 @@
   }
 
   async function fireAll(){
-    if(!state.armed || !state.wallets.length || !state.fn) return;
+    const firing = mintWallets();
+    if(!state.armed || !firing.length || !state.fn) return;
     const provider = getProvider();
     let call;
     try{ call = buildMintCall(); }
@@ -2596,9 +2688,9 @@
       sweepAddr: $('sweepAddr').value.trim(),
     };
 
-    setDiag('warn', `Firing ${state.wallets.length} wallet(s)…`);
+    setDiag('warn', `Firing ${firing.length} wallet(s)…`);
     // Wallets fire in parallel; a single wallet's txs go out one after another so nonces never collide.
-    await Promise.allSettled(state.wallets.map(async w => {
+    await Promise.allSettled(firing.map(async w => {
       for(let k = 0; k < call.txPerWallet; k++) await mintOne(w, provider, call, opts);
     }));
     setDiag('ok', `Done — ${state.stats.success} minted, ${state.stats.fail} failed this session.`);
