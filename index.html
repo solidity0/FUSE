@@ -193,7 +193,8 @@
   }
   /* API keys are masked with CSS on a plain text box, not type=password — any password box
      makes Chrome treat FUSE as a login page and offer to save "passwords". */
-  .settings-save-row{ display:flex; align-items:center; gap:12px; margin-top:16px; padding-top:14px; border-top:1px solid var(--border-soft); }
+  .settings-save-row{ display:flex; align-items:center; justify-content:flex-end; gap:12px; margin-top:16px; padding-top:14px; border-top:1px solid var(--border-soft); }
+  .settings-save-row .btn{ order:2; } /* button on the right, status text just left of it */
   .settings-save-row .btn{ padding:8px 22px; }
   #settingsChecks{ margin-top:10px; display:flex; flex-direction:column; gap:4px; }
   .check-line{ font-size:12px; color:var(--text-mid); }
