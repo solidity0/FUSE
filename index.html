@@ -331,12 +331,13 @@
   .wallet-pick-ph{ display:flex; align-items:center; justify-content:center; background:var(--accent-dim); color:var(--accent-text); font-size:12px; }
   .modal-box{ background:var(--surface); border:1px solid var(--border); padding:20px 22px; width:360px; max-width:90vw; max-height:85vh; overflow-y:auto; }
   .gc-box{ width:400px; padding:18px; }
-  .gc-head{ display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:14px; }
+  .gc-head{ position:relative; text-align:center; margin-bottom:14px; padding:0 28px; }
+  .gc-head .modal-x{ position:absolute; top:-2px; right:-4px; }
   .gc-title{ font-size:14px; font-weight:700; }
   .gc-live{ font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:3px; }
   .gc-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px 10px; }
   .gc-field{ display:flex; flex-direction:column; gap:4px; min-width:0; }
-  .gc-field > span{ font-size:11px; color:var(--text-mid); }
+  .gc-field > span{ font-size:11px; color:var(--text-mid); text-align:center; }
   .gc-input{ display:flex; align-items:center; background:var(--bg); border:1px solid var(--border); }
   .gc-input:focus-within{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(59,43,229,.18); }
   .gc-input input{ border:none !important; box-shadow:none !important; background:transparent !important; padding:7px 8px; min-width:0; flex:1; }
@@ -844,10 +845,8 @@
 <div class="modal-overlay" id="gasCalcModal" style="display:none;">
   <div class="modal-box gc-box" role="dialog" aria-labelledby="gcTitle">
     <div class="gc-head">
-      <div>
-        <div class="gc-title" id="gcTitle">Mint calculator</div>
-        <div class="gc-live" id="gcLive">Gas — · ETH —</div>
-      </div>
+      <div class="gc-title" id="gcTitle">Mint calculator</div>
+      <div class="gc-live" id="gcLive">Gas — · ETH —</div>
       <button class="modal-x" id="gcClose" title="Close (Esc)">✕</button>
     </div>
 
@@ -1259,6 +1258,19 @@
   const FALLBACK_RPCS = {
     ethereum: ['https://eth.llamarpc.com', 'https://ethereum-rpc.publicnode.com', 'https://1rpc.io/eth', 'https://eth.drpc.org'],
   };
+
+  // Same fallback idea for live gas — one flaky public RPC shouldn't blank the gas readout.
+  async function fetchBaseFeeRobust(){
+    const custom = $('rpcUrl').value.trim();
+    const candidates = custom ? [custom, ...(FALLBACK_RPCS[state.chain] || [])] : (FALLBACK_RPCS[state.chain] || [CHAINS[state.chain].defaultRpc]);
+    for(const rpc of candidates){
+      try{
+        const block = await providerFor(rpc).getBlock('latest');
+        if(block && block.baseFeePerGas != null) return block.baseFeePerGas;
+      }catch(e){ /* try next candidate */ }
+    }
+    return null;
+  }
 
   async function fetchBalanceRobust(address){
     const custom = $('rpcUrl').value.trim();
@@ -2871,9 +2883,9 @@
     try{
       // Base fee is what every tx pays now; show it with enough precision for sub-1 gwei
       // mainnet (toFixed(1) used to turn 0.04 into "0.0").
-      const block = await getProvider().getBlock('latest');
-      if(!block || block.baseFeePerGas == null) throw new Error('no base fee');
-      state.gas = { baseGwei: Number(ethers.formatUnits(block.baseFeePerGas, 'gwei')) };
+      const baseFee = await fetchBaseFeeRobust();
+      if(baseFee == null) throw new Error('no base fee');
+      state.gas = { baseGwei: Number(ethers.formatUnits(baseFee, 'gwei')) };
       $('gasLiveVal').textContent = `${fmtGwei(state.gas.baseGwei)} gwei`;
     }catch(e){ $('gasLiveVal').textContent = '—'; }
     if($('gasCalcModal').style.display === 'flex') gcCompute();
