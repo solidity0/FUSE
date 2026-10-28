@@ -330,6 +330,32 @@
   .wallet-pick-btn img, .wallet-pick-ph{ width:24px; height:24px; flex:none; }
   .wallet-pick-ph{ display:flex; align-items:center; justify-content:center; background:var(--accent-dim); color:var(--accent-text); font-size:12px; }
   .modal-box{ background:var(--surface); border:1px solid var(--border); padding:20px 22px; width:360px; max-width:90vw; max-height:85vh; overflow-y:auto; }
+  .gc-box{ width:400px; padding:18px; }
+  .gc-head{ display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:14px; }
+  .gc-title{ font-size:14px; font-weight:700; }
+  .gc-live{ font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:3px; }
+  .gc-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px 10px; }
+  .gc-field{ display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .gc-field > span{ font-size:11px; color:var(--text-mid); }
+  .gc-input{ display:flex; align-items:center; background:var(--bg); border:1px solid var(--border); }
+  .gc-input:focus-within{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(59,43,229,.18); }
+  .gc-input input{ border:none !important; box-shadow:none !important; background:transparent !important; padding:7px 8px; min-width:0; flex:1; }
+  .gc-input em{ font-style:normal; font-size:10.5px; color:var(--text-dim); padding-right:8px; font-family:var(--mono); }
+  .gc-speed-row{ display:flex; align-items:center; justify-content:space-between; margin:12px 0; font-size:11px; color:var(--text-mid); }
+  .gc-speed{ margin-left:0; }
+  .gc-results{ background:var(--surface-raised); border:1px solid var(--border-soft); padding:10px 12px; }
+  .gc-line{ display:flex; justify-content:space-between; font-size:12px; color:var(--text-mid); padding:3px 0; }
+  .gc-line b{ font-family:var(--mono); font-weight:600; color:var(--text); font-size:12px; }
+  .gc-line b small, .gc-profit small{ color:var(--text-dim); font-weight:400; margin-left:6px; font-size:11px; }
+  .gc-profit{ display:flex; justify-content:space-between; align-items:flex-end; border-top:1px solid var(--border); margin-top:6px; padding-top:8px; font-size:12px; color:var(--text-mid); }
+  .gc-profit > div:first-child{ display:flex; flex-direction:column; }
+  .gc-profit > div:first-child small{ margin:2px 0 0; }
+  .gc-profit-val{ text-align:right; display:flex; flex-direction:column; }
+  .gc-profit-val b{ font-family:var(--mono); font-size:20px; font-weight:700; }
+  .gc-foot{ display:flex; justify-content:space-between; align-items:center; margin-top:10px; }
+  .gc-link{ background:none; color:var(--accent-text); font-size:12px; padding:0; }
+  .gc-link:hover{ text-decoration:underline; }
+  @media (max-width:480px){ .gc-box{ width:100%; } }
   .modal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
   .modal-title{ font-size:13px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; }
   .modal-x{ background:none; color:var(--text-dim); font-size:16px; padding:2px 6px; }
@@ -816,32 +842,47 @@
 </div>
 
 <div class="modal-overlay" id="gasCalcModal" style="display:none;">
-  <div class="modal-box">
-    <div class="modal-head">
-      <div class="modal-title">Gas Calculator</div>
-      <button class="modal-x" id="gcClose">✕</button>
+  <div class="modal-box gc-box" role="dialog" aria-labelledby="gcTitle">
+    <div class="gc-head">
+      <div>
+        <div class="gc-title" id="gcTitle">Mint calculator</div>
+        <div class="gc-live" id="gcLive">Gas — · ETH —</div>
+      </div>
+      <button class="modal-x" id="gcClose" title="Close (Esc)">✕</button>
     </div>
 
-    <div class="field"><label>Mint price (USD)</label><input type="text" id="gcMintPrice" value="0"></div>
-    <div class="field"><label>Sell price (USD)</label><input type="text" id="gcSellPrice" value="0"></div>
-    <div class="field"><label>OTC price (USD)</label><input type="text" id="gcOtcPrice" value="0"></div>
-    <div class="field-row">
-      <div class="field"><label>OpenSea fee (%)</label><input type="number" id="gcOpenseaFee" value="1"></div>
-      <div class="field"><label>Royalty fee (%)</label><input type="number" id="gcRoyaltyFee" value="5"></div>
-    </div>
-    <div class="field">
-      <label>Gas aggressivity <span id="gcAggVal" style="color:var(--text-dim);">50%</span></label>
-      <input type="range" id="gcAggressivity" min="0" max="100" value="50">
+    <div class="gc-grid">
+      <label class="gc-field"><span>Mint price</span><div class="gc-input"><input type="text" inputmode="decimal" id="gcMintPrice" value="0"><em>ETH</em></div></label>
+      <label class="gc-field"><span>Quantity</span><div class="gc-input"><input type="text" inputmode="numeric" id="gcQty" value="1"><em>NFT</em></div></label>
+      <label class="gc-field"><span>Sell price (each)</span><div class="gc-input"><input type="text" inputmode="decimal" id="gcSellPrice" value="0"><em>ETH</em></div></label>
+      <label class="gc-field"><span>Gas limit</span><div class="gc-input"><input type="text" inputmode="numeric" id="gcGasLimit" value="150000"><em>units</em></div></label>
+      <label class="gc-field"><span>Marketplace fee</span><div class="gc-input"><input type="text" inputmode="decimal" id="gcOpenseaFee" value="1"><em>%</em></div></label>
+      <label class="gc-field"><span>Creator royalty</span><div class="gc-input"><input type="text" inputmode="decimal" id="gcRoyaltyFee" value="0"><em>%</em></div></label>
     </div>
 
-    <div class="grid-2">
-      <div class="stat-box"><div class="stat-label">Gas budget</div><div class="stat-num" id="gcGasBudget">$0.00</div></div>
-      <div class="stat-box"><div class="stat-label">Potential profit</div><div class="stat-num" id="gcProfit">$0.00</div></div>
+    <div class="gc-speed-row">
+      <span>Gas speed</span>
+      <div class="s-unit-switch gc-speed" id="gcSpeed">
+        <button data-tip="0.5">Normal</button>
+        <button data-tip="2" class="active">Fast</button>
+        <button data-tip="10">Turbo</button>
+      </div>
     </div>
 
-    <div class="btn-row" style="margin-top:14px;">
-      <button class="btn btn-secondary" id="gcReset">↺ Reset</button>
-      <button class="btn btn-primary" id="gcCloseBtn">Close</button>
+    <div class="gc-results">
+      <div class="gc-line"><span>Gas</span><b id="gcGasCost">—</b></div>
+      <div class="gc-line"><span>Total cost</span><b id="gcTotalCost">—</b></div>
+      <div class="gc-line"><span>After fees</span><b id="gcNet">—</b></div>
+      <div class="gc-line"><span>Break-even sell</span><b id="gcBreakEven">—</b></div>
+      <div class="gc-profit">
+        <div><span>Profit</span><small id="gcRoi"></small></div>
+        <div class="gc-profit-val"><b id="gcProfit">—</b><small id="gcProfitUsd"></small></div>
+      </div>
+    </div>
+
+    <div class="gc-foot">
+      <span class="hint" id="gcNote">Per wallet · gas = (base fee + tip) × gas limit</span>
+      <button class="gc-link" id="gcReset">Reset</button>
     </div>
   </div>
 </div>
@@ -1096,6 +1137,7 @@
   }
 
   function refreshUnitDisplays(){
+    if($('gasCalcModal') && $('gasCalcModal').style.display === 'flex') gcCompute();
     renderWallets();
     if(typeof renderDisperseSelectors === 'function' && $('sendersSelect')) renderDisperseSelectors();
     const price = parseFloat($('mintValue').value);
@@ -1119,41 +1161,81 @@
   updateUnitButtons();
   fetchNativePrice();
 
-  // ---------- gas calculator ----------
+  // ---------- mint calculator ----------
+  const num = id => { const v = parseFloat(String($(id).value).replace(',', '.')); return isFinite(v) && v > 0 ? v : 0; };
+  function fmtEth(v){
+    if(!v) return '0';
+    const a = Math.abs(v), sign = v < 0 ? '−' : '';
+    if(a < 0.00001) return sign + '<0.00001';
+    return sign + a.toLocaleString('en-US', { maximumSignificantDigits: a < 1 ? 3 : 5, maximumFractionDigits: 5 });
+  }
+  function fmtUsd(v){
+    if(state.priceUsd == null) return '';
+    const usd = v * state.priceUsd;
+    return (usd < 0 ? '−$' : '$') + Math.abs(usd).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function fmtGwei(g){ return g >= 10 ? g.toFixed(1) : g >= 1 ? g.toFixed(2) : g.toPrecision(2); }
+  const ethUsd = (eth) => `${fmtEth(eth)} ETH<small>${fmtUsd(eth)}</small>`;
+
   function gcCompute(){
-    const mint = parseFloat($('gcMintPrice').value) || 0;
-    const sell = parseFloat($('gcSellPrice').value) || 0;
-    const openseaFeePct = parseFloat($('gcOpenseaFee').value) || 0;
-    const royaltyPct = parseFloat($('gcRoyaltyFee').value) || 0;
-    const aggressivity = parseFloat($('gcAggressivity').value) || 0;
-    $('gcAggVal').textContent = aggressivity + '%';
+    const mint = num('gcMintPrice'), qty = Math.max(1, Math.round(num('gcQty')) || 1), sell = num('gcSellPrice');
+    const gasLimit = num('gcGasLimit') || 150000;
+    const feePct = num('gcOpenseaFee') + num('gcRoyaltyFee');
+    const speed = $('gcSpeed').querySelector('.active');
+    const tipGwei = parseFloat(speed ? speed.dataset.tip : '2');
+    const baseGwei = state.gas ? state.gas.baseGwei : null;
 
-    const gwei = parseFloat(($('gasLiveVal').textContent || '').replace(/[^0-9.]/g,'')) || 30;
-    const priceUsd = state.priceUsd || 0;
-    const gasLimitAssumed = 150000;
-    const baseGasEth = (gwei * gasLimitAssumed) / 1e9;
-    const budgetEth = baseGasEth * (0.5 + aggressivity / 100);
-    const budgetUsd = budgetEth * priceUsd;
-    $('gcGasBudget').textContent = '$' + budgetUsd.toFixed(2);
+    $('gcLive').textContent = `Base fee ${baseGwei != null ? fmtGwei(baseGwei) + ' gwei' : '—'} · ETH ${state.priceUsd != null ? '$' + state.priceUsd.toLocaleString('en-US') : '—'}`;
+    if(baseGwei == null){
+      ['gcGasCost','gcTotalCost','gcNet','gcBreakEven','gcProfit'].forEach(id => $(id).textContent = '—');
+      $('gcRoi').textContent = ''; $('gcProfitUsd').textContent = '';
+      $('gcNote').textContent = 'Waiting for live gas from your RPC…';
+      return;
+    }
+    $('gcNote').textContent = 'Per wallet · one mint tx · gas = (base + tip) × limit';
 
-    const fees = sell * ((openseaFeePct + royaltyPct) / 100);
-    const profit = sell - mint - fees - budgetUsd;
-    $('gcProfit').textContent = '$' + profit.toFixed(2);
-    $('gcProfit').style.color = profit >= 0 ? 'var(--success)' : 'var(--fail)';
+    const gasEth = (baseGwei + tipGwei) * gasLimit / 1e9;
+    const cost = mint * qty + gasEth;
+    const net = sell * qty * (1 - feePct / 100);
+    const profit = net - cost;
+    const breakEven = feePct < 100 ? cost / qty / (1 - feePct / 100) : Infinity;
+
+    $('gcGasCost').innerHTML = ethUsd(gasEth);
+    $('gcTotalCost').innerHTML = ethUsd(cost);
+    $('gcNet').innerHTML = sell ? ethUsd(net) : '—';
+    $('gcBreakEven').innerHTML = isFinite(breakEven) ? `${fmtEth(breakEven)} ETH<small>each</small>` : '—';
+    $('gcProfit').textContent = sell ? `${profit >= 0 ? '+' : ''}${fmtEth(profit)} ETH` : '—';
+    $('gcProfit').style.color = !sell ? 'var(--text)' : profit >= 0 ? 'var(--success)' : 'var(--fail)';
+    $('gcProfitUsd').textContent = sell ? fmtUsd(profit) : 'enter a sell price';
+    $('gcRoi').textContent = sell && cost > 0 ? `${profit >= 0 ? '+' : '−'}${Math.abs(profit / cost * 100).toFixed(0)}% ROI` : '';
   }
 
-  ['gcMintPrice','gcSellPrice','gcOtcPrice','gcOpenseaFee','gcRoyaltyFee','gcAggressivity'].forEach(id => {
-    $(id).addEventListener('input', gcCompute);
-  });
+  ['gcMintPrice','gcQty','gcSellPrice','gcGasLimit','gcOpenseaFee','gcRoyaltyFee'].forEach(id => $(id).addEventListener('input', gcCompute));
+  $('gcSpeed').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    $('gcSpeed').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+    gcCompute();
+  }));
 
-  $('gasCalcOpen').onclick = () => { $('gasCalcModal').style.display = 'flex'; gcCompute(); };
-  $('mGasCalcOpen').onclick = () => { $('gasCalcModal').style.display = 'flex'; gcCompute(); };
-  $('gcClose').onclick = () => { $('gasCalcModal').style.display = 'none'; };
-  $('gcCloseBtn').onclick = () => { $('gasCalcModal').style.display = 'none'; };
-  $('gasCalcModal').addEventListener('click', (e) => { if(e.target.id === 'gasCalcModal') $('gasCalcModal').style.display = 'none'; });
+  // Opens prefilled with whatever is set up on the Mints page.
+  function openGasCalc(){
+    const price = parseFloat($('mintValue').value);
+    if(price > 0) $('gcMintPrice').value = price;
+    const qty = parseInt($('mintQty').value);
+    if(qty > 0) $('gcQty').value = qty;
+    $('gasCalcModal').style.display = 'flex';
+    gcCompute();
+    pollGas();
+  }
+  const closeGasCalc = () => { $('gasCalcModal').style.display = 'none'; };
+  $('gasCalcOpen').onclick = openGasCalc;
+  $('mGasCalcOpen').onclick = openGasCalc;
+  $('gcClose').onclick = closeGasCalc;
+  $('gasCalcModal').addEventListener('click', (e) => { if(e.target.id === 'gasCalcModal') closeGasCalc(); });
+  document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && $('gasCalcModal').style.display === 'flex') closeGasCalc(); });
   $('gcReset').onclick = () => {
-    $('gcMintPrice').value = 0; $('gcSellPrice').value = 0; $('gcOtcPrice').value = 0;
-    $('gcOpenseaFee').value = 1; $('gcRoyaltyFee').value = 5; $('gcAggressivity').value = 50;
+    $('gcMintPrice').value = 0; $('gcQty').value = 1; $('gcSellPrice').value = 0; $('gcGasLimit').value = 150000;
+    $('gcOpenseaFee').value = 1; $('gcRoyaltyFee').value = 0;
+    $('gcSpeed').querySelectorAll('button').forEach(x => x.classList.toggle('active', x.dataset.tip === '2'));
     gcCompute();
   };
 
@@ -2787,11 +2869,14 @@
 
   async function pollGas(){
     try{
-      const provider = getProvider();
-      const feeData = await provider.getFeeData();
-      const gwei = feeData.maxFeePerGas ? Number(ethers.formatUnits(feeData.maxFeePerGas,'gwei')) : null;
-      $('gasLiveVal').textContent = gwei ? `${gwei.toFixed(1)} gwei` : '—';
+      // Base fee is what every tx pays now; show it with enough precision for sub-1 gwei
+      // mainnet (toFixed(1) used to turn 0.04 into "0.0").
+      const block = await getProvider().getBlock('latest');
+      if(!block || block.baseFeePerGas == null) throw new Error('no base fee');
+      state.gas = { baseGwei: Number(ethers.formatUnits(block.baseFeePerGas, 'gwei')) };
+      $('gasLiveVal').textContent = `${fmtGwei(state.gas.baseGwei)} gwei`;
     }catch(e){ $('gasLiveVal').textContent = '—'; }
+    if($('gasCalcModal').style.display === 'flex') gcCompute();
   }
   pollGas();
   setInterval(pollGas, 12000);
