@@ -840,7 +840,7 @@
         </div>
         <div class="field">
           <label>OpenSea proxy URL <span style="color:var(--text-dim); font-weight:400;">— recommended</span></label>
-          <input type="text" id="openseaProxyUrl" placeholder="https://your-worker.workers.dev">
+          <input type="text" id="openseaProxyUrl" placeholder="https://your-worker.workers.dev  (or http://127.0.0.1:8787 while running locally)">
           <div class="hint">OpenSea's own docs say their API key can't be safely used in a browser, and their API blocks direct cross-origin calls anyway. A tiny serverless proxy (e.g. Cloudflare Worker) holds the key server-side and fixes both — see the worker.js file provided alongside this app. The same worker also reads mint pages server-side so pasted mint-site links can be scanned for a contract address.</div>
         </div>
         <div class="field">
@@ -1106,14 +1106,19 @@
   async function checkProxy(){
     const base = proxyBase();
     if(!base) return ['info', 'Proxy', 'not set — OpenSea links and mint-site scanning need it'];
-    if(!/^https:\/\//i.test(base)) return ['bad', 'Proxy', 'must start with https://'];
+    // A worker running locally (`npx wrangler dev`) is plain http on this machine — that's fine.
+    const isLocal = /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(base);
+    if(!isLocal && !/^https:\/\//i.test(base)) return ['bad', 'Proxy', 'must start with https:// (or be http://127.0.0.1:… for a worker running on this PC)'];
     try{
       const res = await withTimeout(fetch(base), 8000);
       const data = await res.json().catch(() => ({}));
       if(res.status === 403) return ['bad', 'Proxy', `refused this site — add ${location.protocol === 'file:' ? 'null' : location.origin} to ALLOWED_ORIGINS on the worker`];
-      if(res.status === 400 && /slug/.test(data.error || '')) return ['ok', 'Proxy', 'FUSE worker is reachable'];
+      if(res.status === 400 && /slug/.test(data.error || '')) return ['ok', 'Proxy', isLocal ? 'local FUSE worker is reachable — keep its terminal running' : 'FUSE worker is reachable'];
       return ['bad', 'Proxy', `answered, but it doesn't look like the FUSE worker (HTTP ${res.status}) — redeploy worker.js`];
-    }catch(e){ return ['bad', 'Proxy', `couldn't reach it (${e.message === 'Failed to fetch' ? 'not deployed, wrong URL, or blocked' : e.message})`]; }
+    }catch(e){
+      if(isLocal) return ['bad', 'Proxy', `couldn't reach the local worker — is "npx wrangler dev" still running? If Chrome asked to allow access to devices on your local network, click Allow, then Save again`];
+      return ['bad', 'Proxy', `couldn't reach it (${e.message === 'Failed to fetch' ? 'not deployed, wrong URL, or blocked' : e.message})`];
+    }
   }
 
   $('saveSettings').onclick = async () => {

@@ -43,6 +43,9 @@ function corsHeadersFor(request, env) {
   const headers = {
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    // Lets a public site (e.g. GitHub Pages) call this worker while it runs locally under
+    // `wrangler dev` — Chrome's Private Network Access check asks for this on preflight.
+    'Access-Control-Allow-Private-Network': 'true',
     Vary: 'Origin',
   };
   if (!allowed.length) headers['Access-Control-Allow-Origin'] = '*';
