@@ -4,6 +4,9 @@
  * Why this exists: a pure client-side tool like FUSE can't do three things from the
  * browser, so this tiny worker does them server-side and adds CORS headers:
  *
+ *   GET ?collection=<slug|0xaddress>  Everything FUSE shows for a collection in one call:
+ *                                     name, images, chain + contract, stats, sample items,
+ *                                     and mint progress / stages when OpenSea has a drop.
  *   GET ?slug=<opensea-slug>          OpenSea collection lookup. OpenSea's docs say the
  *                                     API key must never be used client-side, and the
  *                                     API doesn't send CORS headers for arbitrary origins.
@@ -186,6 +189,153 @@ async function handleSlug(slug, env, corsHeaders) {
   });
 }
 
+// ---------- ?collection= : everything FUSE shows about an OpenSea collection ----------
+
+const OPENSEA_API = 'https://api.opensea.io/api/v2';
+const OPENSEA_FEE_RECIPIENT = '0x0000a26b00c1f0df003000390027140000faa719';
+// Chains to try when a collection URL uses a bare contract address instead of a slug.
+const OPENSEA_CHAINS = [
+  'ethereum', 'base', 'robinhood', 'arbitrum', 'optimism', 'matic', 'zora', 'ape_chain', 'abstract',
+  'shape', 'unichain', 'berachain', 'sei', 'blast', 'b3', 'soneium', 'ronin', 'flow', 'monad', 'hyperevm',
+];
+const COLLECTION_TTL_MS = 20000;
+const collectionCache = new Map(); // per isolate; keeps polling clients from burning the OpenSea quota
+
+function osFetch(path, env) {
+  return fetchWithTimeout(`${OPENSEA_API}${path}`, {
+    headers: { 'x-api-key': env.OPENSEA_API_KEY, Accept: 'application/json' },
+  });
+}
+
+async function osJson(path, env) {
+  const res = await osFetch(path, env);
+  if (!res.ok) return { ok: false, status: res.status, data: null };
+  return { ok: true, status: res.status, data: await res.json() };
+}
+
+const firstOf = (obj, keys) => {
+  for (const k of keys) if (obj && obj[k] != null && obj[k] !== '') return obj[k];
+  return null;
+};
+
+// OpenSea returns prices in a few shapes; turn them into a plain number of whole tokens.
+function toTokenAmount(v) {
+  if (v == null) return null;
+  if (typeof v === 'object') {
+    const raw = firstOf(v, ['value', 'amount', 'quantity', 'price']);
+    const decimals = firstOf(v, ['decimals']) ?? (v.currency && v.currency.decimals);
+    if (raw == null) return null;
+    return decimals != null ? Number(raw) / 10 ** Number(decimals) : toTokenAmount(raw);
+  }
+  const n = Number(v);
+  if (!isFinite(n)) return null;
+  return /^\d{13,}$/.test(String(v)) ? n / 1e18 : n; // long integer strings are wei
+}
+
+function toIso(v) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  const d = isFinite(n) ? new Date(n < 1e12 ? n * 1000 : n) : new Date(v);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+// The drops endpoint is newer and its shape varies; read it defensively.
+function normalizeDrop(d) {
+  if (!d || typeof d !== 'object') return null;
+  const src = d.drop && typeof d.drop === 'object' ? d.drop : d;
+  const maxSupply = Number(firstOf(src, ['max_supply', 'maxSupply', 'max_total_supply', 'supply_cap', 'total_supply_cap'])) || null;
+  const minted = Number(firstOf(src, ['total_minted', 'minted', 'num_minted', 'minted_count', 'items_minted', 'total_supply'])) || null;
+  const rawStages = firstOf(src, ['stages', 'mint_stages', 'drop_stages', 'phases']) || [];
+  const stages = (Array.isArray(rawStages) ? rawStages : []).slice(0, 10).map((s) => {
+    const priceRaw = firstOf(s, ['price', 'mint_price', 'unit_price', 'cost']);
+    const currency = (priceRaw && typeof priceRaw === 'object' && (priceRaw.currency?.symbol || priceRaw.symbol)) || firstOf(s, ['currency', 'price_currency', 'payment_token']) || null;
+    return {
+      name: String(firstOf(s, ['name', 'label', 'title', 'stage_name', 'stage_type', 'type']) || 'Stage'),
+      price: toTokenAmount(priceRaw),
+      currency: typeof currency === 'string' ? currency : currency && currency.symbol ? currency.symbol : null,
+      start: toIso(firstOf(s, ['start_time', 'start_date', 'startTime', 'starts_at', 'start'])),
+      end: toIso(firstOf(s, ['end_time', 'end_date', 'endTime', 'ends_at', 'end'])),
+      maxPerWallet: Number(firstOf(s, ['max_per_wallet', 'max_total_mintable_by_wallet', 'limit_per_wallet', 'per_wallet_limit', 'wallet_limit'])) || null,
+    };
+  });
+  if (!maxSupply && !minted && !stages.length) return null;
+  return { maxSupply, minted, stages };
+}
+
+async function resolveCollection(id, env) {
+  const direct = await osJson(`/collections/${encodeURIComponent(id)}`, env);
+  if (direct.ok) return direct.data;
+  if (direct.status === 401 || direct.status === 403) throw Object.assign(new Error('OpenSea rejected the API key'), { status: 401 });
+  if (!/^0x[a-fA-F0-9]{40}$/.test(id)) return null;
+  for (const chain of OPENSEA_CHAINS) {
+    const c = await osJson(`/chain/${chain}/contract/${id}`, env);
+    if (c.ok && c.data && c.data.collection) {
+      const byContract = await osJson(`/collections/${encodeURIComponent(c.data.collection)}`, env);
+      if (byContract.ok) return byContract.data;
+    }
+  }
+  return null;
+}
+
+async function handleCollection(id, env, corsHeaders) {
+  if (!env.OPENSEA_API_KEY) return json({ error: 'OPENSEA_API_KEY secret is not set on this worker' }, 500, corsHeaders);
+  if (!/^[A-Za-z0-9_.-]{1,100}$/.test(id)) return json({ error: 'invalid collection slug' }, 400, corsHeaders);
+
+  const key = id.toLowerCase();
+  const hit = collectionCache.get(key);
+  if (hit && Date.now() - hit.at < COLLECTION_TTL_MS) return json(hit.body, 200, corsHeaders);
+
+  let col;
+  try {
+    col = await resolveCollection(id, env);
+  } catch (e) {
+    return json({ error: e.message }, e.status || 502, corsHeaders);
+  }
+  if (!col) return json({ error: `No OpenSea collection found for "${id}"` }, 404, corsHeaders);
+
+  const slug = col.collection || id;
+  const [stats, nfts, drop] = await Promise.allSettled([
+    osJson(`/collections/${encodeURIComponent(slug)}/stats`, env),
+    osJson(`/collection/${encodeURIComponent(slug)}/nfts?limit=20`, env),
+    osJson(`/drops/${encodeURIComponent(slug)}`, env),
+  ]);
+  const ok = (r) => (r.status === 'fulfilled' && r.value.ok ? r.value.data : null);
+  const st = (ok(stats) || {}).total || {};
+  const contract = (col.contracts || [])[0] || {};
+  const creatorFeePct = (col.fees || [])
+    .filter((f) => String(f.recipient || '').toLowerCase() !== OPENSEA_FEE_RECIPIENT)
+    .reduce((sum, f) => sum + (Number(f.fee) || 0), 0);
+  const safeUrl = (u) => (typeof u === 'string' && /^https:\/\//i.test(u) ? u : null);
+
+  const body = {
+    slug,
+    name: col.name || slug,
+    description: col.description || '',
+    image: safeUrl(col.image_url),
+    banner: safeUrl(col.banner_image_url),
+    openseaUrl: safeUrl(col.opensea_url) || `https://opensea.io/collection/${slug}`,
+    chain: contract.chain || null,
+    contract: contract.address || null,
+    creatorFeePct: Math.round(creatorFeePct * 100) / 100,
+    supply: Number(col.total_supply) || null,
+    stats: {
+      floor: st.floor_price ?? null,
+      floorSymbol: st.floor_price_symbol || null,
+      owners: st.num_owners ?? null,
+      volume: st.volume ?? null,
+      sales: st.sales ?? null,
+    },
+    items: ((ok(nfts) || {}).nfts || [])
+      .map((n) => ({ id: n.identifier, name: n.name || `#${n.identifier}`, image: safeUrl(n.display_image_url || n.image_url) }))
+      .filter((n) => n.image),
+    drop: normalizeDrop(ok(drop)),
+    fetchedAt: new Date().toISOString(),
+  };
+  collectionCache.set(key, { at: Date.now(), body });
+  if (collectionCache.size > 200) collectionCache.delete(collectionCache.keys().next().value);
+  return json(body, 200, corsHeaders);
+}
+
 export default {
   async fetch(request, env) {
     const { headers: corsHeaders, originAllowed } = corsHeadersFor(request, env);
@@ -198,12 +348,13 @@ export default {
 
     const params = new URL(request.url).searchParams;
     try {
+      if (params.get('collection')) return await handleCollection(params.get('collection'), env, corsHeaders);
       if (params.get('slug')) return await handleSlug(params.get('slug'), env, corsHeaders);
       if (params.get('abi')) return await handleAbi(params.get('abi'), params.get('chainid') || '1', env, corsHeaders);
       if (params.get('url')) return await handleScan(params.get('url'), corsHeaders);
     } catch (e) {
       return json({ error: 'upstream request failed: ' + (e.message || 'unknown error') }, 502, corsHeaders);
     }
-    return json({ error: 'use ?slug=, ?abi=&chainid=, or ?url=' }, 400, corsHeaders);
+    return json({ error: 'use ?collection=, ?slug=, ?abi=&chainid=, or ?url=' }, 400, corsHeaders);
   },
 };

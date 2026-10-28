@@ -289,6 +289,44 @@
   .wallet-kind{ font-size:10px; padding:1px 5px; border:1px solid var(--border); color:var(--text-dim); margin-left:4px; }
   .wallet-x{ background:none; color:var(--text-dim); padding:2px 6px; font-size:14px; }
   .wallet-x:hover{ color:var(--fail); }
+  .coll-card{ padding:0; overflow:hidden; }
+  .coll-banner{ height:132px; background:var(--surface-raised) center/cover no-repeat; position:relative; }
+  .coll-banner::after{ content:''; position:absolute; inset:0; background:linear-gradient(180deg, transparent 30%, var(--surface) 100%); }
+  .coll-body{ padding:0 18px 18px; position:relative; }
+  .coll-head{ display:flex; align-items:flex-end; gap:14px; margin-top:-34px; position:relative; z-index:1; }
+  .coll-logo{ width:68px; height:68px; flex:none; background:var(--surface-raised) center/cover no-repeat; border:3px solid var(--surface); }
+  .coll-title{ min-width:0; flex:1; padding-bottom:2px; }
+  .coll-name{ font-size:20px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .coll-badges{ display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .coll-badge{ font-family:var(--mono); font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.3px; padding:3px 7px; background:var(--surface-raised); border:1px solid var(--border); color:var(--text-mid); }
+  .coll-badge.live{ color:var(--success); border-color:var(--success); }
+  .coll-badge.soon{ color:var(--pending); border-color:var(--pending); }
+  .coll-badge.warn{ color:var(--fail); border-color:var(--fail); }
+  .coll-os{ font-size:12px; white-space:nowrap; padding-bottom:4px; }
+  .coll-stats{ display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin-top:16px; }
+  .coll-stat{ background:var(--surface-raised); padding:9px 10px; min-width:0; }
+  .coll-stat span{ display:block; font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.4px; }
+  .coll-stat b{ display:block; font-family:var(--mono); font-size:14px; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .coll-progress{ margin-top:16px; }
+  .coll-progress-top{ display:flex; justify-content:space-between; font-size:12.5px; font-weight:600; margin-bottom:7px; }
+  .coll-progress-top small{ color:var(--text-dim); font-weight:400; margin-left:6px; }
+  .coll-bar{ height:8px; background:var(--surface-raised); overflow:hidden; }
+  .coll-bar i{ display:block; height:100%; background:linear-gradient(90deg, var(--accent), #5b8cff); transition:width .6s ease; }
+  .coll-stages{ margin-top:14px; display:flex; flex-direction:column; gap:6px; }
+  .coll-stage{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; background:var(--surface-raised); border:1px solid var(--border-soft); }
+  .coll-stage.live{ border-color:rgba(46,204,113,.45); }
+  .coll-stage-name{ font-weight:700; font-size:13px; }
+  .coll-stage-meta{ font-family:var(--mono); font-size:11px; color:var(--text-mid); margin-top:3px; }
+  .coll-stage-right{ text-align:right; font-family:var(--mono); font-size:11px; color:var(--text-dim); white-space:nowrap; }
+  .coll-items{ display:flex; gap:8px; overflow-x:auto; margin-top:14px; padding-bottom:4px; scrollbar-width:thin; }
+  .coll-items img{ width:84px; height:84px; flex:none; object-fit:cover; background:var(--surface-raised); }
+  .coll-note{ margin-top:12px; font-size:12px; padding:9px 11px; background:var(--err-bg); border:1px solid var(--err-border); color:var(--fail); }
+  .coll-foot{ display:flex; justify-content:space-between; margin-top:10px; font-size:11px; color:var(--text-dim); }
+  @media (max-width:700px){
+    .coll-stats{ grid-template-columns:repeat(2, 1fr); }
+    .coll-head{ flex-wrap:wrap; }
+    .coll-name{ font-size:17px; white-space:normal; }
+  }
   .empty-note{ color:var(--text-dim); font-size:12px; padding:6px 0; }
 
   .chain-icon-row{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
@@ -571,6 +609,8 @@
         <div class="scan-step" id="scanStep2"><span class="scan-icon">2</span> Connecting wallet</div>
         <div class="scan-step" id="scanStep3"><span class="scan-icon">3</span> Checking eligibility</div>
       </div>
+
+      <div class="card coll-card" id="collectionCard" hidden></div>
 
       <div class="card" id="targetCard" hidden>
         <div class="target-head">
@@ -2341,11 +2381,28 @@
   }
 
   async function resolveViaOpenSea(input){
-    const m = input.match(/opensea\.io\/collection\/([a-zA-Z0-9_-]+)/i);
+    const m = input.match(/opensea\.io\/collection\/([a-zA-Z0-9_.-]+)/i);
     if(!m) return null;
     const slug = m[1];
     const proxyUrl = $('openseaProxyUrl').value.trim();
     const key = $('openseaKey').value.trim();
+
+    // Through the worker: one call returns contract + chain plus everything the collection
+    // card shows (images, stats, items, mint progress and stages).
+    if(proxyUrl){
+      let res;
+      try{ res = await fetch(`${proxyBase()}?collection=${encodeURIComponent(slug)}`); }
+      catch(e){ throw new Error('could not reach your proxy worker — is it running? (Settings → Save checks it)'); }
+      const data = await res.json().catch(() => ({}));
+      if(res.status === 401 || res.status === 403) throw new Error(data.error === 'origin not allowed'
+        ? 'your proxy worker refused this site — add it to ALLOWED_ORIGINS'
+        : 'OpenSea rejected the proxy\'s API key — check the OPENSEA_API_KEY secret on your worker');
+      if(res.status === 400 && /collection=/.test(data.error || '')) throw new Error('your proxy worker is an older version — redeploy the latest worker.js');
+      if(!res.ok) throw new Error(data.error || ('OpenSea lookup returned ' + res.status));
+      if(!data.contract) throw new Error('Collection found but has no on-chain contract listed yet (pre-mint or off-chain)');
+      state.collection = data;
+      return { address: data.contract, chainKey: OPENSEA_CHAIN_TO_KEY[data.chain] || null, chainName: data.chain, name: data.name, source:'opensea' };
+    }
 
     try{
       let res;
@@ -2365,7 +2422,9 @@
       const contract = (data.contracts || [])[0];
       if(!contract) throw new Error('Collection found but has no on-chain contract listed yet (pre-mint or off-chain)');
       const chainKey = OPENSEA_CHAIN_TO_KEY[contract.chain] || null;
-      return { address: contract.address, chainKey, name: data.name || slug, source:'opensea' };
+      state.collection = { slug, name: data.name || slug, image: data.image_url, banner: data.banner_image_url, chain: contract.chain,
+        contract: contract.address, supply: Number(data.total_supply) || null, openseaUrl: data.opensea_url, stats: {}, items: [], drop: null };
+      return { address: contract.address, chainKey, chainName: contract.chain, name: data.name || slug, source:'opensea' };
     }catch(e){
       if(!proxyUrl && (e.message === 'Failed to fetch' || e instanceof TypeError)){
         throw new Error('Direct browser calls to OpenSea are blocked (CORS) — set an OpenSea proxy URL in Settings instead');
@@ -2426,15 +2485,25 @@
   async function tryResolveAddressFromInput(input){
     if(/^0x[a-fA-F0-9]{40}$/.test(input)) return { address: ethers.getAddress(input.toLowerCase()), chainKey:null, source:'direct' };
 
+    // OpenSea collection links first — OpenSea knows the chain, which the address alone doesn't.
+    let openseaError = null;
+    if(/opensea\.io\/collection\//i.test(input)){
+      try{
+        const viaOpensea = await resolveViaOpenSea(input);
+        if(viaOpensea) return viaOpensea;
+      }catch(e){ openseaError = e.message; }
+      if(openseaError && !input.match(ADDR_RE)) return { address:null, chainKey:null, source:'opensea-error', error: openseaError };
+    }
+
     // Explorer links, OpenSea item links, mint sites with the address in the URL…
     const inUrl = input.match(ADDR_RE);
     if(inUrl){
       const chainMatch = input.match(/opensea\.io\/(?:assets|item)\/([a-z_-]+)\/0x/i);
       const chainKey = chainMatch ? (OPENSEA_CHAIN_TO_KEY[chainMatch[1].toLowerCase()] || null) : null;
-      return { address: ethers.getAddress(inUrl[0].toLowerCase()), chainKey, source:'url' };
+      return { address: ethers.getAddress(inUrl[0].toLowerCase()), chainKey, source:'url', warning: openseaError };
     }
 
-    if(/opensea\.io/i.test(input)){
+    if(/opensea\.io/i.test(input) && !openseaError){
       try{
         const viaOpensea = await resolveViaOpenSea(input);
         if(viaOpensea) return viaOpensea;
@@ -2470,6 +2539,9 @@
     ['scanStep1','scanStep2','scanStep3'].forEach(id => setScanStep(id, 'reset'));
     setScanStep('scanStep1', 'active'); setScanText('scanStep1', 'Scanning page for contract');
 
+    stopCollectionRefresh();
+    state.collection = null; state.targetChainUnsupported = null;
+    $('collectionCard').setAttribute('hidden', '');
     const result = await tryResolveAddressFromInput(input.trim());
 
     if(result && result.address){
@@ -2480,9 +2552,14 @@
           renderChainGrid();
           onChainChanged();
         } else {
-          chainNote = ` — heads up, this collection is on ${CHAINS[result.chainKey] ? CHAINS[result.chainKey].name : result.chainKey}, but FUSE is Ethereum-only right now`;
+          state.targetChainUnsupported = result.chainName || result.chainKey;
         }
+      } else if(result.chainName && !result.chainKey){
+        state.targetChainUnsupported = result.chainName; // a chain FUSE has no config for at all
       }
+      if(state.targetChainUnsupported) chainNote = ` — on ${prettyChain(state.targetChainUnsupported)}`;
+      else if(result.warning) chainNote = ` (OpenSea details unavailable: ${result.warning})`;
+      showCollection(result.address);
       $('contractAddr').value = result.address;
       updateTargetHeader(result.address);
       const via = result.source === 'opensea' ? ' via OpenSea API' : '';
@@ -2511,6 +2588,14 @@
 
     setScanStep('scanStep3', 'active'); setScanText('scanStep3', 'Checking eligibility');
     let seadropFound = false;
+    if(result && result.address && state.targetChainUnsupported){
+      // Contract calls would go to Ethereum, where this address isn't the collection.
+      setScanStep('scanStep3', 'fail');
+      setScanText('scanStep3', `Can't mint here — this collection is on ${prettyChain(state.targetChainUnsupported)}, and FUSE only mints on Ethereum right now`);
+      $('eligibleBadge').textContent = '—';
+      checkReadiness();
+      return;
+    }
     if(result && result.address){
       if(canFetchAbi()) await autoFetchAbi(result.address);
       seadropFound = await tryAutoDetectSeaDropPhase(result.address);
@@ -2541,7 +2626,7 @@
       const drop = await seadrop.getPublicDrop(nftContract);
       if(drop.startTime === 0n && drop.mintPrice === 0n) return false; // not a SeaDrop collection / no public stage configured
       const price = ethers.formatEther(drop.mintPrice);
-      const startISO = new Date(Number(drop.startTime) * 1000).toISOString().slice(0,19);
+      const startISO = toLocalInputValue(new Date(Number(drop.startTime) * 1000));
       const existingIdx = state.phases.findIndex(p => p.name === 'PUBLIC');
       const phase = { name: 'PUBLIC', price, start: startISO };
       if(existingIdx >= 0) state.phases[existingIdx] = phase; else state.phases.push(phase);
@@ -2587,6 +2672,9 @@
 
   function resetTarget(){
     if(state.scheduleTimer) clearInterval(state.scheduleTimer);
+    stopCollectionRefresh();
+    state.collection = null; state.targetChainUnsupported = null;
+    $('collectionCard').setAttribute('hidden', '');
     state.abi = null; state.fn = null; state.mintTo = null; state.args = {}; state.armed = false; state.phases = [];
 
     $('scanCard').style.display = 'none';
@@ -2620,6 +2708,164 @@
 
     renderPhases();
     checkReadiness();
+  }
+
+  // ---------- collection card (OpenSea-style header + live mint progress) ----------
+  const CHAIN_LABELS = { ethereum:'Ethereum', base:'Base', arbitrum:'Arbitrum', optimism:'Optimism', matic:'Polygon', polygon:'Polygon',
+    zora:'Zora', robinhood:'Robinhood Chain', ape_chain:'ApeChain', abstract:'Abstract', shape:'Shape', unichain:'Unichain',
+    berachain:'Berachain', sei:'Sei', blast:'Blast', b3:'B3', soneium:'Soneium', ronin:'Ronin', flow:'Flow', monad:'Monad', hyperevm:'HyperEVM' };
+  function prettyChain(c){ return CHAIN_LABELS[c] || String(c || '').replace(/_/g, ' ').replace(/\b\w/g, x => x.toUpperCase()); }
+
+  function toLocalInputValue(d){
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+  const httpsUrl = u => (typeof u === 'string' && /^https:\/\//i.test(u)) ? u : null;
+  // Single-quoted so it can sit inside a double-quoted style="" attribute.
+  const cssUrl = u => httpsUrl(u) ? `url('${u.replace(/['"\\\s<>]/g, encodeURIComponent)}')` : 'none';
+  const fmtCount = n => n == null ? '—' : Number(n).toLocaleString('en-US');
+  function fmtAmount(v, sym){
+    if(v == null || v === '') return '—';
+    const n = Number(v);
+    if(!isFinite(n)) return '—';
+    const s = n === 0 ? '0' : n < 0.000001 ? '<0.000001'
+      : n < 1 ? n.toLocaleString('en-US', { maximumSignificantDigits: 3 })
+      : n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+    return sym ? `${s} ${sym}` : s;
+  }
+  function stageStatus(st, now){
+    const start = st.start ? Date.parse(st.start) : null, end = st.end ? Date.parse(st.end) : null;
+    if(end && now >= end) return { cls:'', text:'Ended' };
+    if(start && now < start) return { cls:'soon', text:'Starts ' + phaseCountdownText(st.start).replace(/^Starts in /, 'in ') };
+    return { cls:'live', text:'Minting now' };
+  }
+
+  // Mint progress: on-chain when FUSE is on the collection's chain (exact and fresh),
+  // otherwise from OpenSea via the worker.
+  const MAX_SUPPLY_FNS = ['maxSupply', 'MAX_SUPPLY', 'maxTokens', 'MAX_TOKENS', 'collectionSize', 'maxTotalSupply'];
+  async function readOnchainSupply(addr){
+    const provider = getProvider();
+    const call = async (name) => {
+      const c = new ethers.Contract(addr, [`function ${name}() view returns (uint256)`], provider);
+      return Number(await c[name]());
+    };
+    let minted = null, max = null, name = null;
+    try{ minted = await call('totalSupply'); }catch(e){}
+    for(const fn of MAX_SUPPLY_FNS){
+      try{ const v = await call(fn); if(v > 0 && v < 1e9){ max = v; break; } }catch(e){}
+    }
+    try{ name = await new ethers.Contract(addr, ['function name() view returns (string)'], provider).name(); }catch(e){}
+    return { minted, max, name };
+  }
+
+  let collectionTimer = null;
+  function stopCollectionRefresh(){ if(collectionTimer){ clearInterval(collectionTimer); collectionTimer = null; } }
+
+  async function refreshCollection(addr){
+    const c = state.collection;
+    if(!c) return;
+    if(!state.targetChainUnsupported){
+      const onchain = await readOnchainSupply(addr);
+      if(state.collection !== c) return;
+      if(onchain.minted != null) c.onchainMinted = onchain.minted;
+      if(onchain.max != null) c.onchainMax = onchain.max;
+      if(!c.name && onchain.name) c.name = onchain.name;
+    } else if(c.slug && proxyBase()){
+      try{
+        const res = await fetch(`${proxyBase()}?collection=${encodeURIComponent(c.slug)}`);
+        if(res.ok){ const fresh = await res.json(); if(state.collection === c) Object.assign(c, fresh); }
+      }catch(e){ /* keep showing the last good data */ }
+    }
+    if(state.collection === c) renderCollection();
+  }
+
+  async function showCollection(addr){
+    if(!state.collection){
+      // No OpenSea data (no proxy, or a plain address) — build a minimal card from the contract.
+      state.collection = { name: null, contract: addr, chain: null, stats: {}, items: [], drop: null };
+    }
+    renderCollection();
+    await refreshCollection(addr);
+    // Fill the phase list from OpenSea's stages when minting is possible on this chain.
+    const c = state.collection;
+    if(c && c.drop && c.drop.stages && !state.targetChainUnsupported){
+      c.drop.stages.forEach(st => {
+        if(!st.start || state.phases.some(p => p.name === st.name)) return;
+        state.phases.push({ name: st.name, price: String(st.price ?? 0), start: toLocalInputValue(new Date(st.start)) });
+      });
+      renderPhases();
+    }
+    stopCollectionRefresh();
+    collectionTimer = setInterval(() => refreshCollection(addr), state.targetChainUnsupported ? 30000 : 15000);
+  }
+
+  function renderCollection(){
+    const c = state.collection, card = $('collectionCard');
+    if(!c){ card.setAttribute('hidden', ''); return; }
+    const now = Date.now();
+    const sym = (c.stats && c.stats.floorSymbol) || (c.chain && OPENSEA_CHAIN_TO_KEY[c.chain] ? CHAINS[OPENSEA_CHAIN_TO_KEY[c.chain]].nativeSymbol : 'ETH');
+    const minted = c.onchainMinted ?? (c.drop && c.drop.minted) ?? c.supply ?? null;
+    const max = c.onchainMax ?? (c.drop && c.drop.maxSupply) ?? null;
+    const pct = minted != null && max ? Math.min(100, minted / max * 100) : null;
+    const stages = (c.drop && c.drop.stages) || [];
+    const liveStage = stages.find(st => stageStatus(st, now).cls === 'live');
+    const soldOut = minted != null && max && minted >= max;
+
+    const badges = [];
+    const chainLabel = c.chain ? prettyChain(c.chain) : (state.targetChainUnsupported ? prettyChain(state.targetChainUnsupported) : CHAINS[state.chain].name === 'ETH' ? 'Ethereum' : CHAINS[state.chain].name);
+    badges.push(`<span class="coll-badge${state.targetChainUnsupported ? ' warn' : ''}">⛓ ${esc(chainLabel)}</span>`);
+    if(max) badges.push(`<span class="coll-badge">${fmtCount(max)} supply</span>`);
+    if(c.creatorFeePct != null) badges.push(`<span class="coll-badge">${esc(c.creatorFeePct)}% creator fee</span>`);
+    if(soldOut) badges.push('<span class="coll-badge warn">Sold out</span>');
+    else if(liveStage) badges.push('<span class="coll-badge live">● Minting now</span>');
+    else if(stages.some(st => stageStatus(st, now).cls === 'soon')) badges.push('<span class="coll-badge soon">Upcoming</span>');
+
+    const st = c.stats || {};
+    const usd = v => (sym === 'ETH' && state.priceUsd && v) ? ` <small style="color:var(--text-dim); font-weight:400">$${(v * state.priceUsd).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</small>` : '';
+    const statsHtml = (st.floor != null || st.owners != null || st.volume != null) ? `
+      <div class="coll-stats">
+        <div class="coll-stat"><span>Floor</span><b>${fmtAmount(st.floor, sym)}${usd(st.floor)}</b></div>
+        <div class="coll-stat"><span>Owners</span><b>${fmtCount(st.owners)}</b></div>
+        <div class="coll-stat"><span>Total volume</span><b>${fmtAmount(st.volume, sym)}${usd(st.volume)}</b></div>
+        <div class="coll-stat"><span>Sales</span><b>${fmtCount(st.sales)}</b></div>
+      </div>` : '';
+
+    const progressHtml = minted != null ? `
+      <div class="coll-progress">
+        <div class="coll-progress-top"><span>Items minted${pct != null ? `<small>${pct.toFixed(1)}%</small>` : ''}</span><span>${fmtCount(minted)}${max ? ' / ' + fmtCount(max) : ''}</span></div>
+        ${pct != null ? `<div class="coll-bar"><i style="width:${pct.toFixed(2)}%"></i></div>` : ''}
+      </div>` : '';
+
+    const stagesHtml = stages.length ? `<div class="coll-stages">${stages.map(s => {
+      const status = stageStatus(s, now);
+      const price = s.price == null ? '' : Number(s.price) === 0 ? 'FREE' : fmtAmount(s.price, s.currency || sym);
+      return `<div class="coll-stage ${status.cls}">
+        <div><div class="coll-stage-name">${esc(s.name)}</div><div class="coll-stage-meta">${esc(price)}${price ? ' · ' : ''}<span style="color:${status.cls === 'live' ? 'var(--success)' : status.cls === 'soon' ? 'var(--pending)' : 'var(--text-dim)'}">${esc(status.text)}</span></div></div>
+        <div class="coll-stage-right">${s.maxPerWallet ? 'LIMIT ' + esc(s.maxPerWallet) + ' PER WALLET' : ''}</div>
+      </div>`; }).join('')}</div>` : '';
+
+    const itemsHtml = (c.items || []).length ? `<div class="coll-items">${c.items.slice(0, 20).map(it =>
+      httpsUrl(it.image) ? `<img src="${esc(it.image)}" alt="${esc(it.name)}" title="${esc(it.name)}" loading="lazy" referrerpolicy="no-referrer">` : '').join('')}</div>` : '';
+
+    const note = state.targetChainUnsupported
+      ? `<div class="coll-note">This collection is on <b>${esc(prettyChain(state.targetChainUnsupported))}</b>. FUSE can show it, but only mints on Ethereum right now — arming and firing are disabled for it.</div>` : '';
+    const name = c.name || ('Contract ' + c.contract.slice(0, 6) + '...' + c.contract.slice(-4));
+    const osLink = httpsUrl(c.openseaUrl) ? `<a class="coll-os" href="${esc(c.openseaUrl)}" target="_blank" rel="noopener">OpenSea ↗</a>` : '';
+
+    card.innerHTML = `
+      <div class="coll-banner" style="background-image:${cssUrl(c.banner)}"></div>
+      <div class="coll-body">
+        <div class="coll-head">
+          <div class="coll-logo" style="background-image:${cssUrl(c.image)}"></div>
+          <div class="coll-title"><div class="coll-name">${esc(name)}</div><div class="coll-badges">${badges.join('')}</div></div>
+          ${osLink}
+        </div>
+        ${statsHtml}${progressHtml}${stagesHtml}${itemsHtml}${note}
+        <div class="coll-foot"><span>${esc(c.contract)}</span><span>${c.fetchedAt || !state.targetChainUnsupported ? 'Live · updates every ' + (state.targetChainUnsupported ? '30' : '15') + 's' : ''}</span></div>
+      </div>`;
+    if(!c.banner) card.querySelector('.coll-banner').style.height = '48px';
+    card.removeAttribute('hidden');
+    if(c.name) $('targetName').textContent = c.name;
   }
 
   function updateTargetHeader(addr){
@@ -2788,10 +3034,12 @@
   }
 
   function checkReadiness(){
-    const ok = mintWallets().length > 0 && state.fn && $('contractAddr').value.trim();
+    const ok = mintWallets().length > 0 && state.fn && $('contractAddr').value.trim() && !state.targetChainUnsupported;
     $('armBtn').disabled = !ok;
     $('simulateBtn').disabled = !ok;
-    if(!ok){
+    if(state.targetChainUnsupported){
+      setDiag('warn', `Not armed — this collection is on ${prettyChain(state.targetChainUnsupported)}; FUSE only mints on Ethereum right now.`);
+    } else if(!ok){
       setDiag('warn', state.wallets.length && !mintWallets().length
         ? 'Not armed — no wallets are ticked for minting. Tick at least one on the Wallets page.'
         : 'Not armed — load a wallet, a target contract, and select a mint function.');
