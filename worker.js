@@ -12,6 +12,9 @@
  *                                     API doesn't send CORS headers for arbitrary origins.
  *   GET ?abi=<address>&chainid=<id>   Etherscan v2 getabi, so the Etherscan key can live
  *                                     here instead of in the browser (optional).
+ *   POST ?rpc=<chain>                 JSON-RPC relay (e.g. ?rpc=robinhood). Fixes browser CORS
+ *                                     and lets a secret like RPC_ROBINHOOD point it at a
+ *                                     private RPC. Only normal read/send methods are allowed.
  *   GET ?url=<https://mint-site>      Reads a mint page (plus its first-party scripts,
  *                                     where SPA mint sites keep the contract address) and
  *                                     returns every 0x address found. Browsers can't read
@@ -22,7 +25,8 @@
  * 2. Paste this whole file in as the Worker's code, replacing the default.
  * 3. Set secrets so keys are never visible in the source:
  *      wrangler secret put OPENSEA_API_KEY
- *      wrangler secret put ETHERSCAN_API_KEY      (optional — enables ?abi=)
+ *      wrangler secret put ETHERSCAN_API_KEY      (optional — enables ?abi= on Etherscan chains)
+ *      wrangler secret put RPC_ROBINHOOD          (optional — your private Robinhood Chain RPC URL)
  *    (or, in the dashboard: Settings -> Variables -> add each as an encrypted secret,
  *    not a plain text variable)
  * 4. Optional but recommended: add a plain variable ALLOWED_ORIGINS with the origin(s)
@@ -44,7 +48,7 @@ function corsHeadersFor(request, env) {
   const origin = request.headers.get('Origin');
   const allowed = (env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
   const headers = {
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     // Lets a public site (e.g. GitHub Pages) call this worker while it runs locally under
     // `wrangler dev` — Chrome's Private Network Access check asks for this on preflight.
@@ -160,9 +164,20 @@ async function handleScan(target, corsHeaders) {
   return json({ url: finalUrl.toString(), addresses: found.slice(0, 2000) }, 200, corsHeaders);
 }
 
+// Chains Etherscan doesn't index: their Blockscout explorer answers the same getabi call, keyless.
+const BLOCKSCOUT_APIS = {
+  4663: 'https://robinhoodchain.blockscout.com/api', // Robinhood Chain (override: BLOCKSCOUT_API_4663)
+};
+
 async function handleAbi(address, chainId, env, corsHeaders) {
   if (!/^0x[a-fA-F0-9]{40}$/.test(address)) return json({ status: '0', result: 'invalid address' }, 400, corsHeaders);
   if (!/^\d+$/.test(chainId)) return json({ status: '0', result: 'invalid chainid' }, 400, corsHeaders);
+  const blockscout = env[`BLOCKSCOUT_API_${chainId}`] || BLOCKSCOUT_APIS[chainId];
+  if (blockscout) {
+    const res = await fetchWithTimeout(`${blockscout}?module=contract&action=getabi&address=${address}`, { headers: { Accept: 'application/json' } });
+    const body = await res.text();
+    return new Response(body, { status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
   if (!env.ETHERSCAN_API_KEY) {
     return json({ status: '0', result: 'ETHERSCAN_API_KEY secret is not set on this worker' }, 500, corsHeaders);
   }
@@ -187,6 +202,41 @@ async function handleSlug(slug, env, corsHeaders) {
     status: openseaRes.status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+}
+
+// ---------- POST ?rpc=<chain> : JSON-RPC relay ----------
+// Public RPCs for newer chains often lack browser CORS headers or rate-limit hard. The relay
+// fixes CORS and lets you point a chain at a private endpoint (Alchemy/QuickNode/…) by
+// setting a secret like RPC_ROBINHOOD, without that URL (and its key) living in the browser.
+const DEFAULT_RPCS = {
+  robinhood: 'https://rpc.mainnet.chain.robinhood.com',
+  ethereum: 'https://ethereum-rpc.publicnode.com',
+};
+const RPC_METHODS = new Set([
+  'eth_chainId', 'net_version', 'eth_blockNumber', 'eth_getBlockByNumber', 'eth_getBlockByHash', 'eth_getBalance',
+  'eth_getCode', 'eth_getStorageAt', 'eth_call', 'eth_estimateGas', 'eth_gasPrice', 'eth_maxPriorityFeePerGas',
+  'eth_feeHistory', 'eth_getTransactionCount', 'eth_getTransactionByHash', 'eth_getTransactionReceipt',
+  'eth_sendRawTransaction', 'eth_getLogs',
+]);
+const MAX_RPC_BODY = 512 * 1024;
+
+async function handleRpc(chain, request, env, corsHeaders) {
+  const upstream = env[`RPC_${chain.toUpperCase()}`] || DEFAULT_RPCS[chain];
+  if (!upstream) return json({ error: `no RPC configured for chain "${chain}"` }, 400, corsHeaders);
+  const text = await request.text();
+  if (text.length > MAX_RPC_BODY) return json({ error: 'request too large' }, 413, corsHeaders);
+  let payload;
+  try {
+    payload = JSON.parse(text);
+  } catch (e) {
+    return json({ error: 'invalid JSON' }, 400, corsHeaders);
+  }
+  const calls = Array.isArray(payload) ? payload : [payload];
+  if (!calls.length || calls.length > 50) return json({ error: 'batch must have 1-50 calls' }, 400, corsHeaders);
+  const blocked = calls.find((c) => !c || !RPC_METHODS.has(c.method));
+  if (blocked) return json({ jsonrpc: '2.0', id: blocked && blocked.id, error: { code: -32601, message: `method not allowed through relay: ${blocked && blocked.method}` } }, 200, corsHeaders);
+  const res = await fetchWithTimeout(upstream, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: text });
+  return new Response(await res.text(), { status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 }
 
 // ---------- ?collection= : everything FUSE shows about an OpenSea collection ----------
@@ -344,9 +394,17 @@ export default {
       return new Response(null, { status: originAllowed ? 204 : 403, headers: corsHeaders });
     }
     if (!originAllowed) return json({ error: 'origin not allowed' }, 403, corsHeaders);
-    if (request.method !== 'GET') return json({ error: 'GET only' }, 405, corsHeaders);
 
     const params = new URL(request.url).searchParams;
+    if (request.method === 'POST' && /^[a-z_]{2,30}$/.test(params.get('rpc') || '')) {
+      try {
+        return await handleRpc(params.get('rpc'), request, env, corsHeaders);
+      } catch (e) {
+        return json({ error: 'RPC relay failed: ' + (e.message || 'unknown error') }, 502, corsHeaders);
+      }
+    }
+    if (request.method !== 'GET') return json({ error: 'GET only (POST for ?rpc=)' }, 405, corsHeaders);
+
     try {
       if (params.get('collection')) return await handleCollection(params.get('collection'), env, corsHeaders);
       if (params.get('slug')) return await handleSlug(params.get('slug'), env, corsHeaders);
