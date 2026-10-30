@@ -1,0 +1,12 @@
+{
+  "name": "fuse-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FUSE proxy Cloudflare Worker",
+  "scripts": {
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "4.150.0"
+  }
+}
