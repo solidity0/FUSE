@@ -71,7 +71,7 @@ async function fetchWithTimeout(url, init) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
-    return await fetch(url, { ...init, signal: ctrl.signal, redirect: 'follow' });
+    return await fetch(url, { redirect: 'follow', ...init, signal: ctrl.signal });
   } finally {
     clearTimeout(timer);
   }
@@ -120,14 +120,30 @@ function parsePublicHttpUrl(raw) {
   return u;
 }
 
+// Follows redirects by hand so every hop gets the same public-address check as the first URL —
+// otherwise a public page could bounce the worker to an internal one.
+const MAX_REDIRECTS = 4;
+async function fetchPublic(url, init) {
+  let current = url;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const res = await fetchWithTimeout(current.toString(), { ...init, redirect: 'manual' });
+    const location = res.status >= 300 && res.status < 400 && res.headers.get('Location');
+    if (!location) return { res, url: current };
+    const next = parsePublicHttpUrl(new URL(location, current).toString());
+    if (!next) throw new Error('redirected to a non-public address');
+    current = next;
+  }
+  throw new Error('too many redirects');
+}
+
 async function handleScan(target, corsHeaders) {
   const pageUrl = parsePublicHttpUrl(target);
   if (!pageUrl) return json({ error: 'url must be a public http(s) address' }, 400, corsHeaders);
 
   const headers = { 'User-Agent': 'Mozilla/5.0 (compatible; FUSE-proxy)', Accept: 'text/html,*/*' };
-  let pageRes;
+  let pageRes, finalUrl;
   try {
-    pageRes = await fetchWithTimeout(pageUrl.toString(), { headers });
+    ({ res: pageRes, url: finalUrl } = await fetchPublic(pageUrl, { headers }));
   } catch (e) {
     return json({ error: 'could not fetch page: ' + (e.message || 'network error') }, 502, corsHeaders);
   }
@@ -138,7 +154,6 @@ async function handleScan(target, corsHeaders) {
 
   // SPA mint sites ship the contract address inside their JS bundles, not the HTML.
   // Only follow scripts on the page's own site to keep this from being a general crawler.
-  const finalUrl = new URL(pageRes.url || pageUrl.toString());
   const scriptSrcs = [...html.matchAll(/<script[^>]+src=["']([^"']+)["']/gi)]
     .map((m) => {
       try {
@@ -152,7 +167,7 @@ async function handleScan(target, corsHeaders) {
 
   const scripts = await Promise.allSettled(
     scriptSrcs.map(async (u) => {
-      const r = await fetchWithTimeout(u.toString(), { headers });
+      const { res: r } = await fetchPublic(u, { headers });
       return r.ok ? readCapped(r) : '';
     })
   );
@@ -169,24 +184,44 @@ const BLOCKSCOUT_APIS = {
   4663: 'https://robinhoodchain.blockscout.com/api', // Robinhood Chain (override: BLOCKSCOUT_API_4663)
 };
 
+// Etherscan chains whose Blockscout explorer also serves verified ABIs keyless — used when the
+// worker has no ETHERSCAN_API_KEY, or Etherscan doesn't have the contract verified.
+const BLOCKSCOUT_FALLBACK_APIS = {
+  1: 'https://eth.blockscout.com/api',
+  11155111: 'https://eth-sepolia.blockscout.com/api',
+};
+
+async function getAbiJson(url) {
+  const res = await fetchWithTimeout(url, { headers: { Accept: 'application/json' } });
+  try {
+    return await res.json();
+  } catch (e) {
+    return { status: '0', result: `explorer returned HTTP ${res.status}` };
+  }
+}
+
 async function handleAbi(address, chainId, env, corsHeaders) {
   if (!/^0x[a-fA-F0-9]{40}$/.test(address)) return json({ status: '0', result: 'invalid address' }, 400, corsHeaders);
   if (!/^\d+$/.test(chainId)) return json({ status: '0', result: 'invalid chainid' }, 400, corsHeaders);
+  const blockscoutPath = `?module=contract&action=getabi&address=${address}`;
   const blockscout = env[`BLOCKSCOUT_API_${chainId}`] || BLOCKSCOUT_APIS[chainId];
-  if (blockscout) {
-    const res = await fetchWithTimeout(`${blockscout}?module=contract&action=getabi&address=${address}`, { headers: { Accept: 'application/json' } });
-    const body = await res.text();
-    return new Response(body, { status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  if (blockscout) return json(await getAbiJson(blockscout + blockscoutPath), 200, corsHeaders);
+
+  let data = null;
+  if (env.ETHERSCAN_API_KEY) {
+    data = await getAbiJson(
+      `https://api.etherscan.io/v2/api?chainid=${chainId}&module=contract&action=getabi` +
+        `&address=${address}&apikey=${encodeURIComponent(env.ETHERSCAN_API_KEY)}`
+    );
+    if (data.status === '1') return json(data, 200, corsHeaders);
   }
-  if (!env.ETHERSCAN_API_KEY) {
-    return json({ status: '0', result: 'ETHERSCAN_API_KEY secret is not set on this worker' }, 500, corsHeaders);
+  const fallback = BLOCKSCOUT_FALLBACK_APIS[chainId];
+  if (fallback) {
+    const viaBlockscout = await getAbiJson(fallback + blockscoutPath).catch(() => null);
+    if (viaBlockscout && viaBlockscout.status === '1') return json(viaBlockscout, 200, corsHeaders);
   }
-  const url =
-    `https://api.etherscan.io/v2/api?chainid=${chainId}&module=contract&action=getabi` +
-    `&address=${address}&apikey=${encodeURIComponent(env.ETHERSCAN_API_KEY)}`;
-  const res = await fetchWithTimeout(url, { headers: { Accept: 'application/json' } });
-  const body = await res.text();
-  return new Response(body, { status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  if (data) return json(data, 200, corsHeaders);
+  return json({ status: '0', result: fallback ? 'ABI not found — contract may be unverified' : 'ETHERSCAN_API_KEY secret is not set on this worker' }, 200, corsHeaders);
 }
 
 async function handleSlug(slug, env, corsHeaders) {
@@ -289,12 +324,19 @@ function toIso(v) {
   return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+function toCount(v) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 // The drops endpoint is newer and its shape varies; read it defensively.
 function normalizeDrop(d) {
   if (!d || typeof d !== 'object') return null;
   const src = d.drop && typeof d.drop === 'object' ? d.drop : d;
-  const maxSupply = Number(firstOf(src, ['max_supply', 'maxSupply', 'max_total_supply', 'supply_cap', 'total_supply_cap'])) || null;
-  const minted = Number(firstOf(src, ['total_minted', 'minted', 'num_minted', 'minted_count', 'items_minted', 'total_supply'])) || null;
+  const maxSupply = toCount(firstOf(src, ['max_supply', 'maxSupply', 'max_total_supply', 'supply_cap', 'total_supply_cap'])) || null;
+  // 0 minted is a real answer (a drop that just opened), not "unknown".
+  const minted = toCount(firstOf(src, ['total_minted', 'minted', 'num_minted', 'minted_count', 'items_minted', 'total_supply']));
   const rawStages = firstOf(src, ['stages', 'mint_stages', 'drop_stages', 'phases']) || [];
   const stages = (Array.isArray(rawStages) ? rawStages : []).slice(0, 10).map((s) => {
     const priceRaw = firstOf(s, ['price', 'mint_price', 'unit_price', 'cost']);
@@ -308,7 +350,7 @@ function normalizeDrop(d) {
       maxPerWallet: Number(firstOf(s, ['max_per_wallet', 'max_total_mintable_by_wallet', 'limit_per_wallet', 'per_wallet_limit', 'wallet_limit'])) || null,
     };
   });
-  if (!maxSupply && !minted && !stages.length) return null;
+  if (!maxSupply && minted == null && !stages.length) return null;
   return { maxSupply, minted, stages };
 }
 
@@ -317,14 +359,13 @@ async function resolveCollection(id, env) {
   if (direct.ok) return direct.data;
   if (direct.status === 401 || direct.status === 403) throw Object.assign(new Error('OpenSea rejected the API key'), { status: 401 });
   if (!/^0x[a-fA-F0-9]{40}$/.test(id)) return null;
-  for (const chain of OPENSEA_CHAINS) {
-    const c = await osJson(`/chain/${chain}/contract/${id}`, env);
-    if (c.ok && c.data && c.data.collection) {
-      const byContract = await osJson(`/collections/${encodeURIComponent(c.data.collection)}`, env);
-      if (byContract.ok) return byContract.data;
-    }
-  }
-  return null;
+  // Ask every chain at once (one by one was up to 20 round trips) and take the first hit in
+  // OPENSEA_CHAINS order, so a contract on several chains still resolves the same way.
+  const lookups = await Promise.allSettled(OPENSEA_CHAINS.map((chain) => osJson(`/chain/${chain}/contract/${id}`, env)));
+  const hit = lookups.find((r) => r.status === 'fulfilled' && r.value.ok && r.value.data && r.value.data.collection);
+  if (!hit) return null;
+  const byContract = await osJson(`/collections/${encodeURIComponent(hit.value.data.collection)}`, env);
+  return byContract.ok ? byContract.data : null;
 }
 
 async function handleCollection(id, env, corsHeaders) {
@@ -404,6 +445,15 @@ export default {
       }
     }
     if (request.method !== 'GET') return json({ error: 'GET only (POST for ?rpc=)' }, 405, corsHeaders);
+
+    // The Origin check only stops browsers — scripts can send any Origin header. The LIMITER
+    // binding (wrangler.toml) caps how much anyone can pull through your OpenSea/Etherscan keys.
+    // The RPC relay above is left out so a big mint run never gets throttled mid-fire.
+    if (env.LIMITER) {
+      const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+      const { success } = await env.LIMITER.limit({ key: ip });
+      if (!success) return json({ error: 'rate limited — slow down and try again in a minute' }, 429, corsHeaders);
+    }
 
     try {
       if (params.get('collection')) return await handleCollection(params.get('collection'), env, corsHeaders);

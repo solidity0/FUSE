@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-nbM/mhdzWqzQGXquJnzweynaC7RC5GJN88WHm2OOZ24=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-ey8/ntJ2SxtaH5JHPcrmKV9fQYJEgP/x29iLIvht3R0=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -1021,7 +1021,7 @@
 <script>
 (function(){
   const CHAINS = {
-    ethereum: { id:1, name:'ETH', nativeSymbol:'ETH', cgId:'ethereum', openseaChain:'ethereum', color:'#3B2BE5', icon:'Ξ', explorerApi:'https://api.etherscan.io/v2/api', defaultRpc:'https://eth.llamarpc.com', tx:'https://etherscan.io/tx/', addr:'https://etherscan.io/address/' },
+    ethereum: { id:1, name:'ETH', nativeSymbol:'ETH', cgId:'ethereum', openseaChain:'ethereum', color:'#3B2BE5', icon:'Ξ', explorerApi:'https://api.etherscan.io/v2/api', defaultRpc:'https://ethereum-rpc.publicnode.com', blockscoutFallback:'https://eth.blockscout.com/api', tx:'https://etherscan.io/tx/', addr:'https://etherscan.io/address/' },
     base:     { id:8453, name:'Base', nativeSymbol:'ETH', cgId:'ethereum', openseaChain:'base', color:'#0052ff', icon:'B', explorerApi:'https://api.etherscan.io/v2/api', defaultRpc:'https://mainnet.base.org', tx:'https://basescan.org/tx/', addr:'https://basescan.org/address/' },
     arbitrum: { id:42161, name:'Arb', nativeSymbol:'ETH', cgId:'ethereum', openseaChain:'arbitrum', color:'#28a0f0', icon:'A', explorerApi:'https://api.etherscan.io/v2/api', defaultRpc:'https://arb1.arbitrum.io/rpc', tx:'https://arbiscan.io/tx/', addr:'https://arbiscan.io/address/' },
     optimism: { id:10, name:'OP', nativeSymbol:'ETH', cgId:'ethereum', openseaChain:'optimism', color:'#ff0420', icon:'O', explorerApi:'https://api.etherscan.io/v2/api', defaultRpc:'https://mainnet.optimism.io', tx:'https://optimistic.etherscan.io/tx/', addr:'https://optimistic.etherscan.io/address/' },
@@ -1032,7 +1032,7 @@
     zora:     { id:7777777, name:'Zora', nativeSymbol:'ETH', cgId:'ethereum', openseaChain:'zora', color:'#2b5df0', icon:'Z', explorerApi:'https://api.etherscan.io/v2/api', defaultRpc:'https://rpc.zora.energy', tx:'https://explorer.zora.energy/tx/', addr:'https://explorer.zora.energy/address/' },
     // Ethereum's testnet — free faucet ETH, so mints, retries and disperse can be tried for real
     // without spending anything. No cgId: test ETH has no USD value.
-    sepolia:  { id:11155111, name:'Sepolia', label:'Sepolia testnet', testnet:true, nativeSymbol:'ETH', cgId:null, openseaChain:'sepolia', color:'#E8A13A', icon:'S', explorerApi:'https://api.etherscan.io/v2/api', defaultRpc:'https://ethereum-sepolia-rpc.publicnode.com', tx:'https://sepolia.etherscan.io/tx/', addr:'https://sepolia.etherscan.io/address/' },
+    sepolia:  { id:11155111, name:'Sepolia', label:'Sepolia testnet', testnet:true, nativeSymbol:'ETH', cgId:null, openseaChain:'sepolia', color:'#E8A13A', icon:'S', explorerApi:'https://api.etherscan.io/v2/api', defaultRpc:'https://ethereum-sepolia-rpc.publicnode.com', blockscoutFallback:'https://eth-sepolia.blockscout.com/api', tx:'https://sepolia.etherscan.io/tx/', addr:'https://sepolia.etherscan.io/address/' },
   };
   const OPENSEA_CHAIN_TO_KEY = Object.fromEntries(Object.entries(CHAINS).flatMap(([k,c]) => [c.openseaChain, ...(c.openseaAliases || [])].map(slug => [slug, k])));
   const ACTIVE_CHAINS = ['ethereum', 'robinhood', 'sepolia']; // chains FUSE can mint on — add keys here to enable more
@@ -1168,7 +1168,8 @@
   async function checkEtherscan(){
     const key = $('apiKey').value;
     if(CHAINS[state.chain].abiSource === 'blockscout' && !key) return ['info', 'ABIs', `${CHAINS[state.chain].name} ABIs come from its Blockscout explorer — no key needed`];
-    if(!key) return ['info', 'Etherscan', proxyBase() ? 'no key here — ABI lookups go through your proxy worker' : 'no key — ABI auto-fetch is off unless the proxy worker has one'];
+    if(!key) return ['info', 'Etherscan', proxyBase() ? 'no key here — ABI lookups go through your proxy worker' + (CHAINS[state.chain].blockscoutFallback ? ', then Blockscout' : '')
+      : CHAINS[state.chain].blockscoutFallback ? 'no key — ABIs come from Blockscout (keyless)' : 'no key — ABI auto-fetch is off unless the proxy worker has one'];
     try{
       const res = await withTimeout(fetch(`${CHAINS.ethereum.explorerApi}?chainid=1&module=stats&action=ethprice&apikey=${encodeURIComponent(key)}`), 8000);
       const data = await res.json();
@@ -1200,7 +1201,7 @@
     const btn = $('saveSettings');
     if(btn.disabled) return;
     const stored = saveSettings();
-    relayStatus.clear(); await probeRelay();
+    relayStatus.clear(); publicRpcStatus.clear(); await probeRpcs();
     showSaveState(stored ? 'Saved ✓ — checking connections…' : 'Couldn\'t save (browser storage is blocked) — settings apply until you reload');
     btn.disabled = true;
     const box = $('settingsChecks');
@@ -1307,7 +1308,7 @@
     $('rpcUrl').placeholder = state.chain === 'robinhood' ? 'https://… your Robinhood Chain RPC (Alchemy / QuickNode / Chainstack)'
       : state.chain === 'sepolia' ? 'https://eth-sepolia.g.alchemy.com/v2/...' : 'https://eth-mainnet.g.alchemy.com/v2/...';
     if($('quickTokenRow')) $('quickTokenRow').style.display = ($('disperseErc20Toggle').checked && state.chain === 'ethereum') ? 'flex' : 'none';
-    setTimeout(() => { probeRelay().finally(pollGas); }, 0); // after start-up finishes defining the RPC helpers
+    setTimeout(() => { probeRpcs().finally(pollGas); }, 0); // after start-up finishes defining the RPC helpers
   }
 
   function updateUnitButtons(){
@@ -1489,8 +1490,35 @@
     relayStatus.set(url, p);
     return p;
   }
+  // Public RPCs come and go (eth.llamarpc.com started failing every browser call, which silently
+  // broke all Ethereum reads). Each is checked with eth_chainId and skipped while it's down.
+  const publicRpcStatus = new Map(); // 'chain|url' -> { ok, at } | Promise
+  const PUBLIC_RPC_RECHECK_MS = 120000;
+  const publicRpcsFor = key => FALLBACK_RPCS[key] || [CHAINS[key].defaultRpc];
+  function probePublicRpc(chainKey, url){
+    const id = chainKey + '|' + url;
+    const known = publicRpcStatus.get(id);
+    if(known instanceof Promise) return known;
+    if(known && (known.ok || Date.now() - known.at < PUBLIC_RPC_RECHECK_MS)) return;
+    const p = (async () => {
+      let ok = false;
+      try{
+        const res = await withTimeout(fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'eth_chainId', params:[] }) }), 5000);
+        ok = res.ok && parseInt((await res.json()).result, 16) === CHAINS[chainKey].id;
+      }catch(e){}
+      publicRpcStatus.set(id, { ok, at: Date.now() });
+    })();
+    publicRpcStatus.set(id, p);
+    return p;
+  }
+  async function probeRpcs(){
+    const key = state.chain;
+    await Promise.all([probeRelay(), ...publicRpcsFor(key).map(u => probePublicRpc(key, u))]);
+  }
   function rpcCandidates(){
-    const list = [$('rpcUrl').value.trim(), proxyRpcUrl(), ...(FALLBACK_RPCS[state.chain] || [CHAINS[state.chain].defaultRpc])].filter(Boolean);
+    const all = publicRpcsFor(state.chain);
+    const healthy = all.filter(u => { const s = publicRpcStatus.get(state.chain + '|' + u); return !(s && s.ok === false); });
+    const list = [$('rpcUrl').value.trim(), proxyRpcUrl(), ...(healthy.length ? healthy : all)].filter(Boolean);
     return [...new Set(list)];
   }
   function getProvider(){ return providerFor(rpcCandidates()[0]); }
@@ -1504,7 +1532,7 @@
   // Public RPCs occasionally rate-limit or hiccup — for something as basic as a
   // balance read, try a couple of alternates before giving up silently.
   const FALLBACK_RPCS = {
-    ethereum: ['https://eth.llamarpc.com', 'https://ethereum-rpc.publicnode.com', 'https://1rpc.io/eth', 'https://eth.drpc.org'],
+    ethereum: ['https://ethereum-rpc.publicnode.com', 'https://1rpc.io/eth', 'https://eth.drpc.org', 'https://cloudflare-eth.com'],
     robinhood: ['https://rpc.mainnet.chain.robinhood.com'],
     sepolia: ['https://ethereum-sepolia-rpc.publicnode.com', 'https://1rpc.io/sepolia', 'https://sepolia.gateway.tenderly.co'],
   };
@@ -2134,7 +2162,7 @@
     if(isErc20 && !/^0x[a-fA-F0-9]{40}$/.test(tokenAddr)){ alert('Enter a valid ERC20 token contract address.'); return; }
     if(disperseUsdMode() && !state.priceUsd){ alert('USD price is unavailable right now — switch to ETH to enter the amount directly.'); return; }
 
-    try{ await probeRelay(); await verifyChain(); }catch(e){ alert('Can\'t send — ' + e.message); return; }
+    try{ await probeRpcs(); await verifyChain(); }catch(e){ alert('Can\'t send — ' + e.message); return; }
     const provider = getProvider();
     const chainId = CHAINS[state.chain].id;
     const log = $('disperseLog');
@@ -2197,43 +2225,65 @@
     catch(e){ alert('Could not parse ABI JSON: ' + e.message); }
   };
 
-  function canFetchAbi(){ return CHAINS[state.chain].abiSource === 'blockscout' || !!($('apiKey').value.trim() || proxyBase()); }
+  // Blockscout speaks Etherscan's getabi format and needs no key, so chains with a Blockscout
+  // explorer can always fetch ABIs — Etherscan (key or worker) is just tried first.
+  const blockscoutFor = c => c.blockscoutApi || c.blockscoutFallback || null;
+  function canFetchAbi(){ return !!blockscoutFor(CHAINS[state.chain]) || !!($('apiKey').value.trim() || proxyBase()); }
+
+  async function getAbiResponse(url){
+    try{ return await (await withTimeout(fetch(url), 10000)).json(); }catch(e){ return {}; }
+  }
 
   // Etherscan v2 getabi — directly with the user's key, or through the proxy worker
   // (which holds ETHERSCAN_API_KEY server-side) when no key is set here.
   async function fetchAbiFor(addr){
+    const c = CHAINS[state.chain];
     const key = $('apiKey').value.trim();
-    const chainId = CHAINS[state.chain].id;
+    const blockscoutUrl = blockscoutFor(c) && `${blockscoutFor(c)}?module=contract&action=getabi&address=${addr}`;
     let url;
-    if(CHAINS[state.chain].abiSource === 'blockscout'){
-      // Blockscout speaks Etherscan's getabi format and needs no key; prefer the worker.
-      url = proxyBase() ? `${proxyBase()}?abi=${addr}&chainid=${chainId}` : `${CHAINS[state.chain].blockscoutApi}?module=contract&action=getabi&address=${addr}`;
-    } else if(key) url = `${CHAINS[state.chain].explorerApi}?chainid=${chainId}&module=contract&action=getabi&address=${addr}&apikey=${encodeURIComponent(key)}`;
-    else if(proxyBase()) url = `${proxyBase()}?abi=${addr}&chainid=${chainId}`;
-    else throw new Error('Add an Etherscan API key or an OpenSea proxy URL in Settings, or use "Paste ABI instead"');
-    let data;
-    try{ data = await (await fetch(url)).json(); }catch(e){ data = {}; }
-    // An older worker sends every ?abi= to Etherscan, which doesn't index Blockscout chains.
-    if(data.status !== '1' && CHAINS[state.chain].abiSource === 'blockscout' && url.startsWith(proxyBase() || '\u0000')){
-      try{ data = await (await fetch(`${CHAINS[state.chain].blockscoutApi}?module=contract&action=getabi&address=${addr}`)).json(); }catch(e){}
+    if(c.abiSource === 'blockscout') url = proxyBase() ? `${proxyBase()}?abi=${addr}&chainid=${c.id}` : blockscoutUrl;
+    else if(key) url = `${c.explorerApi}?chainid=${c.id}&module=contract&action=getabi&address=${addr}&apikey=${encodeURIComponent(key)}`;
+    else if(proxyBase()) url = `${proxyBase()}?abi=${addr}&chainid=${c.id}`;
+    else if(!blockscoutUrl) throw new Error('Add an Etherscan API key or an OpenSea proxy URL in Settings, or use "Paste ABI instead"');
+    let data = url ? await getAbiResponse(url) : {};
+    // No key anywhere, an older worker, or Etherscan doesn't have it verified — ask Blockscout.
+    if(data.status !== '1' && blockscoutUrl && url !== blockscoutUrl){
+      const viaBlockscout = await getAbiResponse(blockscoutUrl);
+      if(viaBlockscout.status === '1') data = viaBlockscout;
     }
     if(data.status !== '1') throw new Error(data.result || data.error || 'ABI not found — contract may be unverified');
     return JSON.parse(data.result);
   }
 
-  // Most modern drops are upgradeable proxies: the verified ABI at the address has no
-  // mint function, the implementation behind the EIP-1967 slot does. Merge both.
+  // Most modern drops are proxies: the code (and ABI) with the mint function lives in an
+  // implementation contract. EIP-1167 clones (OpenSea Studio's SeaDrop drops, most launchpads)
+  // embed its address in their tiny bytecode; upgradeable proxies keep it in the EIP-1967 slot.
   const EIP1967_IMPL_SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
-  async function fetchAbiWithImplementation(addr){
-    const abi = await fetchAbiFor(addr);
-    if(mintCandidates(abi).length) return abi;
+  const EIP1167_RE = /^0x363d3d373d3d3d363d73([0-9a-f]{40})5af43d82803e903d91602b57fd5bf3$/i;
+  async function implementationOf(addr){
+    const provider = getProvider();
     try{
-      const raw = await getProvider().getStorage(addr, EIP1967_IMPL_SLOT);
-      const impl = ethers.getAddress('0x' + raw.slice(26));
-      if(impl === ethers.ZeroAddress) return abi;
+      const m = (await provider.getCode(addr)).match(EIP1167_RE);
+      if(m) return ethers.getAddress('0x' + m[1]);
+    }catch(e){ /* fall through to the slot check */ }
+    try{
+      const impl = ethers.getAddress('0x' + (await provider.getStorage(addr, EIP1967_IMPL_SLOT)).slice(26));
+      if(impl !== ethers.ZeroAddress) return impl;
+    }catch(e){}
+    return null;
+  }
+
+  async function fetchAbiWithImplementation(addr){
+    // A clone is usually unverified itself, so a failed lookup here isn't the end.
+    let abi = null, err = null;
+    try{ abi = await fetchAbiFor(addr); }catch(e){ err = e; }
+    if(abi && mintCandidates(abi).length) return abi;
+    const impl = await implementationOf(addr);
+    if(!impl){ if(abi) return abi; throw err; }
+    try{
       const implAbi = await fetchAbiFor(impl);
-      return [...implAbi, ...abi.filter(f => f.type !== 'constructor')];
-    }catch(e){ return abi; }
+      return [...implAbi, ...(abi || []).filter(f => f.type !== 'constructor')];
+    }catch(e){ if(abi) return abi; throw err || e; }
   }
 
   $('fetchAbi').onclick = async () => {
@@ -2684,7 +2734,7 @@
     setScanStep('scanStep1', 'active'); setScanText('scanStep1', 'Scanning page for contract');
 
     stopCollectionRefresh();
-    await probeRelay();
+    await probeRpcs();
     state.collection = null; state.targetChainUnsupported = null; state.workerOutdated = false;
     $('collectionCard').setAttribute('hidden', '');
     const result = await tryResolveAddressFromInput(input.trim());
@@ -3034,7 +3084,9 @@
   }
 
   function mintCandidates(abiJson){
-    return abiJson.filter(f => f.type==='function' && (f.stateMutability==='payable'||f.stateMutability==='nonpayable') && /mint|claim|purchase|buy/i.test(f.name) && !/seadrop/i.test(f.name));
+    return abiJson.filter(f => f.type==='function' && (f.stateMutability==='payable'||f.stateMutability==='nonpayable') && /mint|claim|purchase|buy/i.test(f.name) && !/seadrop/i.test(f.name)
+      // Owner/admin setters that merely mention minting (updateSignedMintValidationParams, setMintPrice…).
+      && !/^(update|set|toggle|enable|disable|pause|unpause|withdraw|grant|revoke|renounce|transfer|configure|multiConfigure)/i.test(f.name));
   }
 
   function addFnCandidate(f, label, tag, opts, prepend){
@@ -3211,7 +3263,7 @@
     if(!mintWallets().length || !state.fn){ alert('Tick at least one wallet and select a mint function first.'); return; }
     let call;
     try{ call = buildMintCall(); }catch(e){ setDiag('err', 'Can\'t arm — ' + (e.shortMessage || e.message)); return; }
-    try{ await probeRelay(); await verifyChain(); }catch(e){ if(state.armed) disarm(); setDiag('err', 'Can\'t arm — ' + e.message); return; }
+    try{ await probeRpcs(); await verifyChain(); }catch(e){ if(state.armed) disarm(); setDiag('err', 'Can\'t arm — ' + e.message); return; }
     state.armed = true;
     setDiag('ok', `Armed — ${mintWallets().length} wallet(s) · ${state.fn.name}() · ${CHAINS[state.chain].name} · ${ethers.formatEther(call.value)} ETH per tx × ${call.txPerWallet} tx/wallet`);
     $('fireBtn').disabled = false;
@@ -3247,7 +3299,7 @@
     const provider = getProvider();
     const from = mintWallets()[0].address;
     try{
-      await probeRelay(); await verifyChain();
+      await probeRpcs(); await verifyChain();
       const { to, data, value } = buildMintCall();
       await provider.call({ to, data, value, from });
       setDiag('ok', `Simulation passed for ${from.slice(0,6)}...${from.slice(-4)} — call would succeed at current state. Real conditions can still change before you fire.`);
