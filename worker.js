@@ -348,10 +348,55 @@ function normalizeDrop(d) {
       start: toIso(firstOf(s, ['start_time', 'start_date', 'startTime', 'starts_at', 'start'])),
       end: toIso(firstOf(s, ['end_time', 'end_date', 'endTime', 'ends_at', 'end'])),
       maxPerWallet: Number(firstOf(s, ['max_per_wallet', 'max_total_mintable_by_wallet', 'limit_per_wallet', 'per_wallet_limit', 'wallet_limit'])) || null,
+      // Lets the page tell allowlist stages from public ones and match ?dropmint= answers to a stage.
+      id: s.uuid != null ? String(s.uuid) : null,
+      type: typeof s.stage_type === 'string' ? s.stage_type : null,
+      allowlistCount: toCount(s.allowlist_wallet_count),
     };
   });
   if (!maxSupply && minted == null && !stages.length) return null;
-  return { maxSupply, minted, stages };
+  const active = src.active_stage && typeof src.active_stage === 'object' ? src.active_stage : null;
+  return {
+    maxSupply, minted, stages,
+    isMinting: typeof src.is_minting === 'boolean' ? src.is_minting : null,
+    activeStageId: active && active.uuid != null ? String(active.uuid) : null,
+    dropType: typeof src.drop_type === 'string' ? src.drop_type : null,
+  };
+}
+
+// ---------- ?dropmint=<slug>&minter=<0x…>&quantity=<n> ----------
+// OpenSea builds the mint transaction for whichever stage is live now — including the
+// allowlist proof or signature for GTD/FCFS stages, which a page can't produce itself — or
+// says why this wallet can't mint (not on the allowlist, over its limit, sold out…). That makes
+// it both FUSE's per-wallet eligibility check and the way it mints presale stages.
+const DROP_MINT_CODES = new Set(['MINTER_NOT_ELIGIBLE', 'MINT_LIMIT_EXCEEDED', 'SUPPLY_EXHAUSTED', 'INSUFFICIENT_BALANCE', 'NO_PAYOUT_ADDRESS', 'NOT_MINTING', 'DROP_NOT_FOUND', 'UNSUPPORTED_DROP_TYPE']);
+
+async function handleDropMint(slug, minter, quantity, env, corsHeaders) {
+  if (!env.OPENSEA_API_KEY) return json({ error: 'OPENSEA_API_KEY secret is not set on this worker' }, 500, corsHeaders);
+  if (!/^[A-Za-z0-9_.-]{1,100}$/.test(slug)) return json({ error: 'invalid collection slug' }, 400, corsHeaders);
+  if (!/^0x[a-fA-F0-9]{40}$/.test(minter || '')) return json({ error: 'invalid minter address' }, 400, corsHeaders);
+  const qty = Number(quantity || 1);
+  if (!Number.isInteger(qty) || qty < 1 || qty > 100) return json({ error: 'quantity must be 1-100' }, 400, corsHeaders);
+
+  const res = await fetchWithTimeout(`${OPENSEA_API}/drops/${encodeURIComponent(slug)}/mint`, {
+    method: 'POST',
+    headers: { 'x-api-key': env.OPENSEA_API_KEY, Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ minter, quantity: qty }),
+  });
+  let body = {};
+  try { body = await res.json(); } catch (e) { /* non-JSON error page */ }
+  if (res.ok && body.to && body.data) {
+    return json({
+      ok: true, to: body.to, data: body.data, value: String(body.value ?? '0'), chain: body.chain || null,
+      stageId: body.stage_uuid != null ? String(body.stage_uuid) : null, stageType: body.stage_type || null,
+      stageStart: toIso(body.stage_start_time), stageEnd: toIso(body.stage_end_time),
+    }, 200, corsHeaders);
+  }
+  if (res.status === 401 || res.status === 403) return json({ error: 'OpenSea rejected the API key' }, 401, corsHeaders);
+  const code = DROP_MINT_CODES.has(body.code) ? body.code : null;
+  const message = (Array.isArray(body.errors) && body.errors.filter((e) => typeof e === 'string').join(' ')) || `OpenSea returned HTTP ${res.status}`;
+  // 200 with ok:false — "this wallet can't mint right now" is an answer, not a worker failure.
+  return json({ ok: false, status: res.status, code, message: message.slice(0, 300) }, 200, corsHeaders);
 }
 
 async function resolveCollection(id, env) {
@@ -456,6 +501,7 @@ export default {
     }
 
     try {
+      if (params.get('dropmint')) return await handleDropMint(params.get('dropmint'), params.get('minter'), params.get('quantity'), env, corsHeaders);
       if (params.get('collection')) return await handleCollection(params.get('collection'), env, corsHeaders);
       if (params.get('slug')) return await handleSlug(params.get('slug'), env, corsHeaders);
       if (params.get('abi')) return await handleAbi(params.get('abi'), params.get('chainid') || '1', env, corsHeaders);
@@ -463,6 +509,6 @@ export default {
     } catch (e) {
       return json({ error: 'upstream request failed: ' + (e.message || 'unknown error') }, 502, corsHeaders);
     }
-    return json({ error: 'use ?collection=, ?slug=, ?abi=&chainid=, or ?url=' }, 400, corsHeaders);
+    return json({ error: 'use ?collection=, ?slug=, ?abi=&chainid=, ?dropmint=&minter=, or ?url=' }, 400, corsHeaders);
   },
 };
