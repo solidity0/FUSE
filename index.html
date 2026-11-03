@@ -5,7 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FUSE — Mint Execution Terminal</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
+<!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
+     run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-z5hqAJv8yG1OUCoYs4QfuZzdybJwiaFxfrsBhKpXDvU=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; base-uri 'none'; form-action 'none'; object-src 'none'">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
@@ -2120,7 +2123,9 @@
     if(isErc20 && !/^0x[a-fA-F0-9]{40}$/.test(tokenAddr)){ alert('Enter a valid ERC20 token contract address.'); return; }
     if(disperseUsdMode() && !state.priceUsd){ alert('USD price is unavailable right now — switch to ETH to enter the amount directly.'); return; }
 
+    try{ await probeRelay(); await verifyChain(); }catch(e){ alert('Can\'t send — ' + e.message); return; }
     const provider = getProvider();
+    const chainId = CHAINS[state.chain].id;
     const log = $('disperseLog');
     log.innerHTML = '';
     const erc20Iface = new ethers.Interface(['function transfer(address,uint256) returns (bool)', 'function decimals() view returns (uint8)']);
@@ -2157,9 +2162,9 @@
         let tx;
         if(isErc20){
           const data = erc20Iface.encodeFunctionData('transfer', [addr, perUnits]);
-          tx = await signer.sendTransaction({ to: tokenAddr, data });
+          tx = await signer.sendTransaction({ to: tokenAddr, data, chainId });
         } else {
-          tx = await signer.sendTransaction({ to: addr, value: perUnits });
+          tx = await signer.sendTransaction({ to: addr, value: perUnits, chainId });
         }
         rowDiv.textContent = `${sender.address.slice(0,6)}... → ${addr.slice(0,6)}...${addr.slice(-4)} : sent (${tx.hash.slice(0,10)}...)`;
         await tx.wait();
@@ -2470,10 +2475,31 @@
     };
   })();
 
+  // The extension signs on whatever network it is set to, not the chain picked in FUSE — a
+  // Robinhood mint sent while the wallet is on Ethereum would pay ETH to that address there.
+  async function ensureWalletChain(w){
+    const c = CHAINS[state.chain];
+    const want = '0x' + c.id.toString(16);
+    const current = async () => parseInt(await w.provider.request({ method:'eth_chainId' }), 16);
+    if(await current() === c.id) return;
+    const label = c.name === 'ETH' ? 'Ethereum' : c.name + ' Chain';
+    try{
+      await w.provider.request({ method:'wallet_switchEthereumChain', params:[{ chainId: want }] });
+    }catch(e){
+      if(e && e.code === 4001) throw new Error(`switch to ${label} was rejected in ${w.walletName || 'your wallet'}`);
+      if(!(e && (e.code === 4902 || (e.data && e.data.originalError && e.data.originalError.code === 4902)))) throw new Error(`${w.walletName || 'Your wallet'} couldn't switch to ${label} — switch it manually`);
+      await w.provider.request({ method:'wallet_addEthereumChain', params:[{ chainId: want, chainName: label,
+        nativeCurrency:{ name: c.nativeSymbol, symbol: c.nativeSymbol, decimals: 18 },
+        rpcUrls:[c.defaultRpc], blockExplorerUrls:[c.addr.replace(/address\/$/, '')] }] });
+    }
+    if(await current() !== c.id) throw new Error(`${w.walletName || 'Your wallet'} is not on ${label} — switch it manually`);
+  }
+
   async function getSignerForWallet(w, provider){
     if(w.injected){
       // Sign with the extension the user actually connected, not whichever owns window.ethereum.
       if(!w.provider) throw new Error((w.walletName || 'Browser wallet') + ' is no longer available for ' + w.address.slice(0,6) + '...');
+      await ensureWalletChain(w);
       const browserProvider = new ethers.BrowserProvider(w.provider);
       return await browserProvider.getSigner(w.address);
     }
@@ -3107,9 +3133,9 @@
           <span class="phase-countdown-badge" data-countdown="${i}">${phaseCountdownText(p.start)}</span>
           <button class="wallet-x" data-del="${i}">✕</button>
         </div>
-        <div class="phase-list-name">${p.name}</div>
+        <div class="phase-list-name">${esc(p.name)}</div>
         <div class="phase-badges" style="margin-top:6px;">
-          <span class="phase-badge">PRICE <b>${p.price}</b> ETH</span>
+          <span class="phase-badge">PRICE <b>${esc(p.price)}</b> ETH</span>
           <span class="phase-badge">ELIGIBLE <b>?</b></span>
         </div>`;
       list.appendChild(card);
@@ -3170,6 +3196,7 @@
   checkReadiness();
 
   $('armBtn').onclick = async () => {
+    if(state.firing) return;
     if(!mintWallets().length || !state.fn){ alert('Tick at least one wallet and select a mint function first.'); return; }
     let call;
     try{ call = buildMintCall(); }catch(e){ setDiag('err', 'Can\'t arm — ' + (e.shortMessage || e.message)); return; }
@@ -3226,7 +3253,8 @@
     $('logBody').prepend(tr1); $('logBody2').prepend(tr2);
     return [tr1, tr2];
   }
-  function setStatus(trs, status, text){ trs.forEach(tr => tr.querySelector('.s-cell').innerHTML = `<span class="status-pill status-${status}">${text}</span>`); }
+  // Status text can carry RPC errors and revert reasons, which the target contract controls.
+  function setStatus(trs, status, text){ trs.forEach(tr => tr.querySelector('.s-cell').innerHTML = `<span class="status-pill status-${status}">${esc(text)}</span>`); }
   function setCell(trs, cls, html){ trs.forEach(tr => tr.querySelector(cls).innerHTML = html); }
 
   function renderStats(){
@@ -3238,11 +3266,28 @@
 
   async function fireAll(){
     const firing = mintWallets();
-    if(!state.armed || !firing.length || !state.fn) return;
+    // One round per arm: a double-click, or a click as the scheduled timer fires, must not
+    // send a second set of mints.
+    if(state.firing || !state.armed || !firing.length || !state.fn) return;
+    state.firing = true;
+    if(state.scheduleTimer) clearInterval(state.scheduleTimer);
+    $('fireBtn').disabled = true;
+    $('armBtn').disabled = true;
+    let result;
+    try{ result = await fireRound(firing); }
+    catch(e){ result = ['err', 'Firing stopped: ' + (e.shortMessage || e.message)]; }
+    finally{
+      state.firing = false;
+      disarm(); // re-arm to fire again
+    }
+    setDiag(...result); // after disarm(), whose readiness message would otherwise replace it
+  }
+
+  async function fireRound(firing){
     const provider = getProvider();
     let call;
     try{ call = buildMintCall(); }
-    catch(e){ setDiag('err', 'Could not build the mint call: ' + (e.shortMessage || e.message)); return; }
+    catch(e){ return ['err', 'Could not build the mint call: ' + (e.shortMessage || e.message)]; }
     const opts = {
       maxAttempts: parseInt($('maxAttempts').value) || 1,
       bumpGwei: parseFloat($('bumpGwei').value) || 0,
@@ -3257,8 +3302,8 @@
     await Promise.allSettled(firing.map(async w => {
       for(let k = 0; k < call.txPerWallet; k++) await mintOne(w, provider, call, opts);
     }));
-    setDiag('ok', `Done — ${state.stats.success} minted, ${state.stats.fail} failed this session.`);
     renderStats();
+    return ['ok', `Done — ${state.stats.success} minted, ${state.stats.fail} failed this session. Arm again to fire another round.`];
   }
 
   function coerceArg(val, type){
@@ -3279,36 +3324,90 @@
     try{ signer = await getSignerForWallet(w, provider); }
     catch(e){ setStatus(trs, 'fail', shortErr(e)); state.stats.total++; state.stats.fail++; return; }
 
-    let attempt = 0, priorityBumpGwei = 0;
-    while(attempt < maxAttempts){
+    // Before anything is broadcast, a failed send (not live yet, underpriced…) is retried as a
+    // new tx. Once a tx is out, retries only ever replace it at the same nonce with higher
+    // fees, so a wallet can never end up with two mints — and an on-chain revert is final.
+    const capWei = ethers.parseUnits(String(gasCap),'gwei');
+    const hashes = [];
+    let sent = null, attempt = 0, priorityBumpGwei = 0;
+    const fail = (text) => { setStatus(trs, 'fail', text); state.stats.total++; state.stats.fail++; };
+    while(true){
       attempt++;
-      setStatus(trs, 'pending', `sending (${attempt}/${maxAttempts})`);
-      try{
-        const feeData = await provider.getFeeData();
-        let maxPriorityFeePerGas = (feeData.maxPriorityFeePerGas ?? ethers.parseUnits('1.5','gwei')) + ethers.parseUnits(String(priorityBumpGwei),'gwei');
-        let maxFeePerGas = (feeData.maxFeePerGas ?? ethers.parseUnits('30','gwei')) + ethers.parseUnits(String(priorityBumpGwei),'gwei');
-        const capWei = ethers.parseUnits(String(gasCap),'gwei');
-        if(maxFeePerGas > capWei) maxFeePerGas = capWei;
-        // The node rejects a tip above the fee cap, which the gas cap above can cause.
-        if(maxPriorityFeePerGas > maxFeePerGas) maxPriorityFeePerGas = maxFeePerGas;
-        setCell(trs, '.g-cell', Number(ethers.formatUnits(maxFeePerGas,'gwei')).toFixed(1));
-
-        const tx = await signer.sendTransaction({ to: call.to, data: call.data, value: call.value, maxPriorityFeePerGas, maxFeePerGas });
-        setCell(trs, '.h-cell', `<a href="${CHAINS[state.chain].tx}${tx.hash}" target="_blank">${tx.hash.slice(0,8)}...</a>`);
-        setStatus(trs, 'pending', 'confirming');
-
-        const receipt = await tx.wait();
-        if(!receipt || receipt.status !== 1) throw new Error('reverted on-chain');
-        state.stats.total++; state.stats.success++;
-        state.stats.gasSum += Number(ethers.formatUnits(maxFeePerGas,'gwei')); state.stats.gasCount++;
-        setStatus(trs, 'success', 'minted');
-        if(sweepAddr) await sweepMinted(w, signer, nftContract, receipt, sweepAddr, trs);
-        return;
-      }catch(e){
-        setStatus(trs, 'fail', shortErr(e));
-        if(attempt >= maxAttempts || !autoBump){ state.stats.total++; state.stats.fail++; return; }
-        priorityBumpGwei += bumpGwei;
+      const canRetry = autoBump && attempt < maxAttempts;
+      if(!sent || canReplace(w, sent, capWei)){
+        setStatus(trs, 'pending', sent ? `speeding up (${attempt}/${maxAttempts})` : `sending (${attempt}/${maxAttempts})`);
+        try{
+          const fees = await mintFees(provider, priorityBumpGwei, capWei, sent);
+          setCell(trs, '.g-cell', Number(ethers.formatUnits(fees.maxFeePerGas,'gwei')).toFixed(1));
+          const req = { to: call.to, data: call.data, value: call.value, chainId: CHAINS[state.chain].id, ...fees };
+          if(sent){ req.nonce = sent.nonce; req.gasLimit = sent.gasLimit; }
+          const tx = await signer.sendTransaction(req);
+          sent = { nonce: tx.nonce, gasLimit: tx.gasLimit, ...fees };
+          hashes.push(tx.hash);
+          setCell(trs, '.h-cell', `<a href="${CHAINS[state.chain].tx}${esc(tx.hash)}" target="_blank" rel="noopener">${esc(tx.hash.slice(0,8))}...</a>`);
+        }catch(e){
+          if(!sent){
+            setStatus(trs, 'fail', shortErr(e));
+            // Rejected in the wallet popup — asking again would just reopen it.
+            const rejected = e && (e.code === 'ACTION_REJECTED' || e.code === 4001);
+            if(!canRetry || rejected){ state.stats.total++; state.stats.fail++; return; }
+            priorityBumpGwei += bumpGwei;
+            continue;
+          }
+          // Replacement refused ("nonce too low", "already known"…) — usually the first tx just
+          // landed. Fall through and keep waiting for what is already out.
+        }
       }
+
+      setStatus(trs, 'pending', hashes.length > 1 ? `confirming (${hashes.length} fee levels)` : 'confirming');
+      const receipt = await waitForAnyReceipt(provider, hashes, canRetry && canReplace(w, sent, capWei) ? PENDING_REPLACE_MS : null);
+      if(!receipt){ priorityBumpGwei += bumpGwei; continue; } // still pending — speed it up
+      if(receipt.status !== 1){ fail('reverted on-chain'); return; }
+      state.stats.total++; state.stats.success++;
+      state.stats.gasSum += Number(ethers.formatUnits(receipt.gasPrice ?? sent.maxFeePerGas,'gwei')); state.stats.gasCount++;
+      setCell(trs, '.h-cell', `<a href="${CHAINS[state.chain].tx}${esc(receipt.hash)}" target="_blank" rel="noopener">${esc(receipt.hash.slice(0,8))}...</a>`);
+      setStatus(trs, 'success', 'minted');
+      if(sweepAddr) await sweepMinted(w, signer, nftContract, receipt, sweepAddr, trs);
+      return;
+    }
+  }
+
+  // How long a broadcast mint may sit pending before auto-bump re-sends it at a higher fee.
+  const PENDING_REPLACE_MS = 30000;
+
+  // Extensions pick their own nonce and fees, so FUSE can't replace their txs — the wallet's
+  // own "speed up" does that. The replacement also has to fit under the gas cap.
+  function canReplace(w, sent, capWei){
+    return !w.injected && !!sent && sent.maxFeePerGas < capWei;
+  }
+
+  async function mintFees(provider, priorityBumpGwei, capWei, prev){
+    const feeData = await provider.getFeeData();
+    const bump = ethers.parseUnits(String(priorityBumpGwei),'gwei');
+    let maxPriorityFeePerGas = (feeData.maxPriorityFeePerGas ?? ethers.parseUnits('1.5','gwei')) + bump;
+    let maxFeePerGas = (feeData.maxFeePerGas ?? ethers.parseUnits('30','gwei')) + bump;
+    if(prev){
+      // Nodes only accept a same-nonce replacement that raises both fees by at least 10%.
+      const atLeast = v => v * 11n / 10n + 1n;
+      if(maxFeePerGas < atLeast(prev.maxFeePerGas)) maxFeePerGas = atLeast(prev.maxFeePerGas);
+      if(maxPriorityFeePerGas < atLeast(prev.maxPriorityFeePerGas)) maxPriorityFeePerGas = atLeast(prev.maxPriorityFeePerGas);
+    }
+    if(maxFeePerGas > capWei) maxFeePerGas = capWei;
+    // The node rejects a tip above the fee cap, which the gas cap above can cause.
+    if(maxPriorityFeePerGas > maxFeePerGas) maxPriorityFeePerGas = maxFeePerGas;
+    return { maxPriorityFeePerGas, maxFeePerGas };
+  }
+
+  // Resolves with the receipt of whichever of these same-nonce txs is mined, or null once
+  // timeoutMs passes (null timeout = wait for as long as it takes).
+  async function waitForAnyReceipt(provider, hashes, timeoutMs){
+    const until = timeoutMs == null ? Infinity : Date.now() + timeoutMs;
+    for(;;){
+      for(const h of hashes){
+        try{ const r = await provider.getTransactionReceipt(h); if(r) return r; }catch(e){ /* RPC hiccup — poll again */ }
+      }
+      if(Date.now() >= until) return null;
+      await new Promise(res => setTimeout(res, 1500));
     }
   }
 
