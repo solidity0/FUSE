@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-4Tv4/jJ9TOoyZsNeqcHWe1W8TInHYgd/ZjeKa0p8po8=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-XS9SjjheQWt7il7GXsuiqQ74FCKDAeDkx2xyKT8hyHo=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -1149,6 +1149,9 @@
     $(id).addEventListener('keydown', e => { if(e.key === 'Enter') $('saveSettings').click(); });
   });
 
+  // ethers quietly retries a rate-limited RPC (HTTP 429) for minutes; scan-time reads give up
+  // instead, so one throttled endpoint can't leave a scan step spinning.
+  const SCAN_READ_MS = 8000;
   const withTimeout = (promise, ms) => Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error('timed out')), ms))]);
 
   async function checkRpc(){
@@ -1474,7 +1477,9 @@
     return null;
   }
 
-  // Order: your custom RPC → the proxy worker's relay (for chains that need it) → public RPCs.
+  // Order: your custom RPC → public RPCs that answered this browser → the proxy worker's relay →
+  // public RPCs not checked yet. Public RPCs come first because they see this browser's own IP;
+  // the relay shares Cloudflare's egress IPs, which public RPCs (Robinhood's) rate-limit hard.
   // The relay is only used once it has answered on the right chain (an older worker has no relay).
   const relayStatus = new Map(); // relay URL -> 'ok' | 'bad' | Promise
   function proxyRpcUrl(){
@@ -1525,9 +1530,11 @@
   }
   function rpcCandidates(){
     const all = publicRpcsFor(state.chain);
-    const healthy = all.filter(u => { const s = publicRpcStatus.get(state.chain + '|' + u); return !(s && s.ok === false); });
-    const list = [$('rpcUrl').value.trim(), proxyRpcUrl(), ...(healthy.length ? healthy : all)].filter(Boolean);
-    return [...new Set(list)];
+    const status = u => publicRpcStatus.get(state.chain + '|' + u);
+    const answered = all.filter(u => { const s = status(u); return s && s.ok === true; });
+    const unchecked = all.filter(u => { const s = status(u); return !s || s instanceof Promise; });
+    const list = [$('rpcUrl').value.trim(), ...answered, proxyRpcUrl(), ...unchecked].filter(Boolean);
+    return [...new Set(list.length ? list : all)]; // everything failed its check — still try something
   }
   function getProvider(){ return providerFor(rpcCandidates()[0]); }
 
@@ -2272,11 +2279,11 @@
   async function implementationOf(addr){
     const provider = getProvider();
     try{
-      const m = (await provider.getCode(addr)).match(EIP1167_RE);
+      const m = (await withTimeout(provider.getCode(addr), SCAN_READ_MS)).match(EIP1167_RE);
       if(m) return ethers.getAddress('0x' + m[1]);
     }catch(e){ /* fall through to the slot check */ }
     try{
-      const impl = ethers.getAddress('0x' + (await provider.getStorage(addr, EIP1967_IMPL_SLOT)).slice(26));
+      const impl = ethers.getAddress('0x' + (await withTimeout(provider.getStorage(addr, EIP1967_IMPL_SLOT), SCAN_READ_MS)).slice(26));
       if(impl !== ethers.ZeroAddress) return impl;
     }catch(e){}
     return null;
@@ -2685,7 +2692,7 @@
     }
     const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([a]) => a).slice(0, 8);
     for(const a of ranked){
-      try{ if((await getProvider().getCode(a)) !== '0x') return ethers.getAddress(a); }catch(e){ /* RPC hiccup — try next */ }
+      try{ if((await withTimeout(getProvider().getCode(a), SCAN_READ_MS)) !== '0x') return ethers.getAddress(a); }catch(e){ /* RPC hiccup — try next */ }
     }
     return ranked.length ? ethers.getAddress(ranked[0]) : null;
   }
@@ -2848,7 +2855,7 @@
   async function tryAutoDetectSeaDropPhase(nftContract){
     try{
       const seadrop = new ethers.Contract(SEADROP_ADDRESS, SEADROP_ABI, getProvider());
-      const drop = await seadrop.getPublicDrop(nftContract);
+      const drop = await withTimeout(seadrop.getPublicDrop(nftContract), SCAN_READ_MS);
       if(drop.startTime === 0n && drop.mintPrice === 0n) return false; // not a SeaDrop collection / no public stage configured
       const price = ethers.formatEther(drop.mintPrice);
       const startISO = toLocalInputValue(new Date(Number(drop.startTime) * 1000));
@@ -2975,14 +2982,14 @@
     const provider = getProvider();
     const call = async (name) => {
       const c = new ethers.Contract(addr, [`function ${name}() view returns (uint256)`], provider);
-      return Number(await c[name]());
+      return Number(await withTimeout(c[name](), SCAN_READ_MS));
     };
     let minted = null, max = null, name = null;
     try{ minted = await call('totalSupply'); }catch(e){}
     for(const fn of MAX_SUPPLY_FNS){
       try{ const v = await call(fn); if(v > 0 && v < 1e9){ max = v; break; } }catch(e){}
     }
-    try{ name = await new ethers.Contract(addr, ['function name() view returns (string)'], provider).name(); }catch(e){}
+    try{ name = await withTimeout(new ethers.Contract(addr, ['function name() view returns (string)'], provider).name(), SCAN_READ_MS); }catch(e){}
     return { minted, max, name };
   }
 
