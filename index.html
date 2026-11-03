@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-ey8/ntJ2SxtaH5JHPcrmKV9fQYJEgP/x29iLIvht3R0=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-4Tv4/jJ9TOoyZsNeqcHWe1W8TInHYgd/ZjeKa0p8po8=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -321,6 +321,14 @@
   .coll-stage-name{ font-weight:700; font-size:13px; }
   .coll-stage-meta{ font-family:var(--mono); font-size:11px; color:var(--text-mid); margin-top:3px; }
   .coll-stage-right{ text-align:right; font-family:var(--mono); font-size:11px; color:var(--text-dim); white-space:nowrap; }
+  .coll-stage-kind{ font-family:var(--mono); font-size:10px; font-weight:500; color:var(--text-dim); border:1px solid var(--border-soft); padding:1px 5px; margin-left:6px; vertical-align:1px; }
+  .coll-elig{ margin-top:7px; font-size:11.5px; }
+  .coll-elig.dim{ color:var(--text-dim); font-size:11px; }
+  .elig-chips{ display:flex; flex-wrap:wrap; gap:5px; margin-top:5px; }
+  .elig-chip{ font-family:var(--mono); font-size:10.5px; padding:2px 7px; border:1px solid var(--border-soft); color:var(--text-mid); }
+  .elig-chip.yes{ color:var(--success); border-color:rgba(46,204,113,.45); }
+  .elig-chip.no{ color:var(--fail); border-color:rgba(231,76,60,.4); }
+  .elig-chip.warn{ color:var(--pending); border-color:rgba(241,196,15,.4); }
   .coll-items{ display:flex; gap:8px; overflow-x:auto; margin-top:14px; padding-bottom:4px; scrollbar-width:thin; }
   .coll-items img{ width:84px; height:84px; flex:none; object-fit:cover; background:var(--surface-raised); }
   .coll-note{ margin-top:12px; font-size:12px; padding:9px 11px; background:var(--err-bg); border:1px solid var(--err-border); color:var(--fail); }
@@ -1593,6 +1601,7 @@
   function afterWalletsChanged(){
     renderWallets(); updateSidebarWalletInfo(); checkReadiness(); updateConnectWalletBtnStatus();
     if(state.armed) disarm();
+    checkEligibility();
   }
 
   function removeWalletAt(i){
@@ -2401,7 +2410,7 @@
         state.wallets = state.wallets.filter(o => o !== w); afterWalletsChanged(); return;
       }
       w.address = next; w.balance = null;
-      renderWallets(); updateSidebarWalletInfo(); updateConnectWalletBtnStatus();
+      renderWallets(); updateSidebarWalletInfo(); updateConnectWalletBtnStatus(); checkEligibility();
       fetchBalanceRobust(w.address).then(bal => { if(bal != null){ w.balance = bal; renderWallets(); } });
     });
     provider.on('chainChanged', () => {
@@ -2419,7 +2428,7 @@
     }
     const newWallet = { pk:null, address, balance:null, enabled:true, injected:true, provider: choice.provider, walletName: choice.name, name: choice.name + ' ' + (state.wallets.length + 1) };
     state.wallets.push(newWallet);
-    renderWallets(); updateSidebarWalletInfo(); updateConnectWalletBtnStatus();
+    renderWallets(); updateSidebarWalletInfo(); updateConnectWalletBtnStatus(); checkReadiness(); checkEligibility();
     const bal = await fetchBalanceRobust(address);
     if(bal != null){ newWallet.balance = bal; renderWallets(); }
   }
@@ -2579,7 +2588,12 @@
     if(proxyUrl){
       let res;
       try{ res = await fetch(`${proxyBase()}?collection=${encodeURIComponent(slug)}`); }
-      catch(e){ throw new Error('could not reach your proxy worker — is it running? (Settings → Save checks it)'); }
+      catch(e){
+        // The usual cause: Settings still points at a `wrangler dev` worker on this PC that has since been closed.
+        throw new Error(/^http:\/\/(127\.0\.0\.1|localhost)/i.test(proxyBase())
+          ? `your proxy URL is a worker on this PC (${proxyBase()}) and it isn't running — start it again, or put your deployed worker's https://….workers.dev URL in Settings`
+          : `could not reach your proxy worker at ${proxyBase()} — check the URL in Settings (Save tests it)`);
+      }
       const data = await res.json().catch(() => ({}));
       if(res.status === 401 || res.status === 403) throw new Error(data.error === 'origin not allowed'
         ? 'your proxy worker refused this site — add it to ALLOWED_ORIGINS'
@@ -2797,8 +2811,22 @@
       if(canFetchAbi()) await autoFetchAbi(result.address);
       seadropFound = await tryAutoDetectSeaDropPhase(result.address);
     }
+    // An allowlist stage live right now can only be minted through OpenSea (it holds the proofs),
+    // so pick that; otherwise offer it next to the direct SeaDrop call.
+    const live = activeStage();
+    const presaleLive = !!(live && live.type && live.type !== 'public_sale');
+    const viaOpenSea = result && result.address && addOpenSeaCandidate(presaleLive || (!seadropFound && !state.fn));
+    if(viaOpenSea && presaleLive){
+      if(live.price != null) $('mintValue').value = String(live.price);
+      $('phaseCardTitle').textContent = String(live.name).toUpperCase();
+      if(live.maxPerWallet) $('maxPerWalletBadge').textContent = String(live.maxPerWallet);
+    }
     if(!(result && result.address)){
       setScanStep('scanStep3', 'warn'); setScanText('scanStep3', 'Skipped — no contract to check yet. Enter the contract address in Advanced');
+    } else if(state.mintVia === 'opensea'){
+      setScanStep('scanStep3', 'done'); setScanText('scanStep3', presaleLive
+        ? `Done — allowlist stage "${live.name}" is live; FUSE mints it through OpenSea for each eligible wallet (see the stage list above)`
+        : 'Done — minting through OpenSea\'s Drops API for each eligible wallet');
     } else if(seadropFound){
       setScanStep('scanStep3', 'done'); setScanText('scanStep3', 'Done — public mint stage auto-detected from SeaDrop — see Mint phases below');
     } else if(state.fn){
@@ -2806,7 +2834,7 @@
     } else {
       setScanStep('scanStep3', 'warn'); setScanText('scanStep3', 'Needs input — select the mint function in Advanced to confirm');
     }
-    $('eligibleBadge').textContent = state.fn ? 'likely' : '?';
+    if(state.eligibility) renderEligibility(); else $('eligibleBadge').textContent = state.fn ? 'likely' : '?';
     // No function picked yet — the choice lives in Advanced, so don't leave it collapsed.
     if(!state.fn){ $('advBody').removeAttribute('hidden'); $('advToggleBtn').textContent = '▾ Advanced — contract, ABI, mint function, gas limits'; }
     checkReadiness();
@@ -2824,10 +2852,13 @@
       if(drop.startTime === 0n && drop.mintPrice === 0n) return false; // not a SeaDrop collection / no public stage configured
       const price = ethers.formatEther(drop.mintPrice);
       const startISO = toLocalInputValue(new Date(Number(drop.startTime) * 1000));
-      const existingIdx = state.phases.findIndex(p => p.name === 'PUBLIC');
-      const phase = { name: 'PUBLIC', price, start: startISO };
-      if(existingIdx >= 0) state.phases[existingIdx] = phase; else state.phases.push(phase);
-      renderPhases();
+      // OpenSea's stage list already has this public stage (with its real name) — don't list it twice.
+      if(!state.phases.some(p => p.stageType === 'public_sale')){
+        const existingIdx = state.phases.findIndex(p => p.name === 'PUBLIC');
+        const phase = { name: 'PUBLIC', price, start: startISO, stageType: 'public_sale', fromSeaDrop: true };
+        if(existingIdx >= 0) state.phases[existingIdx] = phase; else state.phases.push(phase);
+        renderPhases();
+      }
       $('mintValue').value = price;
       if(drop.maxTotalMintableByWallet > 0n) $('maxPerWalletBadge').textContent = String(drop.maxTotalMintableByWallet);
       addSeaDropCandidate(nftContract);
@@ -2967,13 +2998,16 @@
       if(onchain.minted != null) c.onchainMinted = onchain.minted;
       if(onchain.max != null) c.onchainMax = onchain.max;
       if(!c.name && onchain.name) c.name = onchain.name;
-    } else if(c.slug && proxyBase()){
+    }
+    // OpenSea's view (which stage is live, stats) — every 30s; on-chain supply above is fresher.
+    if(c.slug && proxyBase() && !c.outdatedWorker && (state.targetChainUnsupported || !c.osRefreshedAt || Date.now() - c.osRefreshedAt > 28000)){
+      c.osRefreshedAt = Date.now();
       try{
         const res = await fetch(`${proxyBase()}?collection=${encodeURIComponent(c.slug)}`);
         if(res.ok){ const fresh = await res.json(); if(state.collection === c) Object.assign(c, fresh); }
       }catch(e){ /* keep showing the last good data */ }
     }
-    if(state.collection === c) renderCollection();
+    if(state.collection === c){ renderCollection(); checkEligibility(); }
   }
 
   async function showCollection(addr){
@@ -2992,14 +3026,116 @@
       if(live.maxPerWallet) $('maxPerWalletBadge').textContent = String(live.maxPerWallet);
     }
     if(c && c.drop && c.drop.stages && !state.targetChainUnsupported){
-      c.drop.stages.forEach(st => {
+      // The on-chain SeaDrop check may have added a generic "PUBLIC" first; OpenSea's named one replaces it.
+      if(c.drop.stages.some(st => st.type === 'public_sale')) state.phases = state.phases.filter(p => !p.fromSeaDrop);
+      c.drop.stages.slice().sort((a, b) => (Date.parse(a.start) || 0) - (Date.parse(b.start) || 0)).forEach(st => {
         if(!st.start || state.phases.some(p => p.name === st.name)) return;
-        state.phases.push({ name: st.name, price: String(st.price ?? 0), start: toLocalInputValue(new Date(st.start)) });
+        state.phases.push({ name: st.name, price: String(st.price ?? 0), start: toLocalInputValue(new Date(st.start)), stageId: st.id, stageType: st.type });
       });
       renderPhases();
     }
     stopCollectionRefresh();
     collectionTimer = setInterval(() => refreshCollection(addr), state.targetChainUnsupported ? 30000 : 15000);
+    checkEligibility();
+  }
+
+  // ---------- per-wallet stage eligibility (OpenSea Drops API, through the worker) ----------
+  // OpenSea only answers "can this wallet mint?" for the stage that is live right now (per-stage
+  // answers need the wallet signed in to OpenSea). So the live stage gets a ✓/✕ per wallet, and an
+  // upcoming allowlist stage is checked the moment it opens (the collection refresh notices).
+  const ELIGIBILITY_TEXT = {
+    MINTER_NOT_ELIGIBLE: 'not on this allowlist',
+    MINT_LIMIT_EXCEEDED: 'wallet limit reached',
+    SUPPLY_EXHAUSTED: 'sold out',
+    INSUFFICIENT_BALANCE: 'eligible — not enough ETH for price + gas',
+    NO_PAYOUT_ADDRESS: "creator hasn't set a payout address — paid mints revert",
+    NOT_MINTING: 'not minting right now',
+  };
+  // Answers that won't change by retrying a second later.
+  const FINAL_MINT_CODES = new Set(['MINTER_NOT_ELIGIBLE', 'MINT_LIMIT_EXCEEDED', 'SUPPLY_EXHAUSTED', 'INSUFFICIENT_BALANCE', 'NO_PAYOUT_ADDRESS', 'DROP_NOT_FOUND', 'UNSUPPORTED_DROP_TYPE']);
+  const MAX_ELIGIBILITY_WALLETS = 25;
+  state.eligibility = null; // { key, stageId, byAddr: { addrLower: result }, checking }
+
+  function stageKindText(s){
+    if(s.type === 'public_sale') return 'Public';
+    if(s.type === 'signed_presale' || /presale|allow/i.test(s.type || '')) return 'Allowlist' + (s.allowlistCount ? ' · ' + fmtCount(s.allowlistCount) + ' wallets' : '');
+    if(s.type === 'token_gated') return 'Holders only';
+    return '';
+  }
+
+  async function openSeaMintTx(slug, minter, quantity){
+    try{
+      const res = await withTimeout(fetch(`${proxyBase()}?dropmint=${encodeURIComponent(slug)}&minter=${minter}&quantity=${quantity}`), 15000);
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok) return { ok:false, code:null, message: data.error || ('worker returned HTTP ' + res.status) };
+      return data;
+    }catch(e){ return { ok:false, code:null, message: 'could not reach your proxy worker (' + e.message + ')' }; }
+  }
+  const eligibilityReason = r => r.ok ? 'eligible' : (ELIGIBILITY_TEXT[r.code] || r.message || 'unknown');
+  const isEligible = r => !!r && (r.ok || r.code === 'INSUFFICIENT_BALANCE');
+
+  async function checkEligibility(force){
+    const c = state.collection;
+    const drop = c && c.drop;
+    if(!(c && c.slug && drop && drop.activeStageId && proxyBase() && drop.dropType === 'seadrop_v1_erc721')){
+      if(state.eligibility){ state.eligibility = null; renderEligibility(); }
+      return;
+    }
+    const wallets = mintWallets().slice(0, MAX_ELIGIBILITY_WALLETS);
+    const key = [c.slug, drop.activeStageId, wallets.map(w => w.address.toLowerCase()).join(',')].join('|');
+    if(!force && state.eligibility && state.eligibility.key === key) return;
+    const run = { key, stageId: drop.activeStageId, byAddr: {}, checking: wallets.length > 0 };
+    state.eligibility = run;
+    renderEligibility();
+    const queue = wallets.slice();
+    await Promise.all(Array.from({ length: Math.min(4, queue.length) }, async () => {
+      while(queue.length){
+        const w = queue.shift();
+        const r = await openSeaMintTx(c.slug, w.address, 1);
+        if(state.eligibility !== run) return; // collection, stage or wallets changed meanwhile
+        run.byAddr[w.address.toLowerCase()] = r;
+        renderEligibility();
+      }
+    }));
+    if(state.eligibility === run){ run.checking = false; renderEligibility(); }
+  }
+
+  function eligibilitySummary(){
+    const e = state.eligibility;
+    if(!e) return null;
+    const results = Object.values(e.byAddr);
+    return { total: mintWallets().slice(0, MAX_ELIGIBILITY_WALLETS).length, done: results.length, yes: results.filter(isEligible).length, checking: e.checking };
+  }
+
+  function stageEligibilityHtml(c, s, status){
+    const drop = c.drop || {};
+    const e = state.eligibility;
+    if(e && s.id && s.id === e.stageId){
+      const wallets = mintWallets().slice(0, MAX_ELIGIBILITY_WALLETS);
+      if(!wallets.length) return '<div class="coll-elig dim">Load a wallet to see if it can mint in this stage</div>';
+      const chips = wallets.map(w => {
+        const r = e.byAddr[w.address.toLowerCase()];
+        const cls = !r ? 'wait' : r.ok ? 'yes' : isEligible(r) ? 'warn' : 'no';
+        const mark = !r ? '…' : r.ok ? '✓' : isEligible(r) ? '!' : '✕';
+        return `<span class="elig-chip ${cls}" title="${esc(w.address)}${r ? ' — ' + esc(eligibilityReason(r)) : ''}">${mark} ${esc(w.name || w.address.slice(0, 6))}${r && !r.ok ? ' · ' + esc(eligibilityReason(r)) : ''}</span>`;
+      }).join('');
+      const sum = eligibilitySummary();
+      const short = Object.values(e.byAddr).filter(r => r.code === 'INSUFFICIENT_BALANCE').length;
+      const head = sum.checking && sum.done < sum.total ? `Checking your wallets… ${sum.done}/${sum.total}`
+        : `${sum.yes} of ${sum.total} wallet(s) eligible for this stage` + (short ? ` — ${short} need${short === 1 ? 's' : ''} more ETH` : '');
+      return `<div class="coll-elig"><b>${esc(head)}</b><div class="elig-chips">${chips}</div></div>`;
+    }
+    if(s.type === 'public_sale') return status.cls === '' ? '' : '<div class="coll-elig dim">Open to every wallet</div>';
+    if(status.cls === 'soon' && stageKindText(s).startsWith('Allowlist')) return '<div class="coll-elig dim">Your wallets are checked automatically when this stage opens</div>';
+    return '';
+  }
+
+  function renderEligibility(){
+    if(state.collection) renderCollection();
+    renderPhases();
+    const sum = eligibilitySummary();
+    $('eligibleBadge').textContent = !sum ? ($('eligibleBadge').textContent || '?')
+      : sum.checking && sum.done < sum.total ? '…' : sum.total ? `${sum.yes}/${sum.total}` : '—';
   }
 
   function renderCollection(){
@@ -3015,8 +3151,8 @@
     const soldOut = minted != null && max && minted >= max;
 
     const badges = [];
-    const chainLabel = c.chain ? prettyChain(c.chain) : (state.targetChainUnsupported ? prettyChain(state.targetChainUnsupported) : chainLabel(state.chain));
-    badges.push(`<span class="coll-badge${state.targetChainUnsupported ? ' warn' : ''}">⛓ ${esc(chainLabel)}</span>`);
+    const chainText = c.chain ? prettyChain(c.chain) : (state.targetChainUnsupported ? prettyChain(state.targetChainUnsupported) : chainLabel(state.chain));
+    badges.push(`<span class="coll-badge${state.targetChainUnsupported ? ' warn' : ''}">⛓ ${esc(chainText)}</span>`);
     if(max) badges.push(`<span class="coll-badge">${fmtCount(max)} supply</span>`);
     if(c.creatorFeePct != null) badges.push(`<span class="coll-badge">${esc(c.creatorFeePct)}% creator fee</span>`);
     if(soldOut) badges.push('<span class="coll-badge warn">Sold out</span>');
@@ -3039,11 +3175,15 @@
         ${pct != null ? `<div class="coll-bar"><i style="width:${pct.toFixed(2)}%"></i></div>` : ''}
       </div>` : '';
 
-    const stagesHtml = stages.length ? `<div class="coll-stages">${stages.map(s => {
+    // OpenSea stores stages in its own order (public first); show them as a schedule.
+    const schedule = stages.slice().sort((a, b) => (Date.parse(a.start) || 0) - (Date.parse(b.start) || 0));
+    const stagesHtml = schedule.length ? `<div class="coll-stages">${schedule.map(s => {
       const status = stageStatus(s, now);
       const price = s.price == null ? '' : Number(s.price) === 0 ? 'FREE' : fmtAmount(s.price, s.currency || sym);
+      const kind = stageKindText(s);
       return `<div class="coll-stage ${status.cls}">
-        <div><div class="coll-stage-name">${esc(s.name)}</div><div class="coll-stage-meta">${esc(price)}${price ? ' · ' : ''}<span style="color:${status.cls === 'live' ? 'var(--success)' : status.cls === 'soon' ? 'var(--pending)' : 'var(--text-dim)'}">${esc(status.text)}</span></div></div>
+        <div><div class="coll-stage-name">${esc(s.name)}${kind ? ` <span class="coll-stage-kind">${esc(kind)}</span>` : ''}</div><div class="coll-stage-meta">${esc(price)}${price ? ' · ' : ''}<span style="color:${status.cls === 'live' ? 'var(--success)' : status.cls === 'soon' ? 'var(--pending)' : 'var(--text-dim)'}">${esc(status.text)}</span></div>
+        ${stageEligibilityHtml(c, s, status)}</div>
         <div class="coll-stage-right">${s.maxPerWallet ? 'LIMIT ' + esc(s.maxPerWallet) + ' PER WALLET' : ''}</div>
       </div>`; }).join('')}</div>` : '';
 
@@ -3069,6 +3209,11 @@
         <div class="coll-foot"><span>${esc(c.contract)}</span><span>${c.fetchedAt || !state.targetChainUnsupported ? 'Live · updates every ' + (state.targetChainUnsupported ? '30' : '15') + 's' : ''}</span></div>
       </div>`;
     if(!c.banner) card.querySelector('.coll-banner').style.height = '48px';
+    // Some collections' "images" are videos or animations an <img> can't show — drop those tiles.
+    card.querySelectorAll('.coll-items img').forEach(img => {
+      const hide = () => { img.style.display = 'none'; };
+      if(img.complete && !img.naturalWidth) hide(); else img.addEventListener('error', hide);
+    });
     card.removeAttribute('hidden');
     if(c.name) $('targetName').textContent = c.name;
   }
@@ -3101,18 +3246,19 @@
   }
 
   function loadAbi(abiJson){
-    const keepSeaDrop = state.fn && state.mintTo === SEADROP_ADDRESS;
+    // SeaDrop / OpenSea options don't come from this ABI — keep them (and keep them selected).
+    const keepSelected = state.fn && (state.mintTo === SEADROP_ADDRESS || state.mintVia === 'opensea');
     state.abi = abiJson;
     const candidates = mintCandidates(abiJson);
     const fnList = $('fnList');
-    const seaDropEl = fnList.querySelector('.fn-candidate[data-seadrop]');
+    const kept = [...fnList.querySelectorAll('.fn-candidate[data-keep]')];
     fnList.innerHTML = '';
-    if(seaDropEl) fnList.appendChild(seaDropEl);
-    if(!keepSeaDrop){ state.fn = null; state.mintTo = null; }
-    if(!candidates.length && !seaDropEl){ fnList.innerHTML = '<div class="hint">No obvious mint function found. Check the full ABI — non-standard name?</div>'; return; }
+    kept.forEach(el => fnList.appendChild(el));
+    if(!keepSelected){ state.fn = null; state.mintTo = null; state.mintVia = null; }
+    if(!candidates.length && !kept.length){ fnList.innerHTML = '<div class="hint">No obvious mint function found. Check the full ABI — non-standard name?</div>'; return; }
     const els = candidates.map(f => addFnCandidate(f, `${f.name}(${f.inputs.map(i=>i.type).join(',')})`, f.stateMutability));
     // Only one way to mint and nothing chosen yet → choose it.
-    if(els.length === 1 && !seaDropEl && !state.fn) els[0].click();
+    if(els.length === 1 && !kept.length && !state.fn) els[0].click();
   }
 
   function addSeaDropCandidate(nftContract){
@@ -3120,8 +3266,31 @@
     if(old) old.remove();
     const opts = { to: SEADROP_ADDRESS, presets: { nftContract, feeRecipient: OPENSEA_FEE_RECIPIENT, minterIfNotPayer: ethers.ZeroAddress } };
     const el = addFnCandidate(SEADROP_MINT_FN, 'SeaDrop.mintPublic(nftContract, feeRecipient, minterIfNotPayer, quantity)', 'payable · via SeaDrop', opts, true);
-    el.dataset.seadrop = '1';
+    el.dataset.seadrop = '1'; el.dataset.keep = '1';
     el.click();
+  }
+
+  // Allowlist (GTD/FCFS) stages need a per-wallet proof or signature that only OpenSea has.
+  // This option asks OpenSea for each wallet's ready-made transaction at fire time, so it mints
+  // whichever stage is live — presale or public — for every wallet that is eligible.
+  const OPENSEA_MINT_FN = { type:'function', name:'mintViaOpenSea', stateMutability:'payable', inputs:[], outputs:[] };
+  function canMintViaOpenSea(){
+    const c = state.collection;
+    return !!(c && c.slug && c.drop && c.drop.dropType === 'seadrop_v1_erc721' && proxyBase() && !state.targetChainUnsupported);
+  }
+  function addOpenSeaCandidate(select){
+    if(!canMintViaOpenSea()) return false;
+    let el = $('fnList').querySelector('.fn-candidate[data-opensea]');
+    if(!el){
+      el = addFnCandidate(OPENSEA_MINT_FN, 'OpenSea mint — the live stage for each eligible wallet (allowlist or public)', 'payable · via OpenSea API', { via:'opensea' }, true);
+      el.dataset.opensea = '1'; el.dataset.keep = '1';
+    }
+    if(select) el.click();
+    return true;
+  }
+  function activeStage(){
+    const d = state.collection && state.collection.drop;
+    return d && d.activeStageId ? (d.stages || []).find(s => s.id === d.activeStageId) || null : null;
   }
 
   // Common names for "how many" arguments — left blank, they follow the Quantity stepper.
@@ -3130,10 +3299,12 @@
 
   function selectFn(f, opts){
     opts = opts || {};
-    state.fn = f; state.args = {}; state.mintTo = opts.to || null;
+    state.fn = f; state.args = {}; state.mintTo = opts.to || null; state.mintVia = opts.via || null;
+    if(state.armed) disarm();
     const presets = opts.presets || {};
     const form = $('argForm');
     form.innerHTML = '';
+    if(state.mintVia === 'opensea'){ form.innerHTML = '<div class="hint">Nothing to fill in — OpenSea builds each wallet\'s transaction (with its allowlist proof) when you fire. Price comes from the live stage; Quantity above is per wallet.</div>'; checkReadiness(); return; }
     if(!f.inputs.length){ form.innerHTML = '<div class="hint">No arguments needed.</div>'; checkReadiness(); return; }
     f.inputs.forEach((inp, idx) => {
       const key = inp.name || ('arg' + idx);
@@ -3152,8 +3323,15 @@
   // and how many txs each wallet should send (functions without a quantity arg mint one each).
   function buildMintCall(){
     const fn = state.fn;
-    const iface = new ethers.Interface([fn]);
     const qty = Math.max(1, parseInt($('mintQty').value) || 1);
+    if(state.mintVia === 'opensea'){
+      // Each wallet's real calldata/value come from OpenSea at send time; value here is the
+      // estimate shown before firing.
+      const priceStr = $('mintValue').value.trim();
+      return { opensea: { slug: state.collection.slug, qty }, to: null, data: null,
+        value: (priceStr ? ethers.parseEther(priceStr) : 0n) * BigInt(qty), txPerWallet: 1 };
+    }
+    const iface = new ethers.Interface([fn]);
     const qtyIdx = fn.inputs.findIndex(isQtyInput);
     const argValues = fn.inputs.map((inp, idx) => {
       const raw = state.args[inp.name || ('arg' + idx)];
@@ -3183,6 +3361,16 @@
     return `Starts in ${s}s`;
   }
 
+  // "2/3" for the live stage once checked; "all" for public stages; "?" when OpenSea can't say yet.
+  function phaseEligibleText(p){
+    const e = state.eligibility;
+    if(e && p.stageId && p.stageId === e.stageId){
+      const sum = eligibilitySummary();
+      return sum.checking && sum.done < sum.total ? '…' : `${sum.yes}/${sum.total}`;
+    }
+    return p.stageType === 'public_sale' ? 'all' : '?';
+  }
+
   function renderPhases(){
     const list = $('phaseList');
     if(!state.phases.length){ list.innerHTML = '<div class="empty-note">No phases added — for drops with multiple stages (team/GTD/FCFS/public), add each with its own price and start time. Click a phase card to arm it.</div>'; return; }
@@ -3199,7 +3387,7 @@
         <div class="phase-list-name">${esc(p.name)}</div>
         <div class="phase-badges" style="margin-top:6px;">
           <span class="phase-badge">PRICE <b>${esc(p.price)}</b> ETH</span>
-          <span class="phase-badge">ELIGIBLE <b>?</b></span>
+          <span class="phase-badge">ELIGIBLE <b>${esc(phaseEligibleText(p))}</b></span>
         </div>`;
       list.appendChild(card);
     });
@@ -3300,11 +3488,13 @@
     const from = mintWallets()[0].address;
     try{
       await probeRpcs(); await verifyChain();
-      const { to, data, value } = buildMintCall();
-      await provider.call({ to, data, value, from });
+      let call = buildMintCall();
+      if(call.opensea) call = await openSeaCallFor(mintWallets()[0], call.opensea);
+      await provider.call({ to: call.to, data: call.data, value: call.value, from });
       setDiag('ok', `Simulation passed for ${from.slice(0,6)}...${from.slice(-4)} — call would succeed at current state. Real conditions can still change before you fire.`);
     }catch(e){
-      setDiag('err', 'Simulation reverted: ' + (e.shortMessage || e.reason || e.message || 'unknown error') + ' — fix this before spending real gas.');
+      setDiag('err', (e && e.mintCode !== undefined ? `OpenSea says ${from.slice(0,6)}...${from.slice(-4)} can't mint now: ` : 'Simulation reverted: ')
+        + (e.shortMessage || e.reason || e.message || 'unknown error') + ' — fix this before spending real gas.');
     }
   };
 
@@ -3393,6 +3583,9 @@
     const capWei = ethers.parseUnits(String(gasCap),'gwei');
     const hashes = [];
     let sent = null, attempt = 0, priorityBumpGwei = 0;
+    // Via OpenSea, every wallet gets its own calldata (its allowlist proof), fetched just before
+    // the first send; a speed-up re-sends exactly that.
+    let walletCall = call.opensea ? null : { to: call.to, data: call.data, value: call.value };
     const fail = (text) => { setStatus(trs, 'fail', text); state.stats.total++; state.stats.fail++; };
     while(true){
       attempt++;
@@ -3400,9 +3593,10 @@
       if(!sent || canReplace(w, sent, capWei)){
         setStatus(trs, 'pending', sent ? `speeding up (${attempt}/${maxAttempts})` : `sending (${attempt}/${maxAttempts})`);
         try{
+          if(!sent && call.opensea) walletCall = await openSeaCallFor(w, call.opensea, trs);
           const fees = await mintFees(provider, priorityBumpGwei, capWei, sent);
           setCell(trs, '.g-cell', Number(ethers.formatUnits(fees.maxFeePerGas,'gwei')).toFixed(1));
-          const req = { to: call.to, data: call.data, value: call.value, chainId: CHAINS[state.chain].id, ...fees };
+          const req = { to: walletCall.to, data: walletCall.data, value: walletCall.value, chainId: CHAINS[state.chain].id, ...fees };
           if(sent){ req.nonce = sent.nonce; req.gasLimit = sent.gasLimit; }
           const tx = await signer.sendTransaction(req);
           sent = { nonce: tx.nonce, gasLimit: tx.gasLimit, ...fees };
@@ -3411,9 +3605,12 @@
         }catch(e){
           if(!sent){
             setStatus(trs, 'fail', shortErr(e));
-            // Rejected in the wallet popup — asking again would just reopen it.
+            // Rejected in the wallet popup — asking again would just reopen it. Same for an
+            // OpenSea "no" that a retry can't change (not on the allowlist, limit reached…).
             const rejected = e && (e.code === 'ACTION_REJECTED' || e.code === 4001);
-            if(!canRetry || rejected){ state.stats.total++; state.stats.fail++; return; }
+            if(!canRetry || rejected || (e && e.final)){ state.stats.total++; state.stats.fail++; return; }
+            // Stage not open yet (fired a moment early) — give it a beat instead of burning attempts.
+            if(e && e.mintCode === 'NOT_MINTING') await new Promise(r => setTimeout(r, 1500));
             priorityBumpGwei += bumpGwei;
             continue;
           }
@@ -3437,6 +3634,22 @@
 
   // How long a broadcast mint may sit pending before auto-bump re-sends it at a higher fee.
   const PENDING_REPLACE_MS = 30000;
+
+  // This wallet's ready-to-send transaction for the live stage, from OpenSea. Throws (with the
+  // OpenSea code) when the wallet can't mint, so mintOne's retry rules apply.
+  async function openSeaCallFor(w, { slug, qty }, trs){
+    const r = await openSeaMintTx(slug, w.address, qty);
+    if(state.eligibility && r.stageId === state.eligibility.stageId){ state.eligibility.byAddr[w.address.toLowerCase()] = r; renderEligibility(); }
+    if(!r.ok) throw Object.assign(new Error(eligibilityReason(r)), { mintCode: r.code, final: FINAL_MINT_CODES.has(r.code) });
+    if(OPENSEA_CHAIN_TO_KEY[r.chain] !== state.chain) throw Object.assign(new Error(`OpenSea built this for ${prettyChain(r.chain)}, not ${chainLabel(state.chain)}`), { final: true });
+    if(!/^0x[a-fA-F0-9]{40}$/.test(r.to || '') || !/^0x[0-9a-fA-F]*$/.test(r.data || '') || !/^\d+$/.test(r.value || '')) throw Object.assign(new Error('OpenSea returned an unexpected transaction'), { final: true });
+    // Only ever pay SeaDrop or the collection's own contract, whatever the API says.
+    const allowedTo = [SEADROP_ADDRESS, $('contractAddr').value.trim()].map(a => a.toLowerCase());
+    if(!allowedTo.includes(r.to.toLowerCase())) throw Object.assign(new Error(`refused: OpenSea's tx goes to ${r.to.slice(0, 10)}…, not SeaDrop or this collection`), { final: true });
+    const value = BigInt(r.value);
+    if(trs) setCell(trs, '.am-cell', esc(ethers.formatEther(value)) + ' ETH');
+    return { to: r.to, data: r.data, value };
+  }
 
   // Extensions pick their own nonce and fees, so FUSE can't replace their txs — the wallet's
   // own "speed up" does that. The replacement also has to fit under the gas cap.
@@ -3497,6 +3710,7 @@
 
   function shortErr(e){
     const msg = (e && e.shortMessage) || (e && e.message) || 'error';
+    if(e && (e.mintCode !== undefined || e.final)) return msg.slice(0, 70); // FUSE's own wording — keep it readable
     if(/insufficient funds/i.test(msg)) return 'no funds';
     if(/underpriced/i.test(msg)) return 'underpriced';
     if(/reverted/i.test(msg)) return 'reverted';
