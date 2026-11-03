@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-XS9SjjheQWt7il7GXsuiqQ74FCKDAeDkx2xyKT8hyHo=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-He3b8Dw6bbAk9v/k3jBsD1Ly1ttZxeXqpTPQMq48dno=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -342,12 +342,12 @@
 
   .chain-icon-row{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
   .chain-icon{
-    width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-    font-family:var(--mono); font-weight:700; font-size:12px; color:var(--text-dim);
+    height:34px; padding:0 13px 0 9px; border-radius:17px; display:flex; align-items:center; justify-content:center; gap:7px;
+    font-family:var(--sans); font-weight:600; font-size:12.5px; color:var(--text-dim);
     background:var(--surface-raised); border:2px solid transparent; cursor:pointer;
     transition: background .15s, border-color .15s;
   }
-  .chain-icon svg{ opacity:.4; transition: opacity .15s; }
+  .chain-icon svg{ opacity:.4; transition: opacity .15s; flex:none; }
   .chain-icon:hover{ background:var(--chain-color, var(--surface-hover)); color:#fff; }
   .chain-icon:hover svg{ opacity:1; }
   .chain-icon.active{ background:var(--chain-color, var(--accent)); border-color:var(--accent-text); color:#fff; }
@@ -876,8 +876,8 @@
         <div class="section-title"><span class="dot"></span>Chain &amp; connection</div>
         <div class="field">
           <label>Chain</label>
-          <div id="chainGrid" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; max-width:420px;"></div>
-          <div class="hint">Ethereum, Robinhood Chain, and the Sepolia testnet — get free test ETH from a Sepolia faucet to try mints and disperse without spending real funds. Pasting an OpenSea link switches to the collection's chain automatically. Each chain keeps its own RPC URL below.</div>
+          <div id="chainGrid" style="display:grid; grid-template-columns:1fr 1fr; gap:8px; max-width:420px;"></div>
+          <div class="hint">Ethereum and Robinhood Chain. Pasting an OpenSea link switches to the collection's chain automatically. Each chain keeps its own RPC URL below.</div>
         </div>
         <div class="field">
           <label id="rpcLabel">Custom RPC URL (strongly recommended)</label>
@@ -891,8 +891,8 @@
         </div>
         <div class="field">
           <label>OpenSea proxy URL <span style="color:var(--text-dim); font-weight:400;">— recommended</span></label>
-          <input type="text" id="openseaProxyUrl" placeholder="https://your-worker.workers.dev  (or http://127.0.0.1:8787 while running locally)">
-          <div class="hint">OpenSea's own docs say their API key can't be safely used in a browser, and their API blocks direct cross-origin calls anyway. A tiny serverless proxy (e.g. Cloudflare Worker) holds the key server-side and fixes both — see the worker.js file provided alongside this app. The same worker also reads mint pages server-side so pasted mint-site links can be scanned for a contract address.</div>
+          <input type="text" id="openseaProxyUrl" placeholder="Using FUSE's built-in worker — leave empty, or paste your own">
+          <div class="hint">Leave this empty — FUSE uses its built-in worker, which holds the OpenSea and Etherscan keys, so nothing needs setting up on a new device. Only paste a URL here to use a worker of your own (e.g. <code>http://127.0.0.1:8787</code> while running <code>wrangler dev</code>).</div>
         </div>
         <div class="field">
           <label>OpenSea API key <span style="color:var(--text-dim); font-weight:400;">— direct fallback, less reliable</span></label>
@@ -1043,7 +1043,7 @@
     sepolia:  { id:11155111, name:'Sepolia', label:'Sepolia testnet', testnet:true, nativeSymbol:'ETH', cgId:null, openseaChain:'sepolia', color:'#E8A13A', icon:'S', explorerApi:'https://api.etherscan.io/v2/api', defaultRpc:'https://ethereum-sepolia-rpc.publicnode.com', blockscoutFallback:'https://eth-sepolia.blockscout.com/api', tx:'https://sepolia.etherscan.io/tx/', addr:'https://sepolia.etherscan.io/address/' },
   };
   const OPENSEA_CHAIN_TO_KEY = Object.fromEntries(Object.entries(CHAINS).flatMap(([k,c]) => [c.openseaChain, ...(c.openseaAliases || [])].map(slug => [slug, k])));
-  const ACTIVE_CHAINS = ['ethereum', 'robinhood', 'sepolia']; // chains FUSE can mint on — add keys here to enable more
+  const ACTIVE_CHAINS = ['ethereum', 'robinhood']; // chains FUSE can mint on — add keys here to enable more (e.g. 'sepolia')
   const chainLabel = key => { const c = CHAINS[key]; return c.label || (key === 'ethereum' ? 'Ethereum' : c.name + ' Chain'); };
   const supportedChainsText = () => {
     const names = ACTIVE_CHAINS.map(chainLabel);
@@ -1198,9 +1198,9 @@
     try{
       const res = await withTimeout(fetch(base), 8000);
       const data = await res.json().catch(() => ({}));
-      if(res.status === 403) return ['bad', 'Proxy', `refused this site — add ${location.protocol === 'file:' ? 'null' : location.origin} to ALLOWED_ORIGINS on the worker`];
+      if(res.status === 403) return ['bad', 'Proxy', `refused this site — ${usingDefaultProxy() ? 'the built-in worker only serves the official FUSE site; set your own worker URL here' : 'add ' + (location.protocol === 'file:' ? 'null' : location.origin) + ' to ALLOWED_ORIGINS on the worker'}`];
       if(res.status === 400 && /^use \?/.test(data.error || '') && !/collection=/.test(data.error || '')) return ['warn', 'Proxy', 'connected — but it\'s running an older worker.js, so OpenSea banner, stats, mint stages and the Robinhood relay are off. In the worker\'s terminal: Ctrl+C, git pull, start it again'];
-      if(res.status === 400 && /slug/.test(data.error || '')) return ['ok', 'Proxy', isLocal ? 'local FUSE worker is reachable — keep its terminal running' : 'FUSE worker is reachable'];
+      if(res.status === 400 && /slug/.test(data.error || '')) return ['ok', 'Proxy', isLocal ? 'local FUSE worker is reachable — keep its terminal running' : usingDefaultProxy() ? 'built-in FUSE worker is reachable — nothing to set up' : 'your FUSE worker is reachable'];
       return ['bad', 'Proxy', `answered, but it doesn't look like the FUSE worker (HTTP ${res.status}) — redeploy worker.js`];
     }catch(e){
       if(isLocal) return ['bad', 'Proxy', `couldn't reach the local worker — is "npx wrangler dev" still running? If Chrome asked to allow access to devices on your local network, click Allow, then Save again`];
@@ -1231,7 +1231,11 @@
     input.classList.toggle('revealed', show);
     btn.textContent = show ? 'Hide' : 'Show';
   }));
-  function proxyBase(){ return $('openseaProxyUrl').value.trim().replace(/\/$/, ''); }
+  // The FUSE worker this site ships with, so FUSE works on any device (yours or a friend's) with
+  // nothing to set up. A URL typed in Settings overrides it — e.g. a worker of your own.
+  const DEFAULT_PROXY_URL = 'https://fuse-proxy.fuse-proxy.workers.dev';
+  function proxyBase(){ return ($('openseaProxyUrl').value.trim() || DEFAULT_PROXY_URL).replace(/\/$/, ''); }
+  const usingDefaultProxy = () => !$('openseaProxyUrl').value.trim();
 
   document.querySelectorAll('[data-page]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1615,8 +1619,9 @@
     const w = state.wallets[i];
     if(!w) return;
     if(w.pk && !confirm(`Remove ${w.name || 'this wallet'} (${w.address.slice(0,6)}...${w.address.slice(-4)})? Its private key is only in this tab — make sure you have it saved.`)) return;
-    if(w.injected) rememberWallet(null); // otherwise it silently reconnects on the next reload
     state.wallets.splice(i, 1);
+    // Last account from that extension gone → stop reconnecting it silently on the next reload.
+    if(w.injected && !state.wallets.some(o => o.injected && o.provider === w.provider)) rememberWallet(w.walletId, false);
     state.senderSel = new Set(); state.recipientSel = new Set();
     afterWalletsChanged();
   }
@@ -1648,20 +1653,25 @@
     }
   }
 
-  function renderChainIconRow(){
-    const row = $('chainIconRow');
+  // Chain picker pills (icon + name) — the Wallets and Disperse pages share it.
+  const CHAIN_PILL_NAMES = { ethereum:'Ethereum', robinhood:'Robinhood', sepolia:'Sepolia' };
+  function renderChainPills(rowId){
+    const row = $(rowId);
     row.innerHTML = '';
     Object.entries(CHAINS).filter(([key]) => ACTIVE_CHAINS.includes(key)).forEach(([key, c]) => {
       const el = document.createElement('div');
-      const isActive = state.chain === key;
-      el.className = 'chain-icon' + (isActive ? ' active' : '');
+      el.className = 'chain-icon' + (state.chain === key ? ' active' : '');
       el.style.setProperty('--chain-color', c.color);
       el.innerHTML = chainGlyphSvg(key, 17);
-      el.title = c.name;
+      const label = document.createElement('span');
+      label.textContent = CHAIN_PILL_NAMES[key] || c.name;
+      el.appendChild(label);
+      el.title = chainLabel(key);
       el.onclick = () => setChain(key);
       row.appendChild(el);
     });
   }
+  function renderChainIconRow(){ renderChainPills('chainIconRow'); }
 
   function renderWallets(){
     renderChainIconRow();
@@ -1856,20 +1866,7 @@
 
   let disperseExternal = [];
 
-  function renderDisperseChainRow(){
-    const row = $('disperseChainRow');
-    row.innerHTML = '';
-    Object.entries(CHAINS).filter(([key]) => ACTIVE_CHAINS.includes(key)).forEach(([key, c]) => {
-      const el = document.createElement('div');
-      const isActive = state.chain === key;
-      el.className = 'chain-icon' + (isActive ? ' active' : '');
-      el.style.setProperty('--chain-color', c.color);
-      el.innerHTML = chainGlyphSvg(key, 17);
-      el.title = c.name;
-      el.onclick = () => setChain(key);
-      row.appendChild(el);
-    });
-  }
+  function renderDisperseChainRow(){ renderChainPills('disperseChainRow'); }
 
   function getSelectionSet(checkedClass){
     return checkedClass === 'sender-check' ? state.senderSel : state.recipientSel;
@@ -2371,9 +2368,24 @@
     });
   }
 
+  // Every extension connected to FUSE, by its id (EIP-6963 rdns/uuid), so they all reconnect
+  // silently on the next visit. Older versions stored a single id as a plain string.
   const LAST_WALLET_KEY = 'fuse.lastBrowserWallet';
-  function rememberWallet(id){ try{ if(id) localStorage.setItem(LAST_WALLET_KEY, id); else localStorage.removeItem(LAST_WALLET_KEY); }catch(e){} }
-  function rememberedWallet(){ try{ return localStorage.getItem(LAST_WALLET_KEY); }catch(e){ return null; } }
+  function rememberedWallets(){
+    try{
+      const raw = localStorage.getItem(LAST_WALLET_KEY);
+      if(!raw) return [];
+      try{ const ids = JSON.parse(raw); return Array.isArray(ids) ? ids.filter(x => typeof x === 'string') : [raw]; }catch(e){ return [raw]; }
+    }catch(e){ return []; }
+  }
+  function rememberWallet(id, on){
+    try{
+      if(id == null){ localStorage.removeItem(LAST_WALLET_KEY); return; }
+      const ids = new Set(rememberedWallets());
+      if(on === false) ids.delete(id); else ids.add(id);
+      if(ids.size) localStorage.setItem(LAST_WALLET_KEY, JSON.stringify([...ids])); else localStorage.removeItem(LAST_WALLET_KEY);
+    }catch(e){}
+  }
 
   // More than one extension installed → let the user say which one, instead of guessing.
   function pickBrowserWallet(wallets){
@@ -2390,7 +2402,8 @@
         } else {
           const ph = document.createElement('span'); ph.className = 'wallet-pick-ph'; ph.textContent = w.name.slice(0,1); btn.appendChild(ph);
         }
-        const label = document.createElement('span'); label.textContent = w.name; btn.appendChild(label);
+        const n = browserWallets().filter(b => b.provider === w.provider).length;
+        const label = document.createElement('span'); label.textContent = w.name + (n ? ` — ${n} connected, add more` : ''); btn.appendChild(label);
         btn.onclick = () => close(w);
         list.appendChild(btn);
       });
@@ -2400,81 +2413,85 @@
     });
   }
 
-  function connectedBrowserWallet(){ return state.wallets.find(w => w.injected) || null; }
+  const browserWallets = () => state.wallets.filter(w => w.injected);
 
-  // Track account switches inside whichever extension is actually connected.
+  // Make FUSE's list match the accounts this extension shares with the site: add new ones,
+  // drop ones it no longer shares. Addresses already loaded as private keys stay as keys.
+  async function syncExtensionAccounts(choice, accounts){
+    const addrs = [...new Set((accounts || []).map(a => { try{ return ethers.getAddress(a); }catch(e){ return null; } }).filter(Boolean))];
+    const keep = new Set(addrs.map(a => a.toLowerCase()));
+    const before = state.wallets.length;
+    state.wallets = state.wallets.filter(w => !(w.injected && w.provider === choice.provider && !keep.has(w.address.toLowerCase())));
+    const added = [];
+    for(const address of addrs){
+      const existing = state.wallets.find(w => w.address.toLowerCase() === address.toLowerCase());
+      if(existing){ if(existing.injected){ existing.provider = choice.provider; existing.walletName = choice.name; existing.walletId = choice.id; } continue; }
+      const w = { pk:null, address, balance:null, enabled:true, injected:true, provider: choice.provider, walletName: choice.name, walletId: choice.id, name: choice.name + ' ' + (state.wallets.length + 1) };
+      state.wallets.push(w);
+      added.push(w);
+    }
+    if(added.length || state.wallets.length !== before){
+      state.senderSel = new Set(); state.recipientSel = new Set();
+      afterWalletsChanged();
+    }
+    if(added.length) loadBalances(added);
+    return added;
+  }
+
+  // Track account changes inside every connected extension.
   const wiredProviders = new WeakSet();
-  function wireWalletEvents(provider){
+  function wireWalletEvents(choice){
+    const provider = choice.provider;
     if(!provider || !provider.on || wiredProviders.has(provider)) return;
     wiredProviders.add(provider);
     provider.on('accountsChanged', (accounts) => {
-      const w = connectedBrowserWallet();
-      if(!w || w.provider !== provider) return;
-      if(!accounts || !accounts.length){ removeBrowserWallet(); return; }
-      const next = ethers.getAddress(accounts[0]);
-      // Switched to an account that's already imported as a key — keep one entry, not two.
-      if(state.wallets.some(o => o !== w && o.address.toLowerCase() === next.toLowerCase())){
-        state.wallets = state.wallets.filter(o => o !== w); afterWalletsChanged(); return;
-      }
-      w.address = next; w.balance = null;
-      renderWallets(); updateSidebarWalletInfo(); updateConnectWalletBtnStatus(); checkEligibility();
-      fetchBalanceRobust(w.address).then(bal => { if(bal != null){ w.balance = bal; renderWallets(); } });
+      if(!browserWallets().some(w => w.provider === provider)) return; // not connected to FUSE (anymore)
+      syncExtensionAccounts(choice, accounts);
+      if(!accounts || !accounts.length) rememberWallet(choice.id, false);
     });
     provider.on('chainChanged', () => {
-      const w = connectedBrowserWallet();
-      if(w && w.provider === provider) setDiag('warn', 'Network changed in your wallet — reselect the chain in Settings if it no longer matches.');
+      if(browserWallets().some(w => w.provider === provider)) setDiag('warn', `Network changed in ${choice.name} — FUSE asks it to switch back to ${chainLabel(state.chain)} before signing.`);
     });
   }
 
-  async function addBrowserWallet(choice, address){
-    const existing = state.wallets.find(w => w.address.toLowerCase() === address.toLowerCase());
-    if(existing){
-      // Same address already imported as a key — just note where it's connected.
-      if(existing.injected){ existing.provider = choice.provider; existing.walletName = choice.name; }
-      return;
-    }
-    const newWallet = { pk:null, address, balance:null, enabled:true, injected:true, provider: choice.provider, walletName: choice.name, name: choice.name + ' ' + (state.wallets.length + 1) };
-    state.wallets.push(newWallet);
-    renderWallets(); updateSidebarWalletInfo(); updateConnectWalletBtnStatus(); checkReadiness(); checkEligibility();
-    const bal = await fetchBalanceRobust(address);
-    if(bal != null){ newWallet.balance = bal; renderWallets(); }
-  }
-
+  // Connect an extension, or add more accounts from one that is already connected.
   async function connectInjectedWallet(){
-    const current = connectedBrowserWallet();
-    if(current) return { address: current.address, name: current.walletName, error:null };
     const wallets = await waitForBrowserWallets();
-    if(!wallets.length) return { address:null, error:'No browser wallet extension detected — import a private key instead, or install one and reload.' };
+    if(!wallets.length) return { added:[], error:"No browser wallet extension detected — import a private key instead, or install one and reload. On a phone, open FUSE inside your wallet app's browser." };
     const choice = await pickBrowserWallet(wallets);
-    if(!choice) return { address:null, error:'No wallet chosen.' };
+    if(!choice) return { added:[], error:'No wallet chosen.' };
+    const already = browserWallets().some(w => w.provider === choice.provider);
     try{
+      if(already){
+        // Re-open the extension's account picker so more accounts can be shared. Wallets
+        // without wallet_requestPermissions just hand back what they already share.
+        try{ await choice.provider.request({ method:'wallet_requestPermissions', params:[{ eth_accounts:{} }] }); }
+        catch(e){ if(e && e.code === 4001) return { added:[], error:`Cancelled in ${choice.name}.` }; }
+      }
       const accounts = await choice.provider.request({ method:'eth_requestAccounts' });
-      if(!accounts || !accounts.length) return { address:null, error: choice.name + ' returned no account.' };
-      const address = ethers.getAddress(accounts[0]);
-      await addBrowserWallet(choice, address);
-      wireWalletEvents(choice.provider);
-      rememberWallet(choice.id);
-      return { address, name: choice.name, error:null };
+      if(!accounts || !accounts.length) return { added:[], error: choice.name + ' returned no account.' };
+      wireWalletEvents(choice);
+      rememberWallet(choice.id, true);
+      const added = await syncExtensionAccounts(choice, accounts);
+      return { added, name: choice.name, shared: accounts.length, error:null };
     }catch(e){
       const msg = e && e.code === 4001 ? `Connection request rejected in ${choice.name}.` : (e.message || 'Wallet connection failed.');
-      return { address:null, error: msg };
+      return { added:[], error: msg };
     }
   }
 
-  // If the wallet used last time already has permission for this site, reconnect with
-  // no popup at all. Only that wallet is asked, so other extensions stay untouched.
+  // Extensions connected last time that still have permission for this site come back with no
+  // popup at all. Only those are asked, so other extensions stay untouched.
   (async function checkAlreadyConnected(){
     const wallets = await waitForBrowserWallets();
-    const lastId = rememberedWallet();
-    const choice = wallets.find(w => w.id === lastId) || (wallets.length === 1 && !lastId ? wallets[0] : null);
-    if(!choice) return;
-    try{
-      const accounts = await choice.provider.request({ method:'eth_accounts' });
-      if(accounts && accounts.length && !connectedBrowserWallet()){
-        await addBrowserWallet(choice, ethers.getAddress(accounts[0]));
-        wireWalletEvents(choice.provider);
-      }
-    }catch(e){ /* silent — this is just a background convenience check */ }
+    const ids = rememberedWallets();
+    const choices = ids.length ? wallets.filter(w => ids.includes(w.id)) : (wallets.length === 1 ? wallets : []);
+    for(const choice of choices){
+      try{
+        const accounts = await choice.provider.request({ method:'eth_accounts' });
+        if(accounts && accounts.length){ wireWalletEvents(choice); await syncExtensionAccounts(choice, accounts); }
+      }catch(e){ /* silent — this is just a background convenience check */ }
+    }
   })();
 
   function removeBrowserWallet(){
@@ -2500,28 +2517,23 @@
 
   function updateConnectWalletBtnStatus(){
     const btn = $('connectWalletBtn');
-    const connected = connectedBrowserWallet();
-    if(connected){
-      btn.textContent = `✓ ${connected.walletName || 'Wallet'} ${connected.address.slice(0,6)}...${connected.address.slice(-4)}`;
-      btn.classList.remove('btn-primary'); btn.classList.add('btn-secondary');
-      btn.style.color = 'var(--success)';
-      btn.disabled = false;
-    } else {
-      btn.textContent = 'Connect Wallet';
-      btn.classList.remove('btn-secondary'); btn.classList.add('btn-primary');
-      btn.style.color = '';
-      btn.disabled = false;
-    }
+    const n = browserWallets().length;
+    btn.textContent = n ? `+ Connect another wallet (${n} connected)` : 'Connect Wallet';
+    btn.classList.toggle('btn-primary', !n); btn.classList.toggle('btn-secondary', !!n);
+    btn.style.color = n ? 'var(--success)' : '';
+    btn.disabled = false;
   }
 
   async function doWalletLogout(){
-    const w = connectedBrowserWallet();
-    const name = (w && w.walletName) || 'wallet';
-    if(!confirm(`Log out ${name}? This only disconnects it from FUSE — it doesn't change anything inside ${name} itself.`)) return;
-    if(w && w.provider && w.provider.request){
+    const connected = browserWallets();
+    if(!connected.length) return;
+    const names = [...new Set(connected.map(w => w.walletName || 'wallet'))].join(', ');
+    if(!confirm(`Disconnect ${connected.length} browser wallet account(s) (${names}) from FUSE? This doesn't change anything inside the wallets themselves. Imported private-key wallets stay loaded.`)) return;
+    for(const provider of new Set(connected.map(w => w.provider))){
+      if(!provider || !provider.request) continue;
       try{
         // Wallets that support it drop this site's permission, so the next connect asks again.
-        await w.provider.request({ method:'wallet_revokePermissions', params:[{ eth_accounts:{} }] });
+        await provider.request({ method:'wallet_revokePermissions', params:[{ eth_accounts:{} }] });
       }catch(e){ /* not supported by this wallet — falling back to local disconnect only */ }
     }
     rememberWallet(null);
@@ -2535,20 +2547,13 @@
     const btn = $('connectWalletBtn');
     updateConnectWalletBtnStatus();
     btn.onclick = async () => {
-      if(state.wallets.some(w => w.injected)){
-        showConnectWalletStatus('Already connected — use the logout icon next to your account to disconnect.', false);
-        return;
-      }
       setConnectBtnState('Connecting…', { disabled:true });
       showConnectWalletStatus(null);
-      const { address, name, error } = await connectInjectedWallet();
-      if(address){
-        showConnectWalletStatus(`Connected ${name || 'wallet'} ${address.slice(0,6)}...${address.slice(-4)}`, false);
-        updateConnectWalletBtnStatus();
-      } else {
-        updateConnectWalletBtnStatus();
-        showConnectWalletStatus(error || 'Could not connect.', true);
-      }
+      const { added, name, shared, error } = await connectInjectedWallet();
+      updateConnectWalletBtnStatus();
+      if(error) showConnectWalletStatus(error, true);
+      else if(added.length) showConnectWalletStatus(`Connected ${added.length} account(s) from ${name}: ${added.map(w => w.address.slice(0,6) + '...' + w.address.slice(-4)).join(', ')}`, false);
+      else showConnectWalletStatus(`${name} shares ${shared} account(s) and all are already loaded. To add another, pick more accounts in ${name}'s connect window (or switch to it there).`, false);
     };
   })();
 
@@ -2572,11 +2577,21 @@
     if(await current() !== c.id) throw new Error(`${w.walletName || 'Your wallet'} is not on ${label} — switch it manually`);
   }
 
+  const providerLocks = new WeakMap();
+  function withProviderLock(provider, fn){
+    const prev = providerLocks.get(provider) || Promise.resolve();
+    const run = prev.catch(() => {}).then(fn);
+    providerLocks.set(provider, run.catch(() => {}));
+    return run;
+  }
+
   async function getSignerForWallet(w, provider){
     if(w.injected){
       // Sign with the extension the user actually connected, not whichever owns window.ethereum.
       if(!w.provider) throw new Error((w.walletName || 'Browser wallet') + ' is no longer available for ' + w.address.slice(0,6) + '...');
-      await ensureWalletChain(w);
+      // Several accounts from one extension firing at once would each ask it to switch network;
+      // wallets reject a second request while one is open, so they take turns per extension.
+      await withProviderLock(w.provider, () => ensureWalletChain(w));
       const browserProvider = new ethers.BrowserProvider(w.provider);
       return await browserProvider.getSigner(w.address);
     }
@@ -2587,7 +2602,7 @@
     const m = input.match(/opensea\.io\/collection\/([a-zA-Z0-9_.-]+)/i);
     if(!m) return null;
     const slug = m[1];
-    const proxyUrl = $('openseaProxyUrl').value.trim();
+    const proxyUrl = proxyBase(); // the built-in worker unless Settings names another
     const key = $('openseaKey').value.trim();
 
     // Through the worker: one call returns contract + chain plus everything the collection
@@ -2795,14 +2810,18 @@
     }
 
     setScanStep('scanStep2', 'active'); setScanText('scanStep2', 'Connecting wallet');
-    // Wallets already loaded (imported keys or a connected extension) → don't pop a connect prompt.
-    const imported = mintWallets().filter(w => !w.injected).length;
-    const { address: connAddr, name: connName, error: connErr } = (imported && !connectedBrowserWallet())
-      ? { address:null, error:null, skipped:true }
-      : await connectInjectedWallet();
-    if(!connAddr && imported){ setScanStep('scanStep2', 'done'); setScanText('scanStep2', `Using ${imported} wallet(s) from Wallets`); }
-    else if(connAddr){ setScanStep('scanStep2', 'done'); setScanText('scanStep2', `Connected ${connName || 'wallet'} ${connAddr.slice(0,6)}...${connAddr.slice(-4)}`); }
-    else { setScanStep('scanStep2', 'warn'); setScanText('scanStep2', connErr ? connErr : 'No browser wallet found — using imported keys from Wallets'); }
+    // Wallets already loaded (imported keys or connected extensions) → don't pop a connect prompt.
+    const loaded = mintWallets();
+    const walletSummary = ws => {
+      const names = [...new Set(ws.map(w => w.injected ? (w.walletName || 'browser wallet') : 'imported key'))];
+      return ws.length === 1 ? `${names[0]} ${ws[0].address.slice(0,6)}...${ws[0].address.slice(-4)}` : `${ws.length} wallets (${names.join(', ')})`;
+    };
+    if(loaded.length){ setScanStep('scanStep2', 'done'); setScanText('scanStep2', `Using ${walletSummary(loaded)}`); }
+    else {
+      const { added, error: connErr } = await connectInjectedWallet();
+      if(added.length || mintWallets().length){ setScanStep('scanStep2', 'done'); setScanText('scanStep2', `Connected ${walletSummary(mintWallets())}`); }
+      else { setScanStep('scanStep2', 'warn'); setScanText('scanStep2', connErr ? connErr : 'No wallet loaded — connect or import one on the Wallets page'); }
+    }
 
     setScanStep('scanStep3', 'active'); setScanText('scanStep3', 'Checking eligibility');
     let seadropFound = false;
