@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-aPQEIaH8T1HbaOs3+ay8jbMSiCQe3UMtqLfY+HJs0YM=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-u2U3PAFFvwS73aAXOmvE0FTfNMQBuNIRpWmYZB4gdCo=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -1613,6 +1613,7 @@
 
   function afterWalletsChanged(){
     renderWallets(); updateSidebarWalletInfo(); checkReadiness(); updateConnectWalletBtnStatus();
+    saveBrowserAccounts();
     if(state.armed) disarm();
     checkEligibility();
   }
@@ -1701,7 +1702,7 @@
       tr.innerHTML = `
         <td><input type="checkbox" class="wallet-select" data-i="${i}" title="Use this wallet for minting" ${w.enabled !== false ? 'checked' : ''}></td>
         <td><input type="text" class="wallet-name-input" data-i="${i}" value="${esc(w.name || 'Wallet ' + (i+1))}"></td>
-        <td><button class="wallet-addr-copy" data-i="${i}" title="Copy full address">${w.address.slice(0,6)}...${w.address.slice(-4)}</button>${w.injected ? ' <span class="wallet-kind">' + esc(w.walletName || 'browser') + '</span>' : ''}</td>
+        <td><button class="wallet-addr-copy" data-i="${i}" title="Copy full address">${w.address.slice(0,6)}...${w.address.slice(-4)}</button>${w.injected ? ' <span class="wallet-kind"' + (w.selected === false ? ` title="Not the account selected in ${esc(w.walletName || 'the wallet')} right now — FUSE asks you to switch to it when it signs"` : '') + '>' + esc(w.walletName || 'browser') + (w.selected === false ? ' · switch to sign' : '') + '</span>' : ''}</td>
         <td>${w.balance === 'err' ? 'error' : (w.balance != null ? fmtNative(parseFloat(w.balance)) : '—')} <span class="wallet-token-badge" style="background:${CHAINS[state.chain].color}; color:#fff;">${chainGlyphSvg(state.chain, 10)}</span></td>
         <td><button class="wallet-x" data-i="${i}">✕</button></td>`;
       list.appendChild(tr);
@@ -2217,6 +2218,7 @@
       }
       try{
         const signer = await getSignerForWallet(sender, provider);
+        if(sender.injected) await ensureWalletAccount(sender);
         let tx;
         if(isErc20){
           const data = erc20Iface.encodeFunctionData('transfer', [addr, perUnits]);
@@ -2386,9 +2388,9 @@
   }
   function rememberWallet(id, on){
     try{
-      if(id == null){ localStorage.removeItem(LAST_WALLET_KEY); return; }
+      if(id == null){ localStorage.removeItem(LAST_WALLET_KEY); saveBrowserAccounts(null); return; }
       const ids = new Set(rememberedWallets());
-      if(on === false) ids.delete(id); else ids.add(id);
+      if(on === false){ ids.delete(id); saveBrowserAccounts(id); } else ids.add(id);
       if(ids.size) localStorage.setItem(LAST_WALLET_KEY, JSON.stringify([...ids])); else localStorage.removeItem(LAST_WALLET_KEY);
     }catch(e){}
   }
@@ -2421,13 +2423,33 @@
 
   const browserWallets = () => state.wallets.filter(w => w.injected);
 
-  // Make FUSE's list match the accounts this extension shares with the site: add new ones,
-  // drop ones it no longer shares. Addresses already loaded as private keys stay as keys.
-  async function syncExtensionAccounts(choice, accounts){
-    const addrs = [...new Set((accounts || []).map(a => { try{ return ethers.getAddress(a); }catch(e){ return null; } }).filter(Boolean))];
-    const keep = new Set(addrs.map(a => a.toLowerCase()));
-    const before = state.wallets.length;
-    state.wallets = state.wallets.filter(w => !(w.injected && w.provider === choice.provider && !keep.has(w.address.toLowerCase())));
+  // Accounts collected from each extension, by its id, so ones the user switched away from
+  // come back after a reload too. Only public addresses are stored.
+  const BROWSER_ACCOUNTS_KEY = 'fuse.browserAccounts';
+  function savedBrowserAccounts(){
+    try{ const v = JSON.parse(localStorage.getItem(BROWSER_ACCOUNTS_KEY) || '{}'); return v && typeof v === 'object' ? v : {}; }catch(e){ return {}; }
+  }
+  function saveBrowserAccounts(forgetId){
+    try{
+      const saved = savedBrowserAccounts();
+      if(forgetId === null){ localStorage.removeItem(BROWSER_ACCOUNTS_KEY); return; }
+      if(forgetId) delete saved[forgetId];
+      const byId = {};
+      state.wallets.filter(w => w.injected && w.walletId).forEach(w => (byId[w.walletId] = byId[w.walletId] || []).push(w.address));
+      Object.assign(saved, byId);
+      localStorage.setItem(BROWSER_ACCOUNTS_KEY, JSON.stringify(saved));
+    }catch(e){}
+  }
+
+  // Add the accounts this extension shares now and keep the ones added before. Many wallets
+  // (Zerion, Phantom, Rabby…) share only the account selected in them, so switching accounts
+  // there is how several get connected; FUSE asks for the right one again before signing.
+  // `saved` are addresses from an earlier visit, loaded as not-selected.
+  async function syncExtensionAccounts(choice, accounts, saved){
+    const norm = (list) => (list || []).map(a => { try{ return ethers.getAddress(a); }catch(e){ return null; } }).filter(Boolean);
+    const shared = norm(accounts);
+    const active = new Set(shared.map(a => a.toLowerCase()));
+    const addrs = [...new Set(shared.concat(norm(saved)))];
     const added = [];
     for(const address of addrs){
       const existing = state.wallets.find(w => w.address.toLowerCase() === address.toLowerCase());
@@ -2436,12 +2458,38 @@
       state.wallets.push(w);
       added.push(w);
     }
-    if(added.length || state.wallets.length !== before){
+    state.wallets.forEach(w => { if(w.injected && w.provider === choice.provider) w.selected = active.has(w.address.toLowerCase()); });
+    if(added.length){
       state.senderSel = new Set(); state.recipientSel = new Set();
       afterWalletsChanged();
-    }
-    if(added.length) loadBalances(added);
+      loadBalances(added);
+    } else renderWallets();
+    saveBrowserAccounts();
     return added;
+  }
+
+  // Before an extension signs for an account, that account has to be one it shares right now.
+  // If it isn't, ask the user to switch to it in the extension and wait for that.
+  const ACCOUNT_SWITCH_MS = 120000;
+  async function ensureWalletAccount(w, onWait){
+    const want = w.address.toLowerCase();
+    const has = (accs) => (accs || []).some(a => String(a).toLowerCase() === want);
+    let accs = [];
+    try{ accs = await w.provider.request({ method:'eth_accounts' }); }catch(e){}
+    if(has(accs)) return;
+    const name = w.walletName || 'your wallet';
+    const short = w.address.slice(0,6) + '...' + w.address.slice(-4);
+    const msg = `Switch to ${short} in ${name} to sign`;
+    setDiag('warn', msg + ' — FUSE is waiting for it (2 min).');
+    if(onWait) onWait(msg);
+    if(!w.provider.on) throw new Error(msg);
+    await new Promise((resolve, reject) => {
+      const onChange = (a) => { if(has(a)){ off(); resolve(); } };
+      const timer = setTimeout(() => { off(); reject(new Error(`${short} wasn't selected in ${name} — switch to it there and try again`)); }, ACCOUNT_SWITCH_MS);
+      const off = () => { clearTimeout(timer); if(w.provider.removeListener) w.provider.removeListener('accountsChanged', onChange); };
+      w.provider.on('accountsChanged', onChange);
+    });
+    setDiag('ok', `${short} selected in ${name}.`);
   }
 
   // Track account changes inside every connected extension.
@@ -2452,8 +2500,8 @@
     wiredProviders.add(provider);
     provider.on('accountsChanged', (accounts) => {
       if(!browserWallets().some(w => w.provider === provider)) return; // not connected to FUSE (anymore)
+      // An empty list usually means the extension was locked: keep the accounts, none selected.
       syncExtensionAccounts(choice, accounts);
-      if(!accounts || !accounts.length) rememberWallet(choice.id, false);
     });
     provider.on('chainChanged', () => {
       if(browserWallets().some(w => w.provider === provider)) setDiag('warn', `Network changed in ${choice.name} — FUSE asks it to switch back to ${chainLabel(state.chain)} before signing.`);
@@ -2495,7 +2543,7 @@
     for(const choice of choices){
       try{
         const accounts = await choice.provider.request({ method:'eth_accounts' });
-        if(accounts && accounts.length){ wireWalletEvents(choice); await syncExtensionAccounts(choice, accounts); }
+        if(accounts && accounts.length){ wireWalletEvents(choice); await syncExtensionAccounts(choice, accounts, savedBrowserAccounts()[choice.id]); }
       }catch(e){ /* silent — this is just a background convenience check */ }
     }
   })();
@@ -2559,7 +2607,7 @@
       updateConnectWalletBtnStatus();
       if(error) showConnectWalletStatus(error, true);
       else if(added.length) showConnectWalletStatus(`Connected ${added.length} account(s) from ${name}: ${added.map(w => w.address.slice(0,6) + '...' + w.address.slice(-4)).join(', ')}`, false);
-      else showConnectWalletStatus(`${name} shares ${shared} account(s) and all are already loaded. To add another, pick more accounts in ${name}'s connect window (or switch to it there).`, false);
+      else showConnectWalletStatus(`${name} shares ${shared} account(s) and all are already loaded. To add another, switch to it inside ${name} — FUSE adds it automatically and keeps the ones already here.`, false);
     };
   })();
 
@@ -2598,8 +2646,9 @@
       // Several accounts from one extension firing at once would each ask it to switch network;
       // wallets reject a second request while one is open, so they take turns per extension.
       await withProviderLock(w.provider, () => ensureWalletChain(w));
-      const browserProvider = new ethers.BrowserProvider(w.provider);
-      return await browserProvider.getSigner(w.address);
+      // Not getSigner(address): it refuses an account the extension isn't sharing right now,
+      // and the account is only made the selected one just before each send.
+      return new ethers.JsonRpcSigner(new ethers.BrowserProvider(w.provider), w.address);
     }
     return new ethers.Wallet(w.pk, provider);
   }
@@ -3630,7 +3679,13 @@
           setCell(trs, '.g-cell', Number(ethers.formatUnits(fees.maxFeePerGas,'gwei')).toFixed(1));
           const req = { to: walletCall.to, data: walletCall.data, value: walletCall.value, chainId: CHAINS[state.chain].id, ...fees };
           if(sent){ req.nonce = sent.nonce; req.gasLimit = sent.gasLimit; }
-          const tx = await signer.sendTransaction(req);
+          // Accounts of one extension send one at a time, each made the selected one first.
+          const tx = w.injected
+            ? await withProviderLock(w.provider, async () => {
+                await ensureWalletAccount(w, (msg) => setStatus(trs, 'pending', msg));
+                return signer.sendTransaction(req);
+              })
+            : await signer.sendTransaction(req);
           sent = { nonce: tx.nonce, gasLimit: tx.gasLimit, ...fees };
           hashes.push(tx.hash);
           setCell(trs, '.h-cell', `<a href="${CHAINS[state.chain].tx}${esc(tx.hash)}" target="_blank" rel="noopener">${esc(tx.hash.slice(0,8))}...</a>`);
