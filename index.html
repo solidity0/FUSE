@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-BltVLCvEhIuy6i1b8kCxAvdjqaWpRL/1ADjNlOC+t18=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-SPBlWYc9vYC4ufazrmCZBJHTqHg/iB4F2j43KSrekaY=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -1078,6 +1078,7 @@
     armed: false,
     scheduleTimer: null,
     scheduleAt: null,
+    fireDeadline: null,
     stats: { total:0, success:0, fail:0, gasSum:0, gasCount:0 },
     phases: [],
     unit: 'native',
@@ -3522,6 +3523,7 @@
     state.armed = false;
     $('fireBtn').disabled = true;
     stopSchedule();
+    releaseFreezeLock();
     $('countdownHint').textContent = '';
     checkReadiness();
   }
@@ -3584,6 +3586,22 @@ onmessage = (e) => {
   }
   document.addEventListener('visibilitychange', holdWakeLock);
 
+  // Browsers can freeze a hidden tab outright, workers included. Holding a Web Lock asks Chrome
+  // not to, from arming until the round is over. The name is per tab so tabs don't queue.
+  let freezeLockRelease = null;
+  function holdFreezeLock(){
+    if(freezeLockRelease || !navigator.locks) return;
+    const held = new Promise(res => { freezeLockRelease = res; });
+    navigator.locks.request('fuse-scheduled-fire-' + Math.random(), () => held).catch(() => {});
+  }
+  function releaseFreezeLock(){
+    if(freezeLockRelease){ freezeLockRelease(); freezeLockRelease = null; }
+  }
+
+  // A tab that was frozen, or a computer that slept, wakes up past the scheduled time. A mint
+  // that late isn't what was armed, so nothing new is sent after this much delay.
+  const SCHEDULE_MAX_LATE_MS = 120000;
+
   function stopSchedule(){
     if(state.scheduleTimer) clearInterval(state.scheduleTimer);
     state.scheduleTimer = null;
@@ -3595,21 +3613,29 @@ onmessage = (e) => {
   function setupSchedule(){
     stopSchedule();
     const target = $('scheduleTime').value;
-    if(!target){ $('countdownHint').textContent = 'Manual fire — click "Fire now" when ready.'; return; }
+    state.fireDeadline = null;
+    if(!target){ releaseFreezeLock(); $('countdownHint').textContent = 'Manual fire — click "Fire now" when ready.'; return; }
     const targetMs = new Date(target).getTime();
     if(!Number.isFinite(targetMs)){ $('countdownHint').textContent = 'Schedule time not understood — fire manually or set it again.'; return; }
     const showLeft = (diff) => {
       const h = Math.floor(diff/3600000), m = Math.floor((diff%3600000)/60000), s = Math.floor((diff%60000)/1000);
-      $('countdownHint').textContent = `Firing in ${h ? h + ':' : ''}${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')} — keep this tab open`;
+      $('countdownHint').textContent = `Firing in ${h ? h + ':' : ''}${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')} — keep this tab open and awake`;
     };
     const fire = () => {
       if(state.scheduleAt !== targetMs) return; // disarmed or rescheduled meanwhile
       stopSchedule();
+      state.fireDeadline = targetMs + SCHEDULE_MAX_LATE_MS;
+      if(Date.now() > state.fireDeadline){
+        disarm();
+        setDiag('err', `Nothing sent — the scheduled time passed ${Math.round((Date.now() - targetMs) / 60000)} min ago (tab frozen, computer asleep, or a past time). Set a new time and arm again.`);
+        return;
+      }
       $('countdownHint').textContent = 'Firing now...';
       fireAll();
     };
     state.scheduleAt = targetMs;
     holdWakeLock();
+    holdFreezeLock();
     const worker = scheduleTicker();
     if(worker){
       worker.onmessage = (e) => { if(e.data.fire) fire(); else if(state.scheduleAt === targetMs) showLeft(e.data.left); };
@@ -3622,7 +3648,7 @@ onmessage = (e) => {
     }
   }
 
-  $('fireBtn').onclick = () => fireAll();
+  $('fireBtn').onclick = () => { state.fireDeadline = null; fireAll(); };
 
   $('simulateBtn').onclick = async () => {
     if(!mintWallets().length || !state.fn){ alert('Tick at least one wallet and select a mint function first.'); return; }
@@ -3736,6 +3762,10 @@ onmessage = (e) => {
       if(!sent || canReplace(w, sent, capWei)){
         setStatus(trs, 'pending', sent ? `speeding up (${attempt}/${maxAttempts})` : `sending (${attempt}/${maxAttempts})`);
         try{
+          if(!sent && state.fireDeadline && Date.now() > state.fireDeadline){
+            fail('not sent — too long after the scheduled time');
+            return;
+          }
           if(!sent && call.opensea) walletCall = await openSeaCallFor(w, call.opensea, trs);
           const fees = await mintFees(provider, priorityBumpGwei, capWei, sent);
           setCell(trs, '.g-cell', Number(ethers.formatUnits(fees.maxFeePerGas,'gwei')).toFixed(1));
