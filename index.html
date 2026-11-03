@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-SPBlWYc9vYC4ufazrmCZBJHTqHg/iB4F2j43KSrekaY=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-X+vrKr6GtQOuc8WDkLJ9mvOn5ILeLevJIfkgk5CfDzc=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -2633,6 +2633,32 @@
     return new ethers.Wallet(w.pk, provider);
   }
 
+  // Mobile connections drop requests now and then, so a lookup gets a few tries, each time-limited.
+  async function fetchWorker(url){
+    let lastErr;
+    for(let i = 0; i < 3; i++){
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 12000);
+      try{ return await fetch(url, { signal: ctl.signal }); }
+      catch(e){ lastErr = e; }
+      finally{ clearTimeout(timer); }
+      if(i < 2) await pauseFor(1000);
+    }
+    throw lastErr;
+  }
+
+  async function workerUnreachableText(e){
+    const base = proxyBase();
+    // The usual cause: Settings still points at a `wrangler dev` worker on this PC that has since been closed.
+    if(/^http:\/\/(127\.0\.0\.1|localhost)/i.test(base)) return `your proxy URL is a worker on this PC (${base}) and it isn't running — start it again, or put your deployed worker's https://….workers.dev URL in Settings`;
+    if(!usingDefaultProxy()) return `could not reach your proxy worker at ${base} — check the URL in Settings (Save tests it)`;
+    // This site loading while the worker doesn't tells a blocked address apart from no connection.
+    let online = true;
+    try{ await fetch(location.href, { method:'HEAD', cache:'no-store' }); }catch(err){ online = false; }
+    if(!online) return 'no internet connection right now — check it and try again';
+    return `this connection or browser is blocking FUSE's server (${new URL(base).hostname}). Switch between Wi-Fi and mobile data, or turn off any content blocker, VPN or iCloud Private Relay, then try again [${(e && e.message) || 'network error'}]`;
+  }
+
   async function resolveViaOpenSea(input){
     const m = input.match(/opensea\.io\/collection\/([a-zA-Z0-9_.-]+)/i);
     if(!m) return null;
@@ -2644,13 +2670,8 @@
     // card shows (images, stats, items, mint progress and stages).
     if(proxyUrl){
       let res;
-      try{ res = await fetch(`${proxyBase()}?collection=${encodeURIComponent(slug)}`); }
-      catch(e){
-        // The usual cause: Settings still points at a `wrangler dev` worker on this PC that has since been closed.
-        throw new Error(/^http:\/\/(127\.0\.0\.1|localhost)/i.test(proxyBase())
-          ? `your proxy URL is a worker on this PC (${proxyBase()}) and it isn't running — start it again, or put your deployed worker's https://….workers.dev URL in Settings`
-          : `could not reach your proxy worker at ${proxyBase()} — check the URL in Settings (Save tests it)`);
-      }
+      try{ res = await fetchWorker(`${proxyBase()}?collection=${encodeURIComponent(slug)}`); }
+      catch(e){ throw new Error(await workerUnreachableText(e)); }
       const data = await res.json().catch(() => ({}));
       if(res.status === 401 || res.status === 403) throw new Error(data.error === 'origin not allowed'
         ? 'your proxy worker refused this site — add it to ALLOWED_ORIGINS'
