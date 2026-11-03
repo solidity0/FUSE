@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-GF0donmSYj8HPxVzZMH9++G/g96bTzlni1JGHhfudVU=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-9Y2nOUnAEfouIi9pJut0sIBhZd3Y7tzGUXDC/Q5NeBs=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -168,6 +168,11 @@
   .topbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   .search-input{ flex:1; background:var(--surface); border:1px solid var(--border); border-radius:0; padding:9px 12px; color:var(--text); font-family:var(--mono); font-size:12.5px; outline:none; }
   .search-input:focus{ border-color:var(--accent); }
+  .search-box{ flex:1 1 0; min-width:0; display:flex; position:relative; }
+  .search-box .search-input{ width:100%; min-width:0; padding-right:38px; text-overflow:ellipsis; }
+  .search-clear{ position:absolute; top:0; right:0; bottom:0; width:36px; display:flex; align-items:center; justify-content:center; background:none; border:none; color:var(--text-dim); font-size:13px; cursor:pointer; }
+  .search-clear:hover{ color:var(--text); }
+  .search-clear[hidden]{ display:none; }
 
   .card{ background:var(--surface); border:1px solid var(--border-soft); border-radius:0; padding:18px 20px; }
 
@@ -611,7 +616,10 @@
       </div>
 
       <div class="topbar">
-        <input class="search-input" id="topSearch" type="text" name="fuse-target" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" placeholder="Paste a mint link, OpenSea URL, or 0x contract…">
+        <div class="search-box">
+          <input class="search-input" id="topSearch" type="text" name="fuse-target" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" placeholder="Paste a mint link, OpenSea URL, or 0x contract…">
+          <button type="button" class="search-clear" id="topSearchClear" title="Clear link" aria-label="Clear link" hidden>✕</button>
+        </div>
         <button class="icon-search-btn" id="topSearchGo" title="Scan">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2"/>
@@ -1085,6 +1093,7 @@
     scheduleTimer: null,
     scheduleAt: null,
     fireDeadline: null,
+    scanId: 0,
     walletsRestored: false,
     walletsOfAbsentExtensions: {},
     stats: { total:0, success:0, fail:0, gasSum:0, gasCount:0 },
@@ -2560,7 +2569,7 @@
   // already signed are loaded. A locked extension shares nothing yet, so they load as not
   // selected and FUSE asks for the account when it signs. Extensions that aren't here this
   // time (disabled, say) keep their saved accounts for later.
-  (async function restoreConnectedWallets(){
+  const walletsRestoring = (async function restoreConnectedWallets(){
     const restored = [];
     try{
       const saved = JSON.parse(localStorage.getItem(CONNECTED_WALLETS_KEY) || '{}') || {};
@@ -2730,6 +2739,7 @@
   }
 
   async function resolveViaOpenSea(input){
+    const scanId = state.scanId; // a newer link may be pasted before this one answers
     const m = input.match(/opensea\.io\/collection\/([a-zA-Z0-9_.-]+)/i);
     if(!m) return null;
     const slug = m[1];
@@ -2752,7 +2762,7 @@
       if(!outdated){
         if(!res.ok) throw new Error(data.error || ('OpenSea lookup returned ' + res.status));
         if(!data.contract) throw new Error('Collection found but has no on-chain contract listed yet (pre-mint or off-chain)');
-        state.collection = data;
+        if(scanId === state.scanId) state.collection = data;
         return { address: data.contract, chainKey: OPENSEA_CHAIN_TO_KEY[data.chain] || null, chainName: data.chain, name: data.name, source:'opensea' };
       }
       state.workerOutdated = true;
@@ -2778,7 +2788,7 @@
       const contract = (data.contracts || [])[0];
       if(!contract) throw new Error('Collection found but has no on-chain contract listed yet (pre-mint or off-chain)');
       const chainKey = OPENSEA_CHAIN_TO_KEY[contract.chain] || null;
-      state.collection = { outdatedWorker: !!state.workerOutdated, slug, name: data.name || slug, image: data.image_url, banner: data.banner_image_url, chain: contract.chain,
+      if(scanId === state.scanId) state.collection = { outdatedWorker: !!state.workerOutdated, slug, name: data.name || slug, image: data.image_url, banner: data.banner_image_url, chain: contract.chain,
         contract: contract.address, supply: Number(data.total_supply) || null, openseaUrl: data.opensea_url, stats: {}, items: [], drop: null };
       return { address: contract.address, chainKey, chainName: contract.chain, name: data.name || slug, source:'opensea' };
     }catch(e){
@@ -2890,21 +2900,27 @@
     return null;
   }
 
-  async function runScanSequence(input){
+  async function runScanSequence(input, opts){
+    // A new link replaces everything from the last one, so nothing of it can show or be fired.
+    const scanId = ++state.scanId;
+    const stale = () => scanId !== state.scanId;
+    clearLoadedTarget();
     $('scanCard').style.display = 'block';
     ['scanStep1','scanStep2','scanStep3'].forEach(id => setScanStep(id, 'reset'));
     setScanStep('scanStep1', 'active'); setScanText('scanStep1', 'Scanning page for contract');
 
-    stopCollectionRefresh();
     await probeRpcs();
-    state.collection = null; state.targetChainUnsupported = null; state.workerOutdated = false;
-    $('collectionCard').setAttribute('hidden', '');
+    if(stale()) return;
+    state.workerOutdated = false;
     const result = await tryResolveAddressFromInput(input.trim());
+    if(stale()) return;
 
     if(result && result.address){
+      rememberLoadedLink(input.trim());
       let chainNote = '';
       if(!result.chainKey && !result.chainName){
         const found = await detectChainFor(result.address);
+        if(stale()) return;
         if(found) result.chainKey = found;
       }
       if(result.chainKey && result.chainKey !== state.chain){
@@ -2943,8 +2959,12 @@
       return ws.length === 1 ? `${names[0]} ${ws[0].address.slice(0,6)}...${ws[0].address.slice(-4)}` : `${ws.length} wallets (${names.join(', ')})`;
     };
     if(loaded.length){ setScanStep('scanStep2', 'done'); setScanText('scanStep2', `Using ${walletSummary(loaded)}`); }
-    else {
+    else if(opts && opts.restoring){
+      // Reopening the page shouldn't pop a wallet window by itself.
+      setScanStep('scanStep2', 'warn'); setScanText('scanStep2', 'No wallet loaded — connect or import one on the Wallets page');
+    } else {
       const { added, error: connErr } = await connectInjectedWallet();
+      if(stale()) return;
       if(added.length || mintWallets().length){ setScanStep('scanStep2', 'done'); setScanText('scanStep2', `Connected ${walletSummary(mintWallets())}`); }
       else { setScanStep('scanStep2', 'warn'); setScanText('scanStep2', connErr ? connErr : 'No wallet loaded — connect or import one on the Wallets page'); }
     }
@@ -2961,13 +2981,17 @@
     }
     if(result && result.address){
       if(canFetchAbi()) await autoFetchAbi(result.address);
+      if(stale()) return;
       seadropFound = await tryAutoDetectSeaDropPhase(result.address);
+      if(stale()) return;
     }
     // An allowlist stage live right now can only be minted through OpenSea (it holds the proofs),
     // so pick that; otherwise offer it next to the direct SeaDrop call.
     const live = activeStage();
     const presaleLive = !!(live && live.type && live.type !== 'public_sale');
-    const viaOpenSea = result && result.address && addOpenSeaCandidate(presaleLive || (!seadropFound && !state.fn));
+    // An OpenSea drop with no direct SeaDrop stage mints through OpenSea too, not through whatever
+    // function the contract's ABI happened to list (those are often admin calls needing inputs).
+    const viaOpenSea = result && result.address && addOpenSeaCandidate(presaleLive || !seadropFound);
     if(viaOpenSea && presaleLive){
       if(live.price != null) $('mintValue').value = String(live.price);
       $('phaseCardTitle').textContent = String(live.name).toUpperCase();
@@ -3001,13 +3025,15 @@
     try{
       const seadrop = new ethers.Contract(SEADROP_ADDRESS, SEADROP_ABI, getProvider());
       const drop = await withTimeout(seadrop.getPublicDrop(nftContract), SCAN_READ_MS);
+      if($('contractAddr').value.trim() !== nftContract) return false; // a newer link took over
       if(drop.startTime === 0n && drop.mintPrice === 0n) return false; // not a SeaDrop collection / no public stage configured
       const price = ethers.formatEther(drop.mintPrice);
       const startISO = toLocalInputValue(new Date(Number(drop.startTime) * 1000));
       // OpenSea's stage list already has this public stage (with its real name) — don't list it twice.
-      if(!state.phases.some(p => p.stageType === 'public_sale')){
+      const endMs = Number(drop.endTime) * 1000;
+      if(!state.phases.some(p => p.stageType === 'public_sale') && !(endMs && Date.now() >= endMs)){
         const existingIdx = state.phases.findIndex(p => p.name === 'PUBLIC');
-        const phase = { name: 'PUBLIC', price, start: startISO, stageType: 'public_sale', fromSeaDrop: true };
+        const phase = { name: 'PUBLIC', price, start: startISO, end: endMs || null, stageType: 'public_sale', fromSeaDrop: true };
         if(existingIdx >= 0) state.phases[existingIdx] = phase; else state.phases.push(phase);
         renderPhases();
       }
@@ -3047,18 +3073,37 @@
   $('topSearch').addEventListener('keydown', (e) => {
     if(e.key === 'Enter') $('topSearchGo').click();
   });
+  function syncSearchClear(){ $('topSearchClear').hidden = !$('topSearch').value; }
+  $('topSearch').addEventListener('input', syncSearchClear);
+  $('topSearchClear').onclick = () => { resetTarget(); $('topSearch').focus(); };
+
+  // The last link that loaded comes back after a reload. It only shows the collection again;
+  // arming is still up to the user.
+  const LOADED_LINK_KEY = 'fuse.loadedLink';
+  function rememberLoadedLink(link){
+    try{ if(link) localStorage.setItem(LOADED_LINK_KEY, link); else localStorage.removeItem(LOADED_LINK_KEY); }catch(e){}
+  }
 
   $('scanCardClose').onclick = () => resetTarget();
 
   function resetTarget(){
+    state.scanId++; // a scan still running must not fill the page back in
+    clearLoadedTarget();
+    rememberLoadedLink(null);
+    $('scanCard').style.display = 'none';
+    $('topSearch').value = '';
+    syncSearchClear();
+  }
+
+  function clearLoadedTarget(){
     stopSchedule();
+    releaseFreezeLock();
     stopCollectionRefresh();
     state.collection = null; state.targetChainUnsupported = null;
     $('collectionCard').setAttribute('hidden', '');
-    state.abi = null; state.fn = null; state.mintTo = null; state.args = {}; state.armed = false; state.phases = [];
+    state.abi = null; state.fn = null; state.mintTo = null; state.mintVia = null; state.args = {}; state.armed = false; state.phases = [];
+    state.eligibility = null;
 
-    $('scanCard').style.display = 'none';
-    $('topSearch').value = '';
     $('targetCard').setAttribute('hidden','');
     $('phasesCard').setAttribute('hidden','');
 
@@ -3181,8 +3226,9 @@
       // The on-chain SeaDrop check may have added a generic "PUBLIC" first; OpenSea's named one replaces it.
       if(c.drop.stages.some(st => st.type === 'public_sale')) state.phases = state.phases.filter(p => !p.fromSeaDrop);
       c.drop.stages.slice().sort((a, b) => (Date.parse(a.start) || 0) - (Date.parse(b.start) || 0)).forEach(st => {
-        if(!st.start || state.phases.some(p => p.name === st.name)) return;
-        state.phases.push({ name: st.name, price: String(st.price ?? 0), start: toLocalInputValue(new Date(st.start)), stageId: st.id, stageType: st.type });
+        const end = st.end ? Date.parse(st.end) : null;
+        if(!st.start || state.phases.some(p => p.name === st.name) || (end && Date.now() >= end)) return;
+        state.phases.push({ name: st.name, price: String(st.price ?? 0), start: toLocalInputValue(new Date(st.start)), end, stageId: st.id, stageType: st.type });
       });
       renderPhases();
     }
@@ -3548,7 +3594,8 @@
         if(e.target.closest('.wallet-x')) return;
         const p = state.phases[+card.dataset.arm];
         $('mintValue').value = p.price;
-        $('scheduleTime').value = p.start || '';
+        // A phase that's already live has nothing to wait for: arm it for a manual fire.
+        $('scheduleTime').value = p.start && new Date(p.start).getTime() > Date.now() ? p.start : '';
         $('phaseCardTitle').textContent = p.name.toUpperCase();
         checkReadiness();
         if(!$('armBtn').disabled) $('armBtn').click();
@@ -3561,6 +3608,11 @@
   }
 
   setInterval(() => {
+    // A phase that has ended can't be minted any more, so it leaves the list.
+    if(state.phases.some(p => p.end && Date.now() >= p.end)){
+      state.phases = state.phases.filter(p => !(p.end && Date.now() >= p.end));
+      renderPhases();
+    }
     document.querySelectorAll('[data-countdown]').forEach(el => {
       const p = state.phases[+el.dataset.countdown];
       if(p) el.textContent = phaseCountdownText(p.start);
@@ -4010,6 +4062,16 @@ onmessage = (e) => {
   setInterval(pollGas, 12000);
   $('rpcUrl').addEventListener('change', pollGas);
   $('rpcUrl').addEventListener('input', () => { if(state.armed) disarm(); }); // armed against the old RPC's chain check
+
+  (async function restoreLoadedLink(){
+    let link = null;
+    try{ link = localStorage.getItem(LOADED_LINK_KEY); }catch(e){}
+    if(!link || !looksScannable(link) || $('topSearch').value.trim()) return;
+    $('topSearch').value = link;
+    syncSearchClear();
+    await walletsRestoring; // so the scan and the eligibility check see the wallets
+    if($('topSearch').value.trim() === link && !state.scanId) runScanSequence(link, { restoring:true });
+  })();
 })();
 </script>
 </body>
