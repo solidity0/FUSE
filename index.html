@@ -459,6 +459,12 @@
   .phase-countdown-badge{ font-family:var(--mono); font-size:10px; color:var(--accent-text); background:var(--accent-dim); padding:2px 8px; }
   .phase-list-name{ font-weight:700; font-size:13px; }
   .gas-row b{ color:var(--text); margin-left:auto; }
+
+  /* iOS Safari zooms the page when a focused field's text is under 16px. Sizing the fields up
+     stops that and leaves pinch-to-zoom working. !important beats the fields' inline sizes. */
+  @media (max-width:880px), (pointer:coarse){
+    input:not([type=checkbox]):not([type=radio]):not([type=range]), select, textarea{ font-size:16px !important; }
+  }
 </style>
 </head>
 <body>
