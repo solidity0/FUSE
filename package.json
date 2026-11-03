@@ -4,7 +4,8 @@
   "private": true,
   "description": "FUSE proxy Cloudflare Worker",
   "scripts": {
-    "dev": "wrangler dev"
+    "dev": "wrangler dev",
+    "csp": "node scripts/csp-hash.mjs"
   },
   "devDependencies": {
     "wrangler": "4.150.0"
