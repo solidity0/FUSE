@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-sXs3GXVX/d8QtZRffy4gej/da79T9bjdX4smvimbR7I=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-He3b8Dw6bbAk9v/k3jBsD1Ly1ttZxeXqpTPQMq48dno=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -876,8 +876,8 @@
         <div class="section-title"><span class="dot"></span>Chain &amp; connection</div>
         <div class="field">
           <label>Chain</label>
-          <div id="chainGrid" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; max-width:420px;"></div>
-          <div class="hint">Ethereum, Robinhood Chain, and the Sepolia testnet — get free test ETH from a Sepolia faucet to try mints and disperse without spending real funds. Pasting an OpenSea link switches to the collection's chain automatically. Each chain keeps its own RPC URL below.</div>
+          <div id="chainGrid" style="display:grid; grid-template-columns:1fr 1fr; gap:8px; max-width:420px;"></div>
+          <div class="hint">Ethereum and Robinhood Chain. Pasting an OpenSea link switches to the collection's chain automatically. Each chain keeps its own RPC URL below.</div>
         </div>
         <div class="field">
           <label id="rpcLabel">Custom RPC URL (strongly recommended)</label>
@@ -1043,7 +1043,7 @@
     sepolia:  { id:11155111, name:'Sepolia', label:'Sepolia testnet', testnet:true, nativeSymbol:'ETH', cgId:null, openseaChain:'sepolia', color:'#E8A13A', icon:'S', explorerApi:'https://api.etherscan.io/v2/api', defaultRpc:'https://ethereum-sepolia-rpc.publicnode.com', blockscoutFallback:'https://eth-sepolia.blockscout.com/api', tx:'https://sepolia.etherscan.io/tx/', addr:'https://sepolia.etherscan.io/address/' },
   };
   const OPENSEA_CHAIN_TO_KEY = Object.fromEntries(Object.entries(CHAINS).flatMap(([k,c]) => [c.openseaChain, ...(c.openseaAliases || [])].map(slug => [slug, k])));
-  const ACTIVE_CHAINS = ['ethereum', 'robinhood', 'sepolia']; // chains FUSE can mint on — add keys here to enable more
+  const ACTIVE_CHAINS = ['ethereum', 'robinhood']; // chains FUSE can mint on — add keys here to enable more (e.g. 'sepolia')
   const chainLabel = key => { const c = CHAINS[key]; return c.label || (key === 'ethereum' ? 'Ethereum' : c.name + ' Chain'); };
   const supportedChainsText = () => {
     const names = ACTIVE_CHAINS.map(chainLabel);
