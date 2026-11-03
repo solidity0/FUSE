@@ -1,12 +1,22 @@
 # Deploy the FUSE proxy worker:  npx wrangler deploy
 # Then set secrets (never commit them):
 #   npx wrangler secret put OPENSEA_API_KEY
-#   npx wrangler secret put ETHERSCAN_API_KEY   # optional, enables ?abi=
+#   npx wrangler secret put ETHERSCAN_API_KEY   # optional — without it, ABIs come from Blockscout
+# For `npx wrangler dev`, put the same keys in a .dev.vars file next to this one (gitignored).
 name = "fuse-proxy"
 main = "worker.js"
 compatibility_date = "2026-09-01"
 
 [vars]
 # Comma-separated origins allowed to use this worker ("null" = FUSE opened as a local file).
-# Leave empty to allow any origin.
-ALLOWED_ORIGINS = ""
+# Leave empty to allow any origin. `wrangler deploy` applies this value, so keep it current.
+ALLOWED_ORIGINS = "https://solidity0.github.io,null"
+
+# Per-IP cap on the OpenSea / ABI / page-scan endpoints (not the RPC relay). FUSE polls a
+# collection every 15s, so 300 a minute is far above normal use but stops quota draining.
+[[ratelimits]]
+name = "LIMITER"
+namespace_id = "1001"
+  [ratelimits.simple]
+  limit = 300
+  period = 60
