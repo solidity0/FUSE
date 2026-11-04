@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-b5jBig8HlxY3yxT+iypJDXZnyF8io4ZGWUZFNpUqBrA=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-pK+doGe73AGOKi2Lnnvyn1tNNhCV7UH1lu3rKn64O1I=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -396,6 +396,13 @@
   .external-addr-chip{ display:inline-flex; align-items:center; gap:6px; background:var(--surface-raised); border:1px solid var(--border); padding:4px 8px; font-family:var(--mono); font-size:11px; margin:0 6px 6px 0; }
   .external-addr-chip button{ background:none; color:var(--text-dim); padding:0; font-size:12px; }
 
+  .notice{ position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:200; width:max-content; max-width:min(480px, calc(100vw - 32px)); display:flex; align-items:flex-start; gap:12px; background:var(--surface-raised); border:1px solid var(--pending); padding:10px 12px; font-size:12.5px; line-height:1.45; color:var(--text); }
+  .notice[hidden]{ display:none; }
+  .notice span{ flex:1; }
+  .notice button{ background:none; color:var(--text-dim); padding:0; font-size:12px; flex:none; }
+  .nw-row{ padding:10px 0; border-top:1px solid var(--border-soft); }
+  .nw-row .field{ margin-bottom:8px; }
+  .nw-row .field:last-child{ margin-bottom:0; }
   .modal-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:100; display:flex; align-items:center; justify-content:center; }
   .wallet-pick-btn{ display:flex; align-items:center; gap:10px; width:100%; padding:10px 12px; margin-bottom:6px; background:var(--surface-raised); border:1px solid var(--border); color:var(--text); font-size:13px; font-weight:600; text-align:left; }
   .wallet-pick-btn:hover{ border-color:var(--accent); }
@@ -987,31 +994,41 @@
   </div>
 </div>
 
+<div class="notice" id="notice" role="alert" hidden><span id="noticeText"></span><button type="button" id="noticeClose" title="Dismiss">✕</button></div>
+
+<div class="modal-overlay" id="createWalletsModal" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title">Create wallets</div>
+      <button class="modal-x" id="cwClose">✕</button>
+    </div>
+    <div class="field">
+      <label>Count</label>
+      <div class="qty-stepper">
+        <button class="qty-btn" id="cwMinus" type="button">−</button>
+        <input type="text" inputmode="numeric" id="cwCount" class="qty-input" value="1">
+        <button class="qty-btn" id="cwPlus" type="button">+</button>
+        <button class="btn btn-secondary" id="cwMax" type="button">MAX</button>
+      </div>
+      <div class="hint">Up to 10 at a time.</div>
+    </div>
+    <button class="btn btn-primary" id="cwCreate" style="width:100%;">Create</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="newWalletModal" style="display:none;">
   <div class="modal-box">
     <div class="modal-head">
-      <div class="modal-title">New Wallet Generated</div>
+      <div class="modal-title" id="nwTitle">New Wallet Generated</div>
     </div>
 
     <div class="security-note" style="margin-bottom:14px;">⚠ This is shown once. It is not saved anywhere — if you navigate away or refresh without copying it, it's gone for good.</div>
 
-    <div class="field">
-      <label>Address</label>
-      <div style="display:flex; gap:8px;">
-        <input type="text" id="nwAddress" readonly style="flex:1;">
-        <button class="btn btn-secondary" id="nwCopyAddr">Copy</button>
-      </div>
-    </div>
-    <div class="field">
-      <label>Private key</label>
-      <div style="display:flex; gap:8px;">
-        <input type="text" id="nwPrivateKey" readonly style="flex:1;">
-        <button class="btn btn-secondary" id="nwCopyKey">Copy</button>
-      </div>
-    </div>
+    <div id="nwList"></div>
+    <button class="btn btn-secondary" id="nwCopyAll" style="width:100%;" hidden>Copy all (address, private key)</button>
 
     <label style="display:flex; align-items:center; gap:8px; margin:14px 0; font-size:12px; color:var(--text-mid);">
-      <input type="checkbox" id="nwConfirmSaved"> I've copied and saved this private key somewhere safe
+      <input type="checkbox" id="nwConfirmSaved"> <span id="nwConfirmText">I've copied and saved this private key somewhere safe</span>
     </label>
 
     <button class="btn btn-primary" id="nwDone" style="width:100%;" disabled>Done</button>
@@ -1152,6 +1169,16 @@
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   // Non-secret connection settings survive a reload. Private keys are never stored.
+  // A message inside the page. It never blocks anything and goes away by itself.
+  let noticeTimer = null;
+  function notify(text){
+    $('noticeText').textContent = text;
+    $('notice').hidden = false;
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => { $('notice').hidden = true; }, 8000);
+  }
+  $('noticeClose').onclick = () => { clearTimeout(noticeTimer); $('notice').hidden = true; };
+
   const SETTINGS_KEY = 'fuse.settings.v1';
   const PERSISTED_FIELDS = ['rpcUrl', 'apiKey', 'openseaProxyUrl', 'openseaKey'];
   const KEY_FIELDS = ['apiKey', 'openseaProxyUrl', 'openseaKey'];
@@ -1253,7 +1280,7 @@
     const btn = $('saveSettings');
     if(btn.disabled) return;
     const stored = saveSettings();
-    relayStatus.clear(); publicRpcStatus.clear(); await probeRpcs();
+    ownProxyDown = false; relayStatus.clear(); publicRpcStatus.clear(); await probeRpcs();
     showSaveState(stored ? 'Saved ✓ — checking connections…' : 'Couldn\'t save (browser storage is blocked) — settings apply until you reload');
     btn.disabled = true;
     const box = $('settingsChecks');
@@ -1275,8 +1302,13 @@
   // The FUSE worker this site ships with, so FUSE works on any device (yours or a friend's) with
   // nothing to set up. A URL typed in Settings overrides it — e.g. a worker of your own.
   const DEFAULT_PROXY_URL = 'https://fuse-proxy.fuse-proxy.workers.dev';
-  function proxyBase(){ return ($('openseaProxyUrl').value.trim() || DEFAULT_PROXY_URL).replace(/\/$/, ''); }
-  const usingDefaultProxy = () => !$('openseaProxyUrl').value.trim();
+  // Set when your own worker doesn't answer: until the next Save, the built-in one takes over.
+  let ownProxyDown = false;
+  function proxyBase(){ return ((!ownProxyDown && $('openseaProxyUrl').value.trim()) || DEFAULT_PROXY_URL).replace(/\/$/, ''); }
+  const usingDefaultProxy = () => ownProxyDown || !$('openseaProxyUrl').value.trim();
+  const proxyIsLocal = () => /^http:\/\/(127\.0\.0\.1|localhost)/i.test(proxyBase());
+  // The built-in worker saved as if it were your own is the same as leaving the box empty.
+  if($('openseaProxyUrl').value.trim().replace(/\/$/, '') === DEFAULT_PROXY_URL){ $('openseaProxyUrl').value = ''; saveSettings(); }
 
   document.querySelectorAll('[data-page]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1788,7 +1820,7 @@
   $('walletSearch').addEventListener('input', renderWallets);
   $('walletSecurityLink').addEventListener('click', (e) => {
     e.preventDefault();
-    alert('Keys you import or generate here stay in this browser tab\'s memory only. Nothing is written to disk or sent anywhere except the RPC you configure in Settings. Refreshing or closing the tab clears them — use a dedicated mint wallet, not your main one.');
+    notify('Keys you import or generate here stay in this browser tab\'s memory only. Nothing is written to disk or sent anywhere except the RPC you configure in Settings. Refreshing or closing the tab clears them — use a dedicated mint wallet, not your main one.');
   });
   $('selectAllWallets').addEventListener('change', e => {
     // Applies to the rows currently shown (respects the search box).
@@ -1870,25 +1902,68 @@
     if(dupes.length) notes.push(`${dupes.length} already loaded (${dupes.join(', ')})`);
     if(bad.length) notes.push(`${bad.length} not a valid private key (${bad.join(', ')})`);
     if(!added.length){
-      alert(notes.length ? 'Nothing imported — ' + notes.join('; ') + '.' : 'No private keys entered.');
+      notify(notes.length ? 'Nothing imported — ' + notes.join('; ') + '.' : 'No private keys entered.');
       return;
     }
     $('importWalletsModal').style.display = 'none';
     $('pkInput').value = '';
     afterWalletsChanged();
     loadBalances(added);
-    if(notes.length) alert(`Imported ${added.length} wallet(s). Skipped ${notes.join('; ')}.`);
+    if(notes.length) notify(`Imported ${added.length} wallet(s). Skipped ${notes.join('; ')}.`);
   };
 
-  $('genWallet').onclick = () => {
-    const w = ethers.Wallet.createRandom();
-    const entry = addKeyWallet(w.privateKey);
+  const MAX_NEW_WALLETS = 10;
+  const setCreateCount = (n) => { $('cwCount').value = Math.min(MAX_NEW_WALLETS, Math.max(1, n || 1)); };
+  $('genWallet').onclick = () => { setCreateCount(1); $('createWalletsModal').style.display = 'flex'; };
+  $('cwClose').onclick = () => { $('createWalletsModal').style.display = 'none'; };
+  $('cwMinus').onclick = () => setCreateCount((parseInt($('cwCount').value) || 1) - 1);
+  $('cwPlus').onclick = () => setCreateCount((parseInt($('cwCount').value) || 0) + 1);
+  $('cwMax').onclick = () => setCreateCount(MAX_NEW_WALLETS);
+  // The box may be empty while typing; anything above the limit comes straight back to it.
+  $('cwCount').addEventListener('input', () => {
+    const digits = $('cwCount').value.replace(/\D/g, '');
+    $('cwCount').value = digits && Math.min(MAX_NEW_WALLETS, parseInt(digits) || 1);
+  });
+
+  function newWalletField(label, value){
+    const field = document.createElement('div');
+    field.className = 'field';
+    const name = document.createElement('label');
+    name.textContent = label;
+    const line = document.createElement('div');
+    line.style.cssText = 'display:flex; gap:8px;';
+    const input = document.createElement('input');
+    input.type = 'text'; input.readOnly = true; input.value = value; input.style.flex = '1';
+    const copy = document.createElement('button');
+    copy.className = 'btn btn-secondary'; copy.textContent = 'Copy';
+    copy.onclick = () => copyToClipboard(value, copy);
+    line.append(input, copy);
+    field.append(name, line);
+    return field;
+  }
+
+  let newWalletsShown = [];
+  $('cwCreate').onclick = () => {
+    setCreateCount(parseInt($('cwCount').value));
+    const count = parseInt($('cwCount').value);
+    newWalletsShown = Array.from({ length: count }, () => ethers.Wallet.createRandom());
+    const entries = newWalletsShown.map(w => addKeyWallet(w.privateKey));
     afterWalletsChanged();
-    loadBalances([entry]);
-    $('nwAddress').value = w.address;
-    $('nwPrivateKey').value = w.privateKey;
+    loadBalances(entries);
+    const list = $('nwList');
+    list.innerHTML = '';
+    newWalletsShown.forEach((w, i) => {
+      const row = document.createElement('div');
+      row.className = 'nw-row';
+      row.append(newWalletField(count > 1 ? `Wallet ${i + 1} address` : 'Address', w.address), newWalletField('Private key', w.privateKey));
+      list.appendChild(row);
+    });
+    $('nwTitle').textContent = count > 1 ? `${count} New Wallets Generated` : 'New Wallet Generated';
+    $('nwConfirmText').textContent = count > 1 ? `I've copied and saved these ${count} private keys somewhere safe` : 'I\'ve copied and saved this private key somewhere safe';
+    $('nwCopyAll').hidden = count < 2;
     $('nwConfirmSaved').checked = false;
     $('nwDone').disabled = true;
+    $('createWalletsModal').style.display = 'none';
     $('newWalletModal').style.display = 'flex';
   };
 
@@ -1913,10 +1988,13 @@
     else fallbackCopy(w.address, flash);
   };
 
-  $('nwCopyAddr').onclick = () => copyToClipboard($('nwAddress').value, $('nwCopyAddr'));
-  $('nwCopyKey').onclick = () => copyToClipboard($('nwPrivateKey').value, $('nwCopyKey'));
+  $('nwCopyAll').onclick = () => copyToClipboard(newWalletsShown.map(w => `${w.address},${w.privateKey}`).join('\n'), $('nwCopyAll'));
   $('nwConfirmSaved').addEventListener('change', e => { $('nwDone').disabled = !e.target.checked; });
-  $('nwDone').onclick = () => { $('newWalletModal').style.display = 'none'; };
+  $('nwDone').onclick = () => {
+    $('newWalletModal').style.display = 'none';
+    $('nwList').innerHTML = '';
+    newWalletsShown = [];
+  };
 
   $('clearWallets').onclick = () => {
     if(!state.wallets.length) return;
@@ -2091,11 +2169,23 @@
     });
   }
 
-  $('disperseAddExternal').onclick = () => {
+  // Moves the address in the box to the recipients. False only if the box holds something invalid.
+  // isAddress also catches a mistyped mixed-case address by its checksum.
+  function takeTypedExternal(){
     const v = $('disperseExternalAddr').value.trim();
-    if(/^0x[a-fA-F0-9]{40}$/.test(v)){ disperseExternal.push(v); $('disperseExternalAddr').value = ''; renderExternalList(); }
-    else alert('Enter a valid 0x address.');
+    if(!v) return true;
+    if(!/^0x[a-fA-F0-9]{40}$/.test(v) || !ethers.isAddress(v)) return false;
+    if(!disperseExternal.some(a => a.toLowerCase() === v.toLowerCase())) disperseExternal.push(v);
+    $('disperseExternalAddr').value = '';
+    renderExternalList();
+    return true;
+  }
+  $('disperseAddExternal').onclick = () => {
+    if(!$('disperseExternalAddr').value.trim() || !takeTypedExternal()) notify('Enter a valid 0x address.');
   };
+  $('disperseExternalAddr').addEventListener('input', () => {
+    if(ethers.isAddress($('disperseExternalAddr').value.trim())) takeTypedExternal();
+  });
   $('disperseExternalAddr').addEventListener('keydown', (e) => {
     if(e.key === 'Enter') $('disperseAddExternal').click();
   });
@@ -2121,15 +2211,15 @@
 
   $('disperseTokenSearch').onclick = async () => {
     const addr = $('disperseTokenAddr').value.trim();
-    if(!/^0x[a-fA-F0-9]{40}$/.test(addr)){ alert('Enter a valid token contract address first.'); return; }
+    if(!/^0x[a-fA-F0-9]{40}$/.test(addr)){ notify('Enter a valid token contract address first.'); return; }
     try{
       const iface = new ethers.Interface(['function symbol() view returns (string)', 'function name() view returns (string)']);
       const contract = new ethers.Contract(addr, iface, getProvider());
       const [symbol, name] = await Promise.all([contract.symbol().catch(()=>'?'), contract.name().catch(()=>'Unknown token')]);
       setErc20Mode(true);
       updateDisperseMaxHint();
-      alert(`Found: ${name} (${symbol})`);
-    }catch(e){ alert('Could not read this contract — check the address and chain.'); }
+      notify(`Found: ${name} (${symbol})`);
+    }catch(e){ notify('Could not read this contract — check the address and chain.'); }
   };
   $('disperseTokenAddr').addEventListener('keydown', (e) => {
     if(e.key === 'Enter') $('disperseTokenSearch').click();
@@ -2206,8 +2296,8 @@
 
   $('disperseMaxBtn').onclick = async () => {
     const senderIdx = getCheckedIndices('sender-check');
-    if(!senderIdx.length){ alert('Check at least one sender first.'); return; }
-    if($('disperseErc20Toggle').checked){ alert('MAX auto-fill is native-ETH only for now — enter a token amount manually.'); return; }
+    if(!senderIdx.length){ notify('Check at least one sender first.'); return; }
+    if($('disperseErc20Toggle').checked){ notify('MAX auto-fill is native-ETH only for now — enter a token amount manually.'); return; }
     const provider = getProvider();
     let total = 0;
     for(const i of senderIdx){
@@ -2215,6 +2305,7 @@
     }
     const buffer = 0.0015 * senderIdx.length; // rough gas buffer
     const usable = Math.max(0, total - buffer);
+    takeTypedExternal();
     const recipCount = getCheckedIndices('recipient-check').length + disperseExternal.length || 1;
     const isFlat = $('disperseMode').value === 'flat';
     const val = isFlat ? usable / recipCount : usable;
@@ -2231,22 +2322,31 @@
     updateDisperseMaxHint();
   }
 
+  let dispersing = false; // a double click must not send everything twice
   $('disperseGo').onclick = async () => {
+    if(dispersing) return;
+    dispersing = true;
+    try{ await runDisperse(); }
+    finally{ dispersing = false; }
+  };
+  async function runDisperse(){
     const senderIdx = getCheckedIndices('sender-check');
     const recipIdx = getCheckedIndices('recipient-check');
-    const recipients = [...recipIdx.map(i => state.wallets[i].address), ...disperseExternal];
-    if(!senderIdx.length){ alert('Check at least one sender.'); return; }
-    if(!recipients.length){ alert('Check at least one recipient or add an external address.'); return; }
+    if(!takeTypedExternal()){ notify('That external address isn\'t valid — check it, or clear the box.'); return; }
+    // One payment per address, even if it's both ticked and pasted.
+    const recipients = [...new Map([...recipIdx.map(i => state.wallets[i].address), ...disperseExternal].map(a => [a.toLowerCase(), a])).values()];
+    if(!senderIdx.length){ notify('Check at least one sender.'); return; }
+    if(!recipients.length){ notify('Check at least one recipient or add an external address.'); return; }
     const amountStr = $('disperseAmount').value.trim();
     const amount = parseFloat(amountStr) || 0;
-    if(amount <= 0){ alert('Enter an amount above 0.'); return; }
+    if(amount <= 0){ notify('Enter an amount above 0.'); return; }
     const isFlat = $('disperseMode').value === 'flat';
     const isErc20 = $('disperseErc20Toggle').checked;
     const tokenAddr = $('disperseTokenAddr').value.trim();
-    if(isErc20 && !/^0x[a-fA-F0-9]{40}$/.test(tokenAddr)){ alert('Enter a valid ERC20 token contract address.'); return; }
-    if(disperseUsdMode() && !state.priceUsd){ alert('USD price is unavailable right now — switch to ETH to enter the amount directly.'); return; }
+    if(isErc20 && !/^0x[a-fA-F0-9]{40}$/.test(tokenAddr)){ notify('Enter a valid ERC20 token contract address.'); return; }
+    if(disperseUsdMode() && !state.priceUsd){ notify('USD price is unavailable right now — switch to ETH to enter the amount directly.'); return; }
 
-    try{ await probeRpcs(); await verifyChain(); }catch(e){ alert('Can\'t send — ' + e.message); return; }
+    try{ await probeRpcs(); await verifyChain(); }catch(e){ notify('Can\'t send — ' + e.message); return; }
     const provider = getProvider();
     const chainId = CHAINS[state.chain].id;
     const log = $('disperseLog');
@@ -2264,9 +2364,9 @@
       if(isErc20) totalUnits = ethers.parseUnits(amountStr, decimals);
       else if(disperseUsdMode()) totalUnits = ethers.parseEther((amount / state.priceUsd).toFixed(18));
       else totalUnits = ethers.parseEther(amountStr);
-    }catch(e){ alert('Could not read that amount — use a plain number like 0.05.'); return; }
+    }catch(e){ notify('Could not read that amount — use a plain number like 0.05.'); return; }
     const perUnits = isFlat ? totalUnits : totalUnits / BigInt(recipients.length);
-    if(perUnits <= 0n){ alert('Amount per recipient rounds to zero.'); return; }
+    if(perUnits <= 0n){ notify('Amount per recipient rounds to zero.'); return; }
     const perLabel = `${ethers.formatUnits(perUnits, isErc20 ? decimals : 18)} ${isErc20 ? 'tokens' : CHAINS[state.chain].nativeSymbol}`;
 
     for(let idx = 0; idx < recipients.length; idx++){
@@ -2297,7 +2397,7 @@
         rowDiv.textContent = `${sender.address.slice(0,6)}... → ${addr.slice(0,6)}...${addr.slice(-4)} : failed (${(e.shortMessage||e.message||'error').slice(0,40)})`;
       }
     }
-  };
+  }
 
   $('pasteAbi').onclick = () => { $('abiPasteWrap').style.display = $('abiPasteWrap').style.display === 'none' ? 'block' : 'none'; };
 
@@ -2307,7 +2407,7 @@
       const addr = $('contractAddr').value.trim();
       if(addr) updateTargetHeader(addr); else { $('targetCard').removeAttribute('hidden'); $('phasesCard').removeAttribute('hidden'); }
     }
-    catch(e){ alert('Could not parse ABI JSON: ' + e.message); }
+    catch(e){ notify('Could not parse ABI JSON: ' + e.message); }
   };
 
   // Blockscout speaks Etherscan's getabi format and needs no key, so chains with a Blockscout
@@ -2373,8 +2473,8 @@
 
   $('fetchAbi').onclick = async () => {
     const addr = $('contractAddr').value.trim();
-    if(!addr){ alert('Enter a contract address first.'); return; }
-    if(!canFetchAbi()){ alert('Add an Etherscan API key or an OpenSea proxy URL in Settings, or use "Paste ABI instead".'); return; }
+    if(!addr){ notify('Enter a contract address first.'); return; }
+    if(!canFetchAbi()){ notify('Add an Etherscan API key or an OpenSea proxy URL in Settings, or use "Paste ABI instead".'); return; }
     $('fetchAbi').textContent = 'Fetching…'; $('fetchAbi').disabled = true;
     try{
       loadAbi(await fetchAbiWithImplementation(addr));
@@ -2761,16 +2861,17 @@
     return new ethers.Wallet(w.pk, provider);
   }
 
-  // Mobile connections drop requests now and then, so a lookup gets a few tries, each time-limited.
+  // Mobile connections drop requests now and then, and a computer waking from sleep takes a few
+  // seconds to get back online, so a lookup gets a few spaced-out tries, each time-limited.
   async function fetchWorker(url){
     let lastErr;
-    for(let i = 0; i < 3; i++){
+    for(let i = 0; i < 5; i++){
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), 12000);
       try{ return await fetch(url, { signal: ctl.signal }); }
       catch(e){ lastErr = e; }
       finally{ clearTimeout(timer); }
-      if(i < 2) await pauseFor(1000);
+      if(i < 4) await pauseFor(1000 * (i + 1));
     }
     throw lastErr;
   }
@@ -2778,8 +2879,7 @@
   async function workerUnreachableText(e){
     const base = proxyBase();
     // The usual cause: Settings still points at a `wrangler dev` worker on this PC that has since been closed.
-    if(/^http:\/\/(127\.0\.0\.1|localhost)/i.test(base)) return `your proxy URL is a worker on this PC (${base}) and it isn't running — start it again, or put your deployed worker's https://….workers.dev URL in Settings`;
-    if(!usingDefaultProxy()) return `could not reach your proxy worker at ${base} — check the URL in Settings (Save tests it)`;
+    if(proxyIsLocal()) return `your proxy URL is a worker on this PC (${base}) and it isn't running — start it again, or put your deployed worker's https://….workers.dev URL in Settings`;
     // This site loading while the worker doesn't tells a blocked address apart from no connection.
     let online = true;
     try{ await fetch(location.href, { method:'HEAD', cache:'no-store' }); }catch(err){ online = false; }
@@ -2800,7 +2900,13 @@
     if(proxyUrl){
       let res;
       try{ res = await fetchWorker(`${proxyBase()}?collection=${encodeURIComponent(slug)}`); }
-      catch(e){ throw new Error(await workerUnreachableText(e)); }
+      catch(e){
+        if(usingDefaultProxy() || proxyIsLocal()) throw new Error(await workerUnreachableText(e));
+        notify('Your proxy worker in Settings didn\'t answer — using FUSE\'s built-in worker instead.');
+        ownProxyDown = true;
+        try{ res = await fetchWorker(`${proxyBase()}?collection=${encodeURIComponent(slug)}`); }
+        catch(err){ throw new Error(await workerUnreachableText(err)); }
+      }
       const data = await res.json().catch(() => ({}));
       if(res.status === 401 || res.status === 403) throw new Error(data.error === 'origin not allowed'
         ? 'your proxy worker refused this site — add it to ALLOWED_ORIGINS'
@@ -3095,7 +3201,7 @@
 
   $('autoDetectPhases').onclick = async () => {
     const addr = $('contractAddr').value.trim();
-    if(!/^0x[a-fA-F0-9]{40}$/.test(addr)){ alert('Load a target contract first (paste a link/address above).'); return; }
+    if(!/^0x[a-fA-F0-9]{40}$/.test(addr)){ notify('Load a target contract first (paste a link/address above).'); return; }
     $('autoDetectPhases').textContent = 'Checking…'; $('autoDetectPhases').disabled = true;
     const found = await tryAutoDetectSeaDropPhase(addr);
     setDiag(found ? 'ok' : 'warn', found
@@ -3804,7 +3910,7 @@
 
   $('armBtn').onclick = async () => {
     if(state.firing) return;
-    if(!mintWallets().length || !state.fn){ alert('Tick at least one wallet and select a mint function first.'); return; }
+    if(!mintWallets().length || !state.fn){ notify('Tick at least one wallet and select a mint function first.'); return; }
     const recipient = mintRecipient();
     if(!$('mintToOtherWrap').hidden && !(ethers.isAddress(recipient) && recipient !== ethers.ZeroAddress)){
       setDiag('err', 'Can\'t arm — "Mint to" needs a valid wallet address, or switch it back to Minting wallet.');
@@ -3951,7 +4057,7 @@ onmessage = (e) => {
   $('fireBtn').onclick = () => { state.fireDeadline = null; fireAll(); };
 
   $('simulateBtn').onclick = async () => {
-    if(!mintWallets().length || !state.fn){ alert('Tick at least one wallet and select a mint function first.'); return; }
+    if(!mintWallets().length || !state.fn){ notify('Tick at least one wallet and select a mint function first.'); return; }
     setDiag('warn', 'Simulating…');
     const provider = getProvider();
     const from = mintWallets()[0].address;
