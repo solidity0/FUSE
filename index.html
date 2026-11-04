@@ -418,8 +418,11 @@
   #walletActionModal .modal-title{ text-align:center; padding:0 28px; }
   #walletActionModal .modal-x{ position:absolute; top:0; right:0; }
   #waText{ text-align:center; }
-  .select-all{ display:inline-flex; align-items:center; gap:6px; white-space:nowrap; cursor:pointer; }
-  @media (max-width:560px){ .select-all{ flex-direction:column; gap:2px; } } /* keeps the column narrow so the name boxes keep their room */
+  .select-all{ display:inline-flex; align-items:center; gap:6px; margin:0; font:inherit; color:inherit; letter-spacing:inherit; text-transform:inherit; white-space:nowrap; cursor:pointer; }
+  @media (max-width:560px){ /* All sits under its tick box so the name boxes keep their room; the other headings line up with it */
+    .select-all{ display:flex; flex-direction:column; gap:2px; }
+    #page-wallets thead th{ vertical-align:bottom; white-space:nowrap; }
+  }
   .wa-list{ max-height:190px; overflow-y:auto; margin:12px 0; border-top:1px solid var(--border-soft); }
   .wa-list div{ display:flex; justify-content:space-between; gap:12px; padding:7px 0; border-bottom:1px solid var(--border-soft); font-size:12px; }
   .wa-list span:first-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
