@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-NO1temzd14j8TbHHM4YYo3/oLTII5SZNjnQjmH9oTBk=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-cW2zMcU73vc7v3n1LQntQrXSW6ysmeEvP8XO5W+xyMM=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -2283,23 +2283,18 @@
     });
   }
 
-  // Moves the address in the box to the recipients. False only if the box holds something invalid.
+  // The address in the box counts as a recipient where it sits; the arrow only makes room for another.
   // isAddress also catches a mistyped mixed-case address by its checksum.
-  function takeTypedExternal(){
-    const v = $('disperseExternalAddr').value.trim();
-    if(!v) return true;
-    if(!/^0x[a-fA-F0-9]{40}$/.test(v) || !ethers.isAddress(v)) return false;
-    if(!disperseExternal.some(a => a.toLowerCase() === v.toLowerCase())) disperseExternal.push(v);
+  const typedExternalText = () => $('disperseExternalAddr').value.trim();
+  const typedExternalValid = () => /^0x[a-fA-F0-9]{40}$/.test(typedExternalText()) && ethers.isAddress(typedExternalText());
+  const externalRecipients = () => typedExternalValid() ? [...disperseExternal, typedExternalText()] : disperseExternal;
+  $('disperseAddExternal').onclick = () => {
+    if(!typedExternalText()){ if(!disperseExternal.length) notify('Paste an external address first.'); return; }
+    if(!typedExternalValid()){ notify('Enter a valid 0x address.'); return; }
+    if(!disperseExternal.some(a => a.toLowerCase() === typedExternalText().toLowerCase())) disperseExternal.push(typedExternalText());
     $('disperseExternalAddr').value = '';
     renderExternalList();
-    return true;
-  }
-  $('disperseAddExternal').onclick = () => {
-    if(!$('disperseExternalAddr').value.trim() || !takeTypedExternal()) notify('Enter a valid 0x address.');
   };
-  $('disperseExternalAddr').addEventListener('input', () => {
-    if(ethers.isAddress($('disperseExternalAddr').value.trim())) takeTypedExternal();
-  });
   $('disperseExternalAddr').addEventListener('keydown', (e) => {
     if(e.key === 'Enter') $('disperseAddExternal').click();
   });
@@ -2419,8 +2414,7 @@
     }
     const buffer = 0.0015 * senderIdx.length; // rough gas buffer
     const usable = Math.max(0, total - buffer);
-    takeTypedExternal();
-    const recipCount = getCheckedIndices('recipient-check').length + disperseExternal.length || 1;
+    const recipCount = new Set([...getCheckedIndices('recipient-check').map(i => state.wallets[i].address), ...externalRecipients()].map(a => a.toLowerCase())).size || 1;
     const isFlat = $('disperseMode').value === 'flat';
     const val = isFlat ? usable / recipCount : usable;
     if(disperseUsdMode() && state.priceUsd) $('disperseAmount').value = (val * state.priceUsd).toFixed(2);
@@ -2446,9 +2440,9 @@
   async function runDisperse(){
     const senderIdx = getCheckedIndices('sender-check');
     const recipIdx = getCheckedIndices('recipient-check');
-    if(!takeTypedExternal()){ notify('That external address isn\'t valid — check it, or clear the box.'); return; }
+    if(typedExternalText() && !typedExternalValid()){ notify('That external address isn\'t valid — check it, or clear the box.'); return; }
     // One payment per address, even if it's both ticked and pasted.
-    const recipients = [...new Map([...recipIdx.map(i => state.wallets[i].address), ...disperseExternal].map(a => [a.toLowerCase(), a])).values()];
+    const recipients = [...new Map([...recipIdx.map(i => state.wallets[i].address), ...externalRecipients()].map(a => [a.toLowerCase(), a])).values()];
     if(!senderIdx.length){ notify('Check at least one sender.'); return; }
     if(!recipients.length){ notify('Check at least one recipient or add an external address.'); return; }
     const amountStr = $('disperseAmount').value.trim();
