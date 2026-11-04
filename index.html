@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-cW2zMcU73vc7v3n1LQntQrXSW6ysmeEvP8XO5W+xyMM=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-4T0AxQ5IGTashM1iRTsxRnoD46d1ipaHA6oRO8SF/nE=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -2969,46 +2969,58 @@
     return new ethers.Wallet(w.pk, provider);
   }
 
-  // Mobile connections drop requests now and then, and a computer waking from sleep takes a few
-  // seconds to get back online, so a lookup gets a few spaced-out tries, each time-limited.
-  async function fetchWorker(url){
-    let lastErr;
-    for(let i = 0; i < 5; i++){
-      const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), 12000);
-      try{ return await fetch(url, { signal: ctl.signal }); }
-      catch(e){ lastErr = e; }
-      finally{ clearTimeout(timer); }
-      if(i < 4) await pauseFor(1000 * (i + 1));
-    }
-    throw lastErr;
+  // Phone hotspots and waking computers lose requests, and a mint can't wait for a long timeout. So a
+  // new try starts every 2 seconds without giving up on the earlier ones, and the first answer wins.
+  const WORKER_TRY_GAP_MS = 2000, WORKER_TRY_LIMIT_MS = 8000, WORKER_TRIES_AT_ONCE = 4;
+  const WORKER_WAIT_MS = 5 * 60000; // a link stays pending this long before FUSE reports a failure
+  function reachWorker(url, { scanId, giveUpMs, onWaiting }){
+    return new Promise((resolve, reject) => {
+      const started = Date.now();
+      const running = new Set();
+      let done = false, lastErr, tries = 0, noConnection = 0, noAnswer = 0;
+      const finish = (settle, value) => {
+        if(done) return;
+        done = true;
+        running.forEach(ctl => ctl.abort());
+        settle(value);
+      };
+      const tryOnce = () => {
+        if(running.size >= WORKER_TRIES_AT_ONCE) return;
+        tries++;
+        const ctl = new AbortController();
+        const timer = setTimeout(() => ctl.abort(), WORKER_TRY_LIMIT_MS);
+        running.add(ctl);
+        fetch(url, { signal: ctl.signal })
+          .then(res => { running.delete(ctl); finish(resolve, res); })
+          .catch(e => {
+            running.delete(ctl);
+            lastErr = e;
+            if(!done){ if(e.name === 'AbortError') noAnswer++; else noConnection++; }
+          })
+          .finally(() => clearTimeout(timer));
+      };
+      (async () => {
+        let onOnline;
+        try{
+          while(!done){
+            tryOnce();
+            await Promise.race([pauseFor(WORKER_TRY_GAP_MS), new Promise(r => { onOnline = r; window.addEventListener('online', r, { once:true }); })]);
+            window.removeEventListener('online', onOnline);
+            if(done) return;
+            // Nothing shows this error: a newer link has taken over the scan.
+            if(scanId !== state.scanId) return finish(reject, new Error('replaced by a newer link'));
+            if(Date.now() - started >= giveUpMs) return finish(reject, lastErr || new Error('no answer'));
+            if(onWaiting) onWaiting({ seconds: Math.round((Date.now() - started) / 1000), tries, noConnection, noAnswer });
+          }
+        }catch(e){ finish(reject, e); }
+      })();
+    });
   }
-
-  // A network can lose the worker's address for a minute or two (phone hotspots do) while everything
-  // else still loads. So a link stays pending and loads by itself once the worker answers again.
-  const WORKER_WAIT_MS = 5 * 60000;
-  async function waitForWorker(url, scanId){
-    const started = Date.now();
-    let lastErr;
-    while(Date.now() - started < WORKER_WAIT_MS){
-      const waited = Date.now() - started;
-      setScanText('scanStep1', 'Waiting for the connection — this link will load by itself as soon as it\'s back'
-        + (waited >= 30000 ? '. If it stays stuck, switch between Wi-Fi and mobile data, or turn off any content blocker or VPN' : ''));
-      let onOnline;
-      await Promise.race([pauseFor(5000), new Promise(r => { onOnline = r; window.addEventListener('online', r, { once:true }); })]);
-      window.removeEventListener('online', onOnline);
-      if(scanId !== state.scanId) throw new Error('replaced by a newer link'); // nothing shows this: the scan has moved on
-      const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), 12000);
-      try{
-        const res = await fetch(url, { signal: ctl.signal });
-        if(scanId === state.scanId) setScanText('scanStep1', 'Scanning page for contract');
-        return res;
-      }
-      catch(e){ lastErr = e; }
-      finally{ clearTimeout(timer); }
-    }
-    throw lastErr;
+  // The counts show on screen because they tell the causes apart: "no connection" fails at once
+  // (address lookup or a blocker), "no answer" means requests go out and get stuck.
+  function showWorkerWaiting({ seconds, tries, noConnection, noAnswer }){
+    setScanText('scanStep1', `Waiting for the connection — this link will load by itself as soon as it's back · ${seconds}s, ${tries} tries (${noConnection} no connection, ${noAnswer} no answer)`
+      + (seconds >= 30 ? '. If it stays stuck, switch between Wi-Fi and mobile data, or turn off any content blocker or VPN' : ''));
   }
 
   // An open connection needs no address lookup, so one is kept ready for when a link is pasted.
@@ -3045,16 +3057,21 @@
     // card shows (images, stats, items, mint progress and stages).
     if(proxyUrl){
       let res;
-      try{ res = await fetchWorker(`${proxyBase()}?collection=${encodeURIComponent(slug)}`); }
-      catch(e){
-        if(proxyIsLocal()) throw new Error(await workerUnreachableText(e));
+      const collectionUrl = () => `${proxyBase()}?collection=${encodeURIComponent(slug)}`;
+      try{
+        // Your own worker gets a short chance; after that the built-in one takes over.
         if(!usingDefaultProxy()){
-          notify('Your proxy worker in Settings didn\'t answer — using FUSE\'s built-in worker instead.');
-          ownProxyDown = true;
+          try{ res = await reachWorker(collectionUrl(), { scanId, giveUpMs: 8000 }); }
+          catch(e){
+            if(scanId !== state.scanId || proxyIsLocal()) throw e;
+            notify('Your proxy worker in Settings didn\'t answer — using FUSE\'s built-in worker instead.');
+            ownProxyDown = true;
+          }
         }
-        try{ res = await waitForWorker(`${proxyBase()}?collection=${encodeURIComponent(slug)}`, scanId); }
-        catch(err){ throw new Error(await workerUnreachableText(err)); }
+        if(!res) res = await reachWorker(collectionUrl(), { scanId, giveUpMs: WORKER_WAIT_MS, onWaiting: showWorkerWaiting });
       }
+      catch(e){ throw new Error(await workerUnreachableText(e)); }
+      if(scanId === state.scanId) setScanText('scanStep1', 'Scanning page for contract');
       const data = await res.json().catch(() => ({}));
       if(res.status === 401 || res.status === 403) throw new Error(data.error === 'origin not allowed'
         ? 'your proxy worker refused this site — add it to ALLOWED_ORIGINS'
