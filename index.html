@@ -2,12 +2,12 @@
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>FUSE — Mint Execution Terminal</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-bW/ooavGSovIVjtv3ayJip3JmYkwfK6davMh6rGFvR4=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-1IJns+AsiGoy+7lacFxBtbAaun0uS+WmUBUnKmKxNqk=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -172,9 +172,9 @@
   .search-input:focus{ border-color:var(--accent); }
   .search-box{ flex:1 1 0; min-width:0; display:flex; position:relative; }
   .search-box .search-input{ width:100%; min-width:0; padding-right:38px; text-overflow:ellipsis; }
-  .search-clear{ position:absolute; top:0; right:0; bottom:0; width:36px; display:flex; align-items:center; justify-content:center; background:none; border:none; color:var(--text-dim); font-size:13px; cursor:pointer; }
-  .search-clear:hover{ color:var(--text); }
-  .search-clear[hidden]{ display:none; }
+  .search-reload{ position:absolute; top:0; right:0; bottom:0; width:36px; display:flex; align-items:center; justify-content:center; background:none; border:none; color:var(--text-dim); font-size:15px; padding:0; }
+  .search-reload:hover{ color:var(--text); }
+  .search-reload[hidden]{ display:none; }
 
   .card{ background:var(--surface); border:1px solid var(--border-soft); border-radius:0; padding:18px 20px; }
 
@@ -649,7 +649,7 @@
       <div class="topbar">
         <div class="search-box">
           <input class="search-input" id="topSearch" type="text" name="fuse-target" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" placeholder="Paste a mint link, OpenSea URL, or 0x contract…">
-          <button type="button" class="search-clear" id="topSearchClear" title="Clear link" aria-label="Clear link" hidden>✕</button>
+          <button type="button" class="search-reload" id="topSearchReload" title="Reload mint link" aria-label="Reload mint link" hidden>⟳</button>
         </div>
         <button class="icon-search-btn" id="topSearchGo" title="Scan">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -800,7 +800,7 @@
 
     <div class="page" id="page-wallets" hidden>
       <div class="diag-banner" style="background:var(--accent-dim); color:var(--accent-text); border-color:rgba(59,43,229,.3);">
-        <span>⚑</span><span class="flex-fill">Keys live in this tab's memory only — never saved to disk. Refreshing the page clears them.</span>
+        <span>⚑</span><span class="flex-fill">Created wallets stay through a refresh until you close this tab. Imported keys clear on refresh. Save any key you want to keep.</span>
         <a href="#" id="walletSecurityLink" style="color:var(--accent-text);">Learn more</a>
       </div>
 
@@ -1060,7 +1060,7 @@
       <button class="modal-x" id="nwCancel" title="Cancel — discard these wallets">✕</button>
     </div>
 
-    <div class="security-note" style="margin-bottom:14px;">⚠ This is shown once. It is not saved anywhere — if you navigate away or refresh without copying it, it's gone for good.</div>
+    <div class="security-note" style="margin-bottom:14px;">⚠ This is shown once. FUSE keeps it until you close this tab — after that, without your copy, it's gone for good.</div>
 
     <div id="nwList"></div>
     <button class="btn btn-secondary" id="nwCopyAll" style="width:100%;" hidden>Copy all (address, private key)</button>
@@ -1746,17 +1746,30 @@
     await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
   }
 
+  // Wallets created here stay through a refresh: sessionStorage belongs to this tab and is cleared
+  // when it closes. Imported keys are deliberately left out, as they may be someone's main wallet.
+  const CREATED_WALLETS_KEY = 'fuse.createdWallets';
+  function saveCreatedWallets(){
+    try{
+      const created = state.wallets.filter(w => w.created && w.pk).map(w => ({ pk: w.pk, name: w.name, enabled: w.enabled !== false, keySaved: !!w.keySaved }));
+      if(created.length) sessionStorage.setItem(CREATED_WALLETS_KEY, JSON.stringify(created));
+      else sessionStorage.removeItem(CREATED_WALLETS_KEY);
+    }catch(e){}
+  }
+
   function afterWalletsChanged(){
     renderWallets(); updateSidebarWalletInfo(); checkReadiness(); updateConnectWalletBtnStatus();
     renderMintToPick();
     saveConnectedWallets();
+    saveCreatedWallets();
     if(state.armed) disarm();
     checkEligibility();
   }
 
-  // Keys live only in this tab — warn before a refresh/close throws them away.
+  // Warn before leaving could lose a key you haven't confirmed saving: imported keys clear on any
+  // refresh, and a created wallet's key goes when the tab closes.
   window.addEventListener('beforeunload', (e) => {
-    if(state.wallets.some(w => w.pk)){ e.preventDefault(); e.returnValue = ''; }
+    if(state.wallets.some(w => w.pk && !w.keySaved)){ e.preventDefault(); e.returnValue = ''; }
   });
 
   function updateSidebarWalletInfo(){
@@ -1840,14 +1853,14 @@
       btn.onclick = () => copyToClipboard(state.wallets[+btn.dataset.i].address, btn);
     });
     list.querySelectorAll('.wallet-name-input').forEach(inp => {
-      inp.oninput = () => { state.wallets[+inp.dataset.i].name = inp.value; updateSidebarWalletInfo(); saveConnectedWallets(); };
+      inp.oninput = () => { state.wallets[+inp.dataset.i].name = inp.value; updateSidebarWalletInfo(); saveConnectedWallets(); saveCreatedWallets(); };
     });
   }
 
   $('walletSearch').addEventListener('input', renderWallets);
   $('walletSecurityLink').addEventListener('click', (e) => {
     e.preventDefault();
-    notify('Keys you import or generate here stay in this browser tab\'s memory only. Nothing is written to disk or sent anywhere except the RPC you configure in Settings. Refreshing or closing the tab clears them — use a dedicated mint wallet, not your main one.');
+    notify('Created wallets are kept in this tab\'s storage so a refresh keeps them, and closing the tab clears them. Imported keys stay in memory only and clear on refresh. Keys aren\'t sent anywhere, and transactions are signed in this page. Browser extensions allowed on this site could read them, so use a dedicated mint wallet, not your main one.');
   });
   $('selectAllWallets').addEventListener('change', e => {
     // Applies to the rows currently shown (respects the search box).
@@ -1973,6 +1986,7 @@
     const count = parseInt($('cwCount').value);
     newWalletsShown = Array.from({ length: count }, () => ethers.Wallet.createRandom());
     newWalletEntries = newWalletsShown.map(w => addKeyWallet(w.privateKey));
+    newWalletEntries.forEach(w => { w.created = true; });
     afterWalletsChanged();
     loadBalances(newWalletEntries);
     const list = $('nwList');
@@ -2021,7 +2035,11 @@
     newWalletsShown = [];
     newWalletEntries = [];
   }
-  $('nwDone').onclick = closeNewWallets;
+  $('nwDone').onclick = () => {
+    newWalletEntries.forEach(w => { w.keySaved = true; });
+    saveCreatedWallets();
+    closeNewWallets();
+  };
   // Changed your mind: these wallets go away and you're back at choosing how many.
   $('nwCancel').onclick = () => {
     const created = newWalletEntries;
@@ -2830,6 +2848,19 @@
   // already signed are loaded. A locked extension shares nothing yet, so they load as not
   // selected and FUSE asks for the account when it signs. Extensions that aren't here this
   // time (disabled, say) keep their saved accounts for later.
+  (function restoreCreatedWallets(){
+    let saved = [];
+    try{ saved = JSON.parse(sessionStorage.getItem(CREATED_WALLETS_KEY) || '[]'); }catch(e){}
+    const restored = saved.flatMap(({ pk, name, enabled, keySaved }) => {
+      try{
+        const w = addKeyWallet(pk, name);
+        if(w) Object.assign(w, { created: true, enabled, keySaved });
+        return w ? [w] : [];
+      }catch(e){ return []; }
+    });
+    if(restored.length) setTimeout(() => { afterWalletsChanged(); loadBalances(restored); }, 0); // after start-up finishes
+  })();
+
   const walletsRestoring = (async function restoreConnectedWallets(){
     const restored = [];
     try{
@@ -3394,12 +3425,20 @@
     runScanSequence(v);
   };
 
+  function syncSearchReload(){ $('topSearchReload').hidden = !$('topSearch').value; }
+  $('topSearch').addEventListener('input', syncSearchReload);
+  // Fetches the link again without opening a wallet window. Like any new scan, it disarms.
+  $('topSearchReload').onclick = () => {
+    const v = $('topSearch').value.trim();
+    if(!looksScannable(v)){ $('topSearchGo').click(); return; }
+    const wasArmed = state.armed;
+    runScanSequence(v, { restoring:true });
+    if(wasArmed) notify('Link reloaded, so the mint was disarmed. Arm it again when you\'re ready.');
+  };
+
   $('topSearch').addEventListener('keydown', (e) => {
     if(e.key === 'Enter') $('topSearchGo').click();
   });
-  function syncSearchClear(){ $('topSearchClear').hidden = !$('topSearch').value; }
-  $('topSearch').addEventListener('input', syncSearchClear);
-  $('topSearchClear').onclick = () => { resetTarget(); $('topSearch').focus(); };
 
   // The last link that loaded comes back after a reload. It only shows the collection again;
   // arming is still up to the user.
@@ -3416,7 +3455,7 @@
     rememberLoadedLink(null);
     $('scanCard').style.display = 'none';
     $('topSearch').value = '';
-    syncSearchClear();
+    syncSearchReload();
   }
 
   function clearLoadedTarget(){
@@ -4559,7 +4598,7 @@ onmessage = (e) => {
     try{ link = localStorage.getItem(LOADED_LINK_KEY); }catch(e){}
     if(!link || !looksScannable(link) || $('topSearch').value.trim()) return;
     $('topSearch').value = link;
-    syncSearchClear();
+    syncSearchReload();
     await walletsRestoring; // so the scan and the eligibility check see the wallets
     if($('topSearch').value.trim() === link && !state.scanId) runScanSequence(link, { restoring:true });
   })();
