@@ -399,6 +399,64 @@ async function handleDropMint(slug, minter, quantity, env, corsHeaders) {
   return json({ ok: false, status: res.status, code, message: message.slice(0, 300) }, 200, corsHeaders);
 }
 
+// ---------- POST ?eligibility=<slug> and POST ?tokencheck=1, with { token } in the body ----------
+// A wallet's answer for every stage, including ones that haven't opened. It takes a scoped token
+// the wallet's owner made at opensea.io. OpenSea's token endpoint doesn't allow browser calls and
+// the eligibility call needs the API key, so both run here. The token is used for this one
+// request and is never stored, logged or sent back.
+const ELIGIBILITY_SCOPE = 'read:eligibility';
+
+function walletFromAccessToken(accessToken) {
+  try {
+    const part = String(accessToken).split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const claims = JSON.parse(atob(part));
+    const hit = JSON.stringify(claims).match(/0x[a-fA-F0-9]{40}/);
+    return hit ? hit[0].toLowerCase() : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function handleEligibility(slug, request, env, corsHeaders) {
+  if (!env.OPENSEA_API_KEY) return json({ error: 'OPENSEA_API_KEY secret is not set on this worker' }, 500, corsHeaders);
+  if (slug && !/^[A-Za-z0-9_.-]{1,100}$/.test(slug)) return json({ error: 'invalid collection slug' }, 400, corsHeaders);
+  const raw = await request.text();
+  if (raw.length > 9000) return json({ error: 'request too large' }, 400, corsHeaders);
+  let token = '';
+  try { token = String(JSON.parse(raw).token || ''); } catch (e) { /* handled just below */ }
+  if (!/^[\x21-\x7e]{10,8192}$/.test(token)) return json({ ok: false, code: 'BAD_TOKEN', message: "That doesn't look like an OpenSea token." }, 200, corsHeaders);
+
+  const exchange = await fetchWithTimeout(`${OPENSEA_API}/auth/tokens/exchange`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ subjectToken: token, subjectTokenType: 'ACCESS_TOKEN' }),
+  });
+  let exBody = {};
+  try { exBody = await exchange.json(); } catch (e) { /* non-JSON error page */ }
+  if (!exchange.ok || !exBody.accessToken) {
+    return json({ ok: false, code: 'BAD_TOKEN', message: 'OpenSea did not accept this token. It may be mistyped, expired or revoked.' }, 200, corsHeaders);
+  }
+  // Only a token limited to this one read scope is used: FUSE has no need for anything stronger.
+  const scopes = [...new Set(`${exBody.scope || ''} ${JSON.stringify(exBody.tokenScopes || [])}`.match(/\b(?:read|write):[a-z_]+/g) || [])];
+  if (scopes.some((sc) => sc !== ELIGIBILITY_SCOPE)) {
+    return json({ ok: false, code: 'TOO_MANY_SCOPES', message: `This token can do more than check eligibility (${scopes.filter((sc) => sc !== ELIGIBILITY_SCOPE).join(', ')}). Revoke it and make one with only "Check drop eligibility" ticked.` }, 200, corsHeaders);
+  }
+  const wallet = walletFromAccessToken(exBody.accessToken);
+  if (!slug) return json({ ok: true, wallet }, 200, corsHeaders);
+
+  const res = await fetchWithTimeout(`${OPENSEA_API}/drops/${encodeURIComponent(slug)}/eligibility`, {
+    headers: { 'x-api-key': env.OPENSEA_API_KEY, Authorization: `Bearer ${exBody.accessToken}`, Accept: 'application/json' },
+  });
+  let body = {};
+  try { body = await res.json(); } catch (e) { /* non-JSON error page */ }
+  if (!res.ok || !Array.isArray(body.stages)) return json({ ok: false, code: 'NO_ANSWER', status: res.status, message: `OpenSea returned HTTP ${res.status}` }, 200, corsHeaders);
+  return json({
+    ok: true, wallet,
+    // OpenSea writes the same stage id with and without dashes, depending on the endpoint.
+    stages: body.stages.map((st) => ({ id: String(st.stage_uuid).replace(/-/g, '').toLowerCase(), eligible: st.is_eligible === true })),
+  }, 200, corsHeaders);
+}
+
 async function resolveCollection(id, env) {
   const direct = await osJson(`/collections/${encodeURIComponent(id)}`, env);
   if (direct.ok) return direct.data;
@@ -489,7 +547,8 @@ export default {
         return json({ error: 'RPC relay failed: ' + (e.message || 'unknown error') }, 502, corsHeaders);
       }
     }
-    if (request.method !== 'GET') return json({ error: 'GET only (POST for ?rpc=)' }, 405, corsHeaders);
+    const tokenRoute = request.method === 'POST' && (params.get('eligibility') || params.get('tokencheck'));
+    if (request.method !== 'GET' && !tokenRoute) return json({ error: 'GET only (POST for ?rpc=, ?eligibility=, ?tokencheck=)' }, 405, corsHeaders);
 
     // The Origin check only stops browsers — scripts can send any Origin header. The LIMITER
     // binding (wrangler.toml) caps how much anyone can pull through your OpenSea/Etherscan keys.
@@ -501,6 +560,7 @@ export default {
     }
 
     try {
+      if (tokenRoute) return await handleEligibility(params.get('eligibility'), request, env, corsHeaders);
       if (params.get('dropmint')) return await handleDropMint(params.get('dropmint'), params.get('minter'), params.get('quantity'), env, corsHeaders);
       if (params.get('collection')) return await handleCollection(params.get('collection'), env, corsHeaders);
       if (params.get('slug')) return await handleSlug(params.get('slug'), env, corsHeaders);
