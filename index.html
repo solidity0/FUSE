@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-wTJ6JEETvdmfO7J2QwgJC2FQUFV79yKukdDiBdFj6HU=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-VN8Y2UhlPBVI0QMAB0l7/lYbSXQEMBSsxmEj/faYh7E=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -262,6 +262,17 @@
   .status-success{ background:var(--success-bg); color:var(--success); }
   .status-fail{ background:var(--err-bg); color:var(--fail); }
   .status-armed{ background:var(--surface-raised); color:var(--text-dim); }
+  .dh-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin:22px 0 8px; }
+  .dh-head .section-title{ margin:0; }
+  .dh-clear{ padding:4px 10px; font-size:11px; }
+  .dh-clear[hidden]{ display:none; }
+  .dh-list{ max-height:320px; overflow-y:auto; }
+  .dh-row{ display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 12px; padding:8px 0; border-bottom:1px solid var(--border-soft); font-family:var(--mono); font-size:12px; }
+  .dh-route{ flex:1 1 200px; }
+  .dh-time{ color:var(--text-dim); }
+  .dh-status.confirmed{ color:var(--success); }
+  .dh-status.failed, .dh-status.cancelled{ color:var(--fail); }
+  .dh-status.pending{ color:var(--pending); }
   .log-empty, .stat-empty{ text-align:center; color:var(--text-dim); padding:26px 10px; font-family:var(--sans); font-size:12.5px; }
 
   .stats-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
@@ -937,6 +948,12 @@
         </div>
 
         <div id="disperseLog" style="margin-top:14px;"></div>
+
+        <div class="dh-head">
+          <div class="section-title"><span class="dot"></span>History</div>
+          <button class="btn btn-secondary dh-clear" id="disperseHistoryClear" type="button" hidden>Clear</button>
+        </div>
+        <div class="dh-list" id="disperseHistory"></div>
       </div>
     </div>
 
@@ -2457,7 +2474,100 @@
     $('disperseMaxHint').textContent = `MAX ≈ ${usable.toFixed(4)} ETH available across ${senderIdx.length} sender(s) after a small gas buffer.`;
   };
 
+  // Past sends, kept in this browser. Only public details: addresses, amounts and transaction hashes.
+  const DISPERSE_HISTORY_KEY = 'fuse.disperseHistory';
+  const DISPERSE_HISTORY_MAX = 100;
+  const DISPERSE_STATUS_TEXT = { pending:'pending', confirmed:'confirmed ✓', failed:'failed', cancelled:'cancelled in wallet' };
+  function readDisperseHistory(){
+    try{
+      const list = JSON.parse(localStorage.getItem(DISPERSE_HISTORY_KEY) || '[]');
+      return Array.isArray(list) ? list : [];
+    }catch(e){ return []; }
+  }
+  function writeDisperseHistory(list){
+    try{
+      if(list.length) localStorage.setItem(DISPERSE_HISTORY_KEY, JSON.stringify(list.slice(0, DISPERSE_HISTORY_MAX)));
+      else localStorage.removeItem(DISPERSE_HISTORY_KEY);
+    }catch(e){}
+    renderDisperseHistory();
+  }
+  function addDisperseHistory(entry){
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    writeDisperseHistory([{ ...entry, id, at: Date.now() }, ...readDisperseHistory()]);
+    return id;
+  }
+  // Reads the list fresh each time, as another open tab may have added to it.
+  function setDisperseHistoryStatus(id, status){
+    writeDisperseHistory(readDisperseHistory().map(e => e.id === id ? { ...e, status } : e));
+  }
+  function shortAddress(a){ return `${String(a).slice(0,6)}...${String(a).slice(-4)}`; }
+  function renderDisperseHistory(){
+    const list = readDisperseHistory();
+    const box = $('disperseHistory');
+    box.innerHTML = '';
+    $('disperseHistoryClear').hidden = !list.length;
+    if(!list.length){
+      const empty = document.createElement('div');
+      empty.className = 'log-empty';
+      empty.textContent = 'No transactions yet.';
+      box.appendChild(empty);
+      return;
+    }
+    list.forEach(e => {
+      const row = document.createElement('div');
+      row.className = 'dh-row';
+      const chain = CHAINS[e.chain];
+      const route = document.createElement('span');
+      route.className = 'dh-route';
+      route.textContent = `${shortAddress(e.from)} → ${shortAddress(e.to)} · ${e.amount}${chain && !String(e.amount).endsWith(chain.name) ? ` · ${chain.name}` : ''}`;
+      const status = document.createElement('span');
+      status.className = 'dh-status ' + (DISPERSE_STATUS_TEXT[e.status] ? e.status : 'pending');
+      status.textContent = DISPERSE_STATUS_TEXT[e.status] || DISPERSE_STATUS_TEXT.pending;
+      const time = document.createElement('span');
+      time.className = 'dh-time';
+      time.textContent = new Date(e.at).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      row.append(route, status, time);
+      if(chain && /^0x[a-fA-F0-9]{64}$/.test(e.hash || '')){
+        const link = document.createElement('a');
+        link.href = chain.tx + e.hash;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = 'View ↗';
+        row.appendChild(link);
+      }
+      box.appendChild(row);
+    });
+  }
+  // A send still pending when the page closed: ask the chain how it ended.
+  async function checkPendingDisperseHistory(){
+    const pending = readDisperseHistory().filter(e => e.status === 'pending' && e.hash && e.chain === state.chain);
+    if(!pending.length) return;
+    let provider;
+    try{ provider = getProvider(); }catch(e){ return; }
+    for(const e of pending){
+      try{
+        const receipt = await provider.getTransactionReceipt(e.hash);
+        if(receipt) setDisperseHistoryStatus(e.id, receipt.status === 1 ? 'confirmed' : 'failed');
+      }catch(err){}
+    }
+  }
+  let clearHistoryTimer = null;
+  $('disperseHistoryClear').onclick = () => {
+    const btn = $('disperseHistoryClear');
+    if(!clearHistoryTimer){ // second click within 3s confirms
+      btn.textContent = 'Clear all?';
+      clearHistoryTimer = setTimeout(() => { clearHistoryTimer = null; btn.textContent = 'Clear'; }, 3000);
+      return;
+    }
+    clearTimeout(clearHistoryTimer);
+    clearHistoryTimer = null;
+    btn.textContent = 'Clear';
+    writeDisperseHistory([]);
+  };
+
   function populateDisperseFrom(){
+    renderDisperseHistory();
+    checkPendingDisperseHistory();
     renderDisperseChainRow();
     renderDisperseSelectors();
     $('disperseUnitNative').classList.toggle('active', state.unit !== 'usd');
@@ -2511,6 +2621,7 @@
     const perUnits = isFlat ? totalUnits : totalUnits / BigInt(recipients.length);
     if(perUnits <= 0n){ notify('Amount per recipient rounds to zero.'); return; }
     const perLabel = `${ethers.formatUnits(perUnits, isErc20 ? decimals : 18)} ${isErc20 ? 'tokens' : CHAINS[state.chain].nativeSymbol}`;
+    const historyAmount = `${parseFloat(Number(ethers.formatUnits(perUnits, isErc20 ? decimals : 18)).toPrecision(6))} ${isErc20 ? 'tokens' : CHAINS[state.chain].nativeSymbol}`;
 
     for(let idx = 0; idx < recipients.length; idx++){
       const addr = recipients[idx];
@@ -2523,6 +2634,8 @@
         rowDiv.textContent = `${sender.address.slice(0,6)}... → ${addr.slice(0,6)}...${addr.slice(-4)} : skipped (sender is the recipient)`;
         continue;
       }
+      const historyEntry = { chain: state.chain, from: sender.address, to: addr, amount: historyAmount };
+      let historyId = null;
       try{
         const signer = await getSignerForWallet(sender, provider);
         if(sender.injected) await ensureWalletAccount(sender);
@@ -2534,11 +2647,16 @@
           tx = await signer.sendTransaction({ to: addr, value: perUnits, chainId });
         }
         rowDiv.textContent = `${sender.address.slice(0,6)}... → ${addr.slice(0,6)}...${addr.slice(-4)} : sent (${tx.hash.slice(0,10)}...)`;
+        historyId = addDisperseHistory({ ...historyEntry, hash: tx.hash, status: 'pending' });
         await tx.wait();
+        setDisperseHistoryStatus(historyId, 'confirmed');
         rowDiv.textContent = `${sender.address.slice(0,6)}... → ${addr.slice(0,6)}...${addr.slice(-4)} : confirmed ✓`;
         rowDiv.style.color = 'var(--success)';
       }catch(e){
         const cancelled = e && (e.code === 'ACTION_REJECTED' || e.code === 4001);
+        // Once sent, only a revert is a known failure. A lost connection leaves it pending, to check later.
+        if(!historyId) addDisperseHistory({ ...historyEntry, status: cancelled ? 'cancelled' : 'failed' });
+        else if(e && e.code === 'CALL_EXCEPTION') setDisperseHistoryStatus(historyId, 'failed');
         rowDiv.textContent = `${sender.address.slice(0,6)}... → ${addr.slice(0,6)}...${addr.slice(-4)} : ${cancelled ? 'cancelled in wallet' : `failed (${(e.shortMessage||e.message||'error').slice(0,40)})`}`;
         rowDiv.style.color = 'var(--fail)';
       }
