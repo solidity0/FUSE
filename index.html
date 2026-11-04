@@ -414,6 +414,12 @@
   .wallet-actions[hidden], #walletsDone[hidden]{ display:none; }
   .wallet-actions .btn{ display:inline-flex; align-items:center; gap:8px; }
   .wallet-actions .count{ font-family:var(--mono); color:var(--text-dim); }
+  #walletActionModal .modal-head{ justify-content:center; position:relative; }
+  #walletActionModal .modal-title{ text-align:center; padding:0 28px; }
+  #walletActionModal .modal-x{ position:absolute; top:0; right:0; }
+  #waText{ text-align:center; }
+  .select-all{ display:inline-flex; align-items:center; gap:6px; white-space:nowrap; cursor:pointer; }
+  @media (max-width:560px){ .select-all{ flex-direction:column; gap:2px; } } /* keeps the column narrow so the name boxes keep their room */
   .wa-list{ max-height:190px; overflow-y:auto; margin:12px 0; border-top:1px solid var(--border-soft); }
   .wa-list div{ display:flex; justify-content:space-between; gap:12px; padding:7px 0; border-bottom:1px solid var(--border-soft); font-size:12px; }
   .wa-list span:first-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -823,8 +829,8 @@
         <table>
           <thead>
             <tr>
-              <th style="width:24px;"><input type="checkbox" id="selectAllWallets" title="Select all shown wallets" checked></th>
-              <th>Name</th>
+              <th style="width:24px;"><label class="select-all"><input type="checkbox" id="selectAllWallets" title="Select all shown wallets" checked> All</label></th>
+              <th style="text-align:center;">Name</th>
               <th>Address</th>
               <th>Balance ↕</th>
             </tr>
