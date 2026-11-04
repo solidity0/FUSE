@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-1IJns+AsiGoy+7lacFxBtbAaun0uS+WmUBUnKmKxNqk=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-wTJ6JEETvdmfO7J2QwgJC2FQUFV79yKukdDiBdFj6HU=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -410,8 +410,8 @@
   .nw-row input{ grid-column:1; width:100%; min-width:0; }
   .nw-row .btn{ min-width:92px; } /* room for "Copied" so the box doesn't shift */
   .nw-row .field:last-child{ margin-bottom:0; }
-  .wallet-actions{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
-  .wallet-actions[hidden]{ display:none; }
+  .wallet-actions{ display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-bottom:14px; }
+  .wallet-actions[hidden], #walletsDone[hidden]{ display:none; }
   .wallet-actions .btn{ display:inline-flex; align-items:center; gap:8px; }
   .wallet-actions .count{ font-family:var(--mono); color:var(--text-dim); }
   .wa-list{ max-height:190px; overflow-y:auto; margin:12px 0; border-top:1px solid var(--border-soft); }
@@ -813,12 +813,12 @@
       <div id="connectWalletStatus" class="hint" style="display:none; text-align:right;"></div>
 
       <div class="card">
+        <div class="chain-icon-row" id="chainIconRow"></div>
         <div class="wallet-actions" id="walletActions" hidden>
           <button class="btn btn-secondary" id="walletDeleteBtn" type="button">Delete <span class="count"></span></button>
           <button class="btn btn-secondary" id="walletExportBtn" type="button">Export <span class="count"></span></button>
           <button class="btn btn-secondary" id="walletDisperseBtn" type="button">Disperse <span class="count"></span></button>
         </div>
-        <div class="chain-icon-row" id="chainIconRow"></div>
 
         <table>
           <thead>
@@ -831,6 +831,7 @@
           </thead>
           <tbody id="walletList"><tr><td colspan="4" class="log-empty">No wallets loaded — Create a new one or Import a private key.</td></tr></tbody>
         </table>
+        <button class="btn btn-primary" id="walletsDone" type="button" style="width:100%; margin-top:14px;" hidden>Done</button>
       </div>
 
       <div class="hint" id="walletMintHint" style="margin:-6px 0 10px;"></div>
@@ -1831,6 +1832,7 @@
       ? `${enabledCount} of ${state.wallets.length} wallet(s) ticked — only ticked wallets mint when you fire, and the buttons above act on them.`
       : '';
     $('walletActions').hidden = !enabledCount;
+    $('walletsDone').hidden = !state.wallets.length;
     $('walletActions').querySelectorAll('.count').forEach(el => { el.textContent = enabledCount; });
     $('selectAllWallets').checked = filtered.length > 0 && filtered.every(({w}) => w.enabled !== false);
     if(!state.wallets.length){ list.innerHTML = '<tr><td colspan="4" class="log-empty">No wallets loaded — Create a new one or Import a private key.</td></tr>'; return; }
@@ -1858,6 +1860,11 @@
   }
 
   $('walletSearch').addEventListener('input', renderWallets);
+  // Wallets chosen: back to the Mints page, which picks up the ticks straight away.
+  $('walletsDone').onclick = () => {
+    document.querySelector('.s-nav-item[data-page="mints"]').click();
+    window.scrollTo(0, 0);
+  };
   $('walletSecurityLink').addEventListener('click', (e) => {
     e.preventDefault();
     notify('Created wallets are kept in this tab\'s storage so a refresh keeps them, and closing the tab clears them. Imported keys stay in memory only and clear on refresh. Keys aren\'t sent anywhere, and transactions are signed in this page. Browser extensions allowed on this site could read them, so use a dedicated mint wallet, not your main one.');
