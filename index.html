@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-J/rpbkrYhypvmLEWdCGNxkWtdG21OIyBP2mNfs6sJ/U=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-bW/ooavGSovIVjtv3ayJip3JmYkwfK6davMh6rGFvR4=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -305,6 +305,7 @@
   .coll-banner{ height:132px; background:var(--surface-raised) center/cover no-repeat; position:relative; }
   .coll-banner::after{ content:''; position:absolute; inset:0; background:linear-gradient(180deg, transparent 30%, var(--surface) 100%); }
   .coll-body{ padding:0 18px 18px; position:relative; }
+  .coll-body > [data-slot]{ display:contents; }
   .coll-head{ display:flex; align-items:flex-end; gap:14px; margin-top:-34px; position:relative; z-index:1; }
   .coll-logo{ width:68px; height:68px; flex:none; background:var(--surface-raised) center/cover no-repeat; border:3px solid var(--surface); }
   .coll-title{ min-width:0; flex:1; padding-bottom:2px; }
@@ -3424,6 +3425,7 @@
     stopCollectionRefresh();
     state.collection = null; state.targetChainUnsupported = null;
     $('collectionCard').setAttribute('hidden', '');
+    $('collectionCard').innerHTML = ''; // stops the last link's videos and images loading
     state.abi = null; state.fn = null; state.mintTo = null; state.mintVia = null; state.args = {}; state.armed = false; state.phases = [];
     state.eligibility = null;
 
@@ -3724,9 +3726,6 @@
         : `<img src="${esc(it.image)}" alt="${esc(it.name)}" title="${esc(it.name)}" loading="lazy" referrerpolicy="no-referrer">`);
     });
     const itemsHtml = itemsShown.length ? `<div class="coll-items">${itemsShown.join('')}</div>` : '';
-    // The card redraws every 15s. Keeping the same tiles stops them reloading and losing their scroll.
-    const itemsKey = itemsShown.join('');
-    const oldItems = card.querySelector('.coll-items'), oldScroll = oldItems ? oldItems.scrollLeft : 0;
 
     const outdatedNote = state.workerOutdated
       ? `<div class="coll-note">Your proxy worker is an older version, so OpenSea stages, stats and images are missing. Restart it with the latest worker.js: in its terminal press Ctrl+C, run <b>git pull</b>, then start it again.</div>` : '';
@@ -3735,32 +3734,46 @@
     const name = c.name || ('Contract ' + c.contract.slice(0, 6) + '...' + c.contract.slice(-4));
     const osLink = httpsUrl(c.openseaUrl) ? `<a class="coll-os" href="${esc(c.openseaUrl)}" target="_blank" rel="noopener">OpenSea ↗</a>` : '';
 
-    card.innerHTML = `
-      <div class="coll-banner" style="background-image:${cssUrl(c.banner)}"></div>
-      <div class="coll-body">
-        <div class="coll-head">
-          <div class="coll-logo" style="background-image:${cssUrl(c.image)}"></div>
-          <div class="coll-title"><div class="coll-name">${esc(name)}</div><div class="coll-badges">${badges.join('')}</div></div>
-          ${osLink}
-        </div>
-        ${statsHtml}${progressHtml}${stagesHtml}${itemsHtml}${outdatedNote}${note}
-        <div class="coll-foot"><span>${esc(c.contract)}</span><span>${c.fetchedAt || !state.targetChainUnsupported ? 'Live · updates every ' + (state.targetChainUnsupported ? '30' : '15') + 's' : ''}</span></div>
-      </div>`;
-    if(!c.banner) card.querySelector('.coll-banner').style.height = '48px';
-    const newItems = card.querySelector('.coll-items');
-    if(newItems && oldItems && oldItems.dataset.key === itemsKey){ newItems.replaceWith(oldItems); oldItems.scrollLeft = oldScroll; }
-    else if(newItems){
-      newItems.dataset.key = itemsKey;
+    // This runs on every eligibility result and every 15s. Only what changed is redrawn: rebuilding
+    // the whole card restarts its videos and images, which freezes scrolling while they reload.
+    if(!card.querySelector('.coll-body')){
+      card.innerHTML = '<div class="coll-banner"></div><div class="coll-body"><div data-slot="head"></div><div data-slot="live"></div><div data-slot="items"></div><div data-slot="foot"></div></div>';
+    }
+    const fill = (slot, html) => {
+      const el = card.querySelector(`[data-slot="${slot}"]`);
+      if(el.drawnHtml === html) return null;
+      el.drawnHtml = html;
+      el.innerHTML = html;
+      return el;
+    };
+    const banner = card.querySelector('.coll-banner');
+    if(banner.drawnFrom !== c.banner){
+      banner.drawnFrom = c.banner;
+      banner.style.backgroundImage = cssUrl(c.banner);
+      banner.style.height = c.banner ? '' : '48px';
+    }
+    fill('head', `
+      <div class="coll-head">
+        <div class="coll-logo" style="background-image:${cssUrl(c.image)}"></div>
+        <div class="coll-title"><div class="coll-name">${esc(name)}</div><div class="coll-badges">${badges.join('')}</div></div>
+        ${osLink}
+      </div>`);
+    fill('live', `${statsHtml}${progressHtml}${stagesHtml}`);
+    const newItems = fill('items', itemsHtml);
+    if(newItems){
       // A tile that can't load goes away, and so does the row if none are left.
+      const row = newItems.querySelector('.coll-items');
       const hide = (el) => {
         el.style.display = 'none';
-        if(![...newItems.children].some(x => x.style.display !== 'none')) newItems.style.display = 'none';
+        if(![...row.children].some(x => x.style.display !== 'none')) row.style.display = 'none';
       };
       newItems.querySelectorAll('img, video').forEach(el => {
         if(el.tagName === 'IMG' && el.complete && !el.naturalWidth) hide(el);
         else el.addEventListener('error', () => hide(el));
       });
     }
+    fill('foot', `${outdatedNote}${note}
+      <div class="coll-foot"><span>${esc(c.contract)}</span><span>${c.fetchedAt || !state.targetChainUnsupported ? 'Live · updates every ' + (state.targetChainUnsupported ? '30' : '15') + 's' : ''}</span></div>`);
     card.removeAttribute('hidden');
     if(c.name) $('targetName').textContent = c.name;
   }
