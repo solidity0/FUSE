@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-WjlDFisRJEo/KbU5+9sal/V2YeFdKy++WUQdigKP2rQ=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-0dlk6jUiCrhoFSu8wZxkJi1T3d2OB9Tz6Q2kEzGSJ70=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -333,7 +333,6 @@
   .elig-chip{ font-family:var(--mono); font-size:10.5px; padding:2px 7px; border:1px solid var(--border-soft); color:var(--text-mid); }
   .elig-chip.yes{ color:var(--success); border-color:rgba(46,204,113,.45); }
   .elig-chip.no{ color:var(--fail); border-color:rgba(231,76,60,.4); }
-  .elig-chip.warn{ color:var(--pending); border-color:rgba(241,196,15,.4); }
   .coll-items{ display:flex; gap:8px; overflow-x:auto; margin-top:14px; padding-bottom:4px; scrollbar-width:thin; }
   .coll-items img{ width:84px; height:84px; flex:none; object-fit:cover; background:var(--surface-raised); }
   .coll-note{ margin-top:12px; font-size:12px; padding:9px 11px; background:var(--err-bg); border:1px solid var(--err-border); color:var(--fail); }
@@ -3361,8 +3360,8 @@
       if(!wallets.length) return '<div class="coll-elig dim">Load a wallet to see if it can mint in this stage</div>';
       const chips = wallets.map(w => {
         const r = e.byAddr[w.address.toLowerCase()];
-        const cls = !r ? 'wait' : r.ok ? 'yes' : isEligible(r) ? 'warn' : 'no';
-        const mark = !r ? '…' : r.ok ? '✓' : isEligible(r) ? '!' : '✕';
+        const cls = !r ? 'wait' : isEligible(r) ? 'yes' : 'no';
+        const mark = !r ? '…' : isEligible(r) ? '✓' : '✕';
         return `<span class="elig-chip ${cls}" title="${esc(w.address)}${r ? ' — ' + esc(eligibilityReason(r)) : ''}">${mark} ${esc(w.name || w.address.slice(0, 6))}${r && !r.ok ? ' · ' + esc(eligibilityReason(r)) : ''}</span>`;
       }).join('');
       const sum = eligibilitySummary();
