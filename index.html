@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-9Y2nOUnAEfouIi9pJut0sIBhZd3Y7tzGUXDC/Q5NeBs=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-ExF3//+F9aaaUWzW4ZdrxtN7X9J3rxTMnq/WYck5614=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -453,6 +453,12 @@
   .phase-badges{ display:flex; gap:6px; flex-wrap:wrap; }
   .phase-badge{ background:var(--surface); border:1px solid var(--border); border-radius:0; padding:5px 9px; font-size:10.5px; color:var(--text-dim); font-family:var(--mono); }
   .phase-badge b{ color:var(--text); font-size:11.5px; }
+  .mint-to-tabs{ display:flex; gap:8px; }
+  .mint-to-tab{ flex:1; padding:9px 10px; background:var(--surface); border:1px solid var(--border); color:var(--text-dim); font-size:12px; font-weight:600; cursor:pointer; }
+  .mint-to-tab.active{ color:var(--text); border-color:var(--accent); background:var(--accent-dim); }
+  .mint-to-pick{ width:100%; margin:8px 0; padding:9px 10px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:12px; }
+  #mintToOtherWrap[hidden], #scheduleHint[hidden], #priceUsdView[hidden]{ display:none; }
+  #scheduleHint{ color:var(--pending); font-size:11.5px; }
   .qty-stepper{ display:flex; align-items:center; gap:8px; margin-bottom:12px; }
   .qty-btn{ width:34px; height:34px; border-radius:0; background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:16px; font-weight:700; }
   .qty-input{ flex:1; text-align:center; font-family:var(--mono); font-size:15px; font-weight:700; background:var(--surface); border:1px solid var(--border); border-radius:0; padding:8px; color:var(--text); }
@@ -673,9 +679,9 @@
           <div class="phase-head">
             <div class="phase-title" id="phaseCardTitle">MINT</div>
             <div class="phase-badges">
-              <span class="phase-badge">PRICE <b><input type="text" id="mintValue" placeholder="0.00" style="width:52px; background:none; border:none; color:inherit; font:inherit; padding:0; outline:none;"></b> <span id="priceNativeSymbol">ETH</span> <span id="priceUsdHint" style="color:var(--text-dim);"></span></span>
+              <span class="phase-badge">PRICE <b><input type="text" id="mintValue" placeholder="0.00" style="width:52px; background:none; border:none; color:inherit; font:inherit; padding:0; outline:none;"></b> <span id="priceNativeSymbol">ETH</span><b id="priceUsdView" hidden></b> <span id="priceUsdHint" style="color:var(--text-dim);"></span></span>
               <span class="phase-badge">MAX <b id="maxPerWalletBadge">—</b></span>
-              <span class="phase-badge" id="eligibleBadgeWrap">ELIGIBLE <b id="eligibleBadge">?</b></span>
+              <span class="phase-badge" id="eligibleBadgeWrap">ELIGIBLE <b id="eligibleBadge">—</b></span>
             </div>
           </div>
 
@@ -688,10 +694,18 @@
           <div class="gas-row">GAS <span>·</span> LIVE ESTIMATE <b id="gasLiveVal">—</b></div>
 
           <div class="field">
-            <label>Drain (sweep) address <span style="color:var(--text-dim); font-weight:400;">— optional, auto-sends the minted NFT here</span></label>
-            <input type="text" id="sweepAddr" placeholder="0x...">
+            <label>Mint to</label>
+            <div class="mint-to-tabs">
+              <button type="button" class="mint-to-tab active" id="mintToSelf">Minting wallet</button>
+              <button type="button" class="mint-to-tab" id="mintToOther">Preferred wallet</button>
+            </div>
+            <div id="mintToOtherWrap" hidden>
+              <select id="mintToPick" class="mint-to-pick"></select>
+              <input type="text" id="sweepAddr" placeholder="0x..." autocomplete="off" spellcheck="false">
+              <div class="hint">Each wallet mints first, then sends the NFT here in a second transaction, so it pays a little more gas and a browser wallet asks you to approve twice.</div>
+            </div>
           </div>
-          <div class="field"><label>Schedule (blank = manual fire)</label><input type="datetime-local" id="scheduleTime" step="1"></div>
+          <div class="field"><label>Schedule (blank = manual fire)</label><input type="datetime-local" id="scheduleTime" step="1"><div class="hint" id="scheduleHint" hidden></div></div>
 
           <div class="btn-row">
             <button class="btn btn-outline-warn" id="simulateBtn">Simulate</button>
@@ -1094,6 +1108,9 @@
     scheduleAt: null,
     fireDeadline: null,
     scanId: 0,
+    scheduleChosen: false, // the user set the schedule, so FUSE leaves it alone
+    scheduleAuto: false,   // FUSE set it to the first phase the wallets can mint
+    selectedPhase: null,
     walletsRestored: false,
     walletsOfAbsentExtensions: {},
     stats: { total:0, success:0, fail:0, gasSum:0, gasCount:0 },
@@ -1372,12 +1389,38 @@
     return Number(amount).toFixed(4) + ' ' + CHAINS[state.chain].nativeSymbol;
   }
 
+  // With the USD toggle on, prices in the native coin read in dollars. Without a live price,
+  // or for another currency, the real amount stays on screen rather than a wrong dollar figure.
+  const showsUsd = (sym) => state.unit === 'usd' && state.priceUsd != null && (!sym || sym === 'WETH' || sym === CHAINS[state.chain].nativeSymbol);
+  function usdText(amount){
+    const usd = Number(amount) * state.priceUsd;
+    if(usd > 0 && usd < 0.01) return '<$0.01';
+    return '$' + usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  const moneyText = (amount, sym) => showsUsd(sym) ? usdText(amount) : `${amount} ${sym || CHAINS[state.chain].nativeSymbol}`;
+
+  // The price field always holds the coin amount that gets sent. In USD mode it is shown in
+  // dollars with the coin amount beside it; switch to ETH to type a different price.
+  function syncPriceDisplay(){
+    const input = $('mintValue'), raw = input.value.trim(), price = parseFloat(raw);
+    const usd = showsUsd() && !isNaN(price);
+    input.hidden = usd;
+    input.style.display = usd ? 'none' : '';
+    input.style.width = Math.max(4, raw.length + 1) + 'ch'; // long prices were cut off
+    $('priceNativeSymbol').hidden = usd;
+    $('priceUsdView').hidden = !usd;
+    $('priceUsdView').textContent = usd ? usdText(price) : '';
+    $('priceUsdHint').textContent = usd ? `${raw} ${CHAINS[state.chain].nativeSymbol}` : '';
+  }
+
   function refreshUnitDisplays(){
     if($('gasCalcModal') && $('gasCalcModal').style.display === 'flex') gcCompute();
     renderWallets();
     if(typeof renderDisperseSelectors === 'function' && $('sendersSelect')) renderDisperseSelectors();
-    const price = parseFloat($('mintValue').value);
-    $('priceUsdHint').textContent = (state.unit === 'usd' && !isNaN(price)) ? fmtNative(price) : '';
+    syncPriceDisplay();
+    if(state.collection) renderCollection();
+    renderPhases();
+    document.querySelectorAll('[data-native]').forEach(el => { el.textContent = moneyText(el.dataset.native); });
   }
 
   $('usdToggle').addEventListener('change', e => {
@@ -1632,6 +1675,7 @@
 
   function afterWalletsChanged(){
     renderWallets(); updateSidebarWalletInfo(); checkReadiness(); updateConnectWalletBtnStatus();
+    renderMintToPick();
     saveConnectedWallets();
     if(state.armed) disarm();
     checkEligibility();
@@ -3010,7 +3054,7 @@
     } else {
       setScanStep('scanStep3', 'warn'); setScanText('scanStep3', 'Needs input — select the mint function in Advanced to confirm');
     }
-    if(state.eligibility) renderEligibility(); else $('eligibleBadge').textContent = state.fn ? 'likely' : '?';
+    renderEligibility();
     // No function picked yet — the choice lives in Advanced, so don't leave it collapsed.
     if(!state.fn){ $('advBody').removeAttribute('hidden'); $('advToggleBtn').textContent = '▾ Advanced — contract, ABI, mint function, gas limits'; }
     checkReadiness();
@@ -3121,12 +3165,13 @@
     $('mintValue').value = '';
     $('priceUsdHint').textContent = '';
     $('mintQty').value = 1;
-    $('sweepAddr').value = '';
     $('scheduleTime').value = '';
     $('countdownHint').textContent = '';
     $('phaseCardTitle').textContent = 'MINT';
-    $('eligibleBadge').textContent = '?';
+    $('eligibleBadge').textContent = '—';
     $('maxPerWalletBadge').textContent = '—';
+    state.scheduleChosen = false; state.scheduleAuto = false; state.selectedPhase = null;
+    setScheduleHint('');
     $('fireBtn').disabled = true;
 
     $('advBody').setAttribute('hidden',''); $('advToggleBtn').textContent = '▸ Advanced — contract, ABI, mint function, gas limits';
@@ -3276,7 +3321,8 @@
     const c = state.collection;
     const drop = c && c.drop;
     if(!(c && c.slug && drop && drop.activeStageId && proxyBase() && drop.dropType === 'seadrop_v1_erc721')){
-      if(state.eligibility){ state.eligibility = null; renderEligibility(); }
+      state.eligibility = null;
+      renderEligibility();
       return;
     }
     const wallets = mintWallets().slice(0, MAX_ELIGIBILITY_WALLETS);
@@ -3331,9 +3377,8 @@
   function renderEligibility(){
     if(state.collection) renderCollection();
     renderPhases();
-    const sum = eligibilitySummary();
-    $('eligibleBadge').textContent = !sum ? ($('eligibleBadge').textContent || '?')
-      : sum.checking && sum.done < sum.total ? '…' : sum.total ? `${sum.yes}/${sum.total}` : '—';
+    $('eligibleBadge').textContent = mintCardEligibleText();
+    applyEligibleSchedule();
   }
 
   function renderCollection(){
@@ -3358,12 +3403,13 @@
     else if(stages.some(st => stageStatus(st, now).cls === 'soon')) badges.push('<span class="coll-badge soon">Upcoming</span>');
 
     const st = c.stats || {};
-    const usd = v => (sym === 'ETH' && state.priceUsd && v) ? ` <small style="color:var(--text-dim); font-weight:400">$${(v * state.priceUsd).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</small>` : '';
+    const usd = v => (sym === 'ETH' && state.priceUsd && v && !showsUsd(sym)) ? ` <small style="color:var(--text-dim); font-weight:400">$${(v * state.priceUsd).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</small>` : '';
+    const statAmount = v => (v != null && isFinite(Number(v)) && showsUsd(sym)) ? usdText(v) : fmtAmount(v, sym);
     const statsHtml = (st.floor != null || st.owners != null || st.volume != null) ? `
       <div class="coll-stats">
-        <div class="coll-stat"><span>Floor</span><b>${fmtAmount(st.floor, sym)}${usd(st.floor)}</b></div>
+        <div class="coll-stat"><span>Floor</span><b>${statAmount(st.floor)}${usd(st.floor)}</b></div>
         <div class="coll-stat"><span>Owners</span><b>${fmtCount(st.owners)}</b></div>
-        <div class="coll-stat"><span>Total volume</span><b>${fmtAmount(st.volume, sym)}${usd(st.volume)}</b></div>
+        <div class="coll-stat"><span>Total volume</span><b>${statAmount(st.volume)}${usd(st.volume)}</b></div>
         <div class="coll-stat"><span>Sales</span><b>${fmtCount(st.sales)}</b></div>
       </div>` : '';
 
@@ -3377,7 +3423,7 @@
     const schedule = stages.slice().sort((a, b) => (Date.parse(a.start) || 0) - (Date.parse(b.start) || 0));
     const stagesHtml = schedule.length ? `<div class="coll-stages">${schedule.map(s => {
       const status = stageStatus(s, now);
-      const price = s.price == null ? '' : Number(s.price) === 0 ? 'FREE' : fmtAmount(s.price, s.currency || sym);
+      const price = s.price == null ? '' : Number(s.price) === 0 ? 'FREE' : showsUsd(s.currency || sym) ? usdText(s.price) : fmtAmount(s.price, s.currency || sym);
       const kind = stageKindText(s);
       return `<div class="coll-stage ${status.cls}">
         <div><div class="coll-stage-name">${esc(s.name)}${kind ? ` <span class="coll-stage-kind">${esc(kind)}</span>` : ''}</div><div class="coll-stage-meta">${esc(price)}${price ? ' · ' : ''}<span style="color:${status.cls === 'live' ? 'var(--success)' : status.cls === 'soon' ? 'var(--pending)' : 'var(--text-dim)'}">${esc(status.text)}</span></div>
@@ -3559,14 +3605,86 @@
     return `Starts in ${s}s`;
   }
 
-  // "2/3" for the live stage once checked; "all" for public stages; "?" when OpenSea can't say yet.
+  // "2/3" for the live stage once checked; "all" for public stages. OpenSea only answers for a
+  // stage that is live (per-stage answers need the wallet signed in to OpenSea), so an upcoming
+  // allowlist stage reads "at open" and is checked the moment it opens. FUSE doesn't guess.
   function phaseEligibleText(p){
     const e = state.eligibility;
     if(e && p.stageId && p.stageId === e.stageId){
       const sum = eligibilitySummary();
       return sum.checking && sum.done < sum.total ? '…' : `${sum.yes}/${sum.total}`;
     }
-    return p.stageType === 'public_sale' ? 'all' : '?';
+    if(p.stageType === 'public_sale') return 'all';
+    return p.stageType && p.start && new Date(p.start).getTime() > Date.now() ? 'at open' : '—';
+  }
+
+  // The mint card speaks for the phase it is set to, or else for the live stage.
+  function mintCardEligibleText(){
+    const p = state.selectedPhase;
+    if(p && p.start && new Date(p.start).getTime() > Date.now()) return phaseEligibleText(p);
+    const sum = eligibilitySummary();
+    if(sum) return sum.checking && sum.done < sum.total ? '…' : sum.total ? `${sum.yes}/${sum.total}` : '—';
+    return '—';
+  }
+
+  function setScheduleHint(text){
+    $('scheduleHint').textContent = text || '';
+    $('scheduleHint').hidden = !text;
+  }
+  const stageTimeText = (iso) => new Date(iso).toLocaleString([], { day:'numeric', month:'short', hour:'numeric', minute:'2-digit' });
+
+  // When no ticked wallet can mint the live stage, or nothing is live, point the mint card at the
+  // first later phase they can certainly mint: a public one. Upcoming allowlist phases can't be
+  // known in advance, so they are named instead. This only fills the form; arming stays manual,
+  // and a schedule the user set is left alone.
+  function applyEligibleSchedule(){
+    const c = state.collection, drop = c && c.drop;
+    if(!drop || !(drop.stages || []).length || state.targetChainUnsupported || state.firing) return setScheduleHint('');
+    const sum = eligibilitySummary(), liveId = drop.activeStageId;
+    const stages = drop.stages, liveStage = liveId ? stages.find(st => st.id === liveId) : null;
+    const yes = !!(sum && sum.yes && state.eligibility.stageId === liveId);
+    if(state.armed){
+      const waiting = state.scheduleAt && state.scheduleAt > Date.now();
+      return setScheduleHint(waiting && yes && liveStage ? `${sum.yes} of your wallets can mint ${liveStage.name} right now. Click it in Mint phases to switch to it.` : '');
+    }
+    if(!mintWallets().length) return setScheduleHint('');
+    if(liveId && (!sum || state.eligibility.stageId !== liveId || sum.done < sum.total)) return; // still checking
+    if(yes){
+      if(state.scheduleAuto){ // a wallet just became eligible, or got ticked: back to the live stage
+        state.scheduleAuto = false; state.selectedPhase = null;
+        $('scheduleTime').value = '';
+        if(liveStage){
+          if(liveStage.price != null) $('mintValue').value = String(liveStage.price);
+          $('phaseCardTitle').textContent = String(liveStage.name).toUpperCase();
+          if(liveStage.maxPerWallet) $('maxPerWalletBadge').textContent = String(liveStage.maxPerWallet);
+        }
+        syncPriceDisplay();
+      }
+      $('eligibleBadge').textContent = mintCardEligibleText();
+      return setScheduleHint('');
+    }
+    if(liveId && !Object.values(state.eligibility.byAddr).every(r => r.code === 'MINTER_NOT_ELIGIBLE' || r.code === 'MINT_LIMIT_EXCEEDED')) return setScheduleHint('');
+
+    const now = Date.now();
+    const upcoming = stages.filter(st => st.start && Date.parse(st.start) > now).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+    const next = upcoming.find(st => st.type === 'public_sale');
+    const blockedText = liveStage ? `None of your wallets can mint ${liveStage.name}. ` : '';
+    const earlier = (next ? upcoming.slice(0, upcoming.indexOf(next)) : upcoming).filter(st => st.type !== 'public_sale');
+    const earlierText = earlier.length ? ` ${earlier.map(st => st.name).join(', ')} opens first: FUSE checks your wallets then, and tells you here if any can mint it.` : '';
+    if(!next) return setScheduleHint((blockedText + (earlierText.trim() || (blockedText ? 'No later phase is open to every wallet.' : ''))).trim());
+    if(!state.scheduleChosen){
+      state.scheduleAuto = true;
+      state.selectedPhase = state.phases.find(p => p.stageId === next.id) || null;
+      $('scheduleTime').value = toLocalInputValue(new Date(next.start));
+      if(next.price != null) $('mintValue').value = String(next.price);
+      $('phaseCardTitle').textContent = String(next.name).toUpperCase();
+      if(next.maxPerWallet) $('maxPerWalletBadge').textContent = String(next.maxPerWallet);
+      syncPriceDisplay();
+      setScheduleHint(`${blockedText}Set to ${next.name}, ${stageTimeText(next.start)}. Press Arm to fire then.${earlierText}`);
+    } else {
+      setScheduleHint(`${blockedText}${next.name} opens ${stageTimeText(next.start)}.${earlierText}`);
+    }
+    $('eligibleBadge').textContent = mintCardEligibleText();
   }
 
   function renderPhases(){
@@ -3584,7 +3702,7 @@
         </div>
         <div class="phase-list-name">${esc(p.name)}</div>
         <div class="phase-badges" style="margin-top:6px;">
-          <span class="phase-badge">PRICE <b>${esc(p.price)}</b> ETH</span>
+          <span class="phase-badge">PRICE ${showsUsd() && !isNaN(parseFloat(p.price)) ? `<b>${esc(usdText(p.price))}</b>` : `<b>${esc(p.price)}</b> ${esc(CHAINS[state.chain].nativeSymbol)}`}</span>
           <span class="phase-badge">ELIGIBLE <b>${esc(phaseEligibleText(p))}</b></span>
         </div>`;
       list.appendChild(card);
@@ -3597,6 +3715,10 @@
         // A phase that's already live has nothing to wait for: arm it for a manual fire.
         $('scheduleTime').value = p.start && new Date(p.start).getTime() > Date.now() ? p.start : '';
         $('phaseCardTitle').textContent = p.name.toUpperCase();
+        state.scheduleChosen = true; state.scheduleAuto = false; state.selectedPhase = p; setScheduleHint('');
+        $('eligibleBadge').textContent = mintCardEligibleText();
+        // An allowlist phase needs each wallet's proof from OpenSea; the direct call would revert.
+        if(p.stageType && p.stageType !== 'public_sale') addOpenSeaCandidate(true);
         checkReadiness();
         if(!$('armBtn').disabled) $('armBtn').click();
         else setDiag('warn', `Loaded "${p.name}" settings — select a target contract and mint function to arm.`);
@@ -3635,6 +3757,7 @@
   }
 
   function checkReadiness(){
+    syncPriceDisplay();
     const ok = mintWallets().length > 0 && state.fn && $('contractAddr').value.trim() && !state.targetChainUnsupported;
     $('armBtn').disabled = !ok;
     $('simulateBtn').disabled = !ok;
@@ -3653,11 +3776,16 @@
   $('armBtn').onclick = async () => {
     if(state.firing) return;
     if(!mintWallets().length || !state.fn){ alert('Tick at least one wallet and select a mint function first.'); return; }
+    const recipient = mintRecipient();
+    if(!$('mintToOtherWrap').hidden && !(ethers.isAddress(recipient) && recipient !== ethers.ZeroAddress)){
+      setDiag('err', 'Can\'t arm — "Mint to" needs a valid wallet address, or switch it back to Minting wallet.');
+      return;
+    }
     let call;
     try{ call = buildMintCall(); }catch(e){ setDiag('err', 'Can\'t arm — ' + (e.shortMessage || e.message)); return; }
     try{ await probeRpcs(); await verifyChain(); }catch(e){ if(state.armed) disarm(); setDiag('err', 'Can\'t arm — ' + e.message); return; }
     state.armed = true;
-    setDiag('ok', `Armed — ${mintWallets().length} wallet(s) · ${state.fn.name}() · ${CHAINS[state.chain].name} · ${ethers.formatEther(call.value)} ETH per tx × ${call.txPerWallet} tx/wallet`);
+    setDiag('ok', `Armed — ${mintWallets().length} wallet(s) · ${state.fn.name}() · ${CHAINS[state.chain].name} · ${moneyText(ethers.formatEther(call.value))} per tx × ${call.txPerWallet} tx/wallet${recipient ? ` · NFTs go to ${recipient.slice(0,6)}...${recipient.slice(-4)}` : ''}`);
     $('fireBtn').disabled = false;
     setupSchedule();
   };
@@ -3821,6 +3949,7 @@ onmessage = (e) => {
   // Status text can carry RPC errors and revert reasons, which the target contract controls.
   function setStatus(trs, status, text){ trs.forEach(tr => tr.querySelector('.s-cell').innerHTML = `<span class="status-pill status-${status}">${esc(text)}</span>`); }
   function setCell(trs, cls, html){ trs.forEach(tr => tr.querySelector(cls).innerHTML = html); }
+  function amountCell(wei){ const eth = ethers.formatEther(wei); return `<span data-native="${esc(eth)}">${esc(moneyText(eth))}</span>`; }
 
   function renderStats(){
     $('statTotal').textContent = state.stats.total;
@@ -3859,7 +3988,7 @@ onmessage = (e) => {
       gasCap: parseFloat($('maxGasCap').value) || 150,
       autoBump: $('autoBump').checked,
       nftContract: $('contractAddr').value.trim(),
-      sweepAddr: $('sweepAddr').value.trim(),
+      sweepAddr: mintRecipient(),
     };
 
     setDiag('warn', `Firing ${firing.length} wallet(s)…`);
@@ -3882,7 +4011,7 @@ onmessage = (e) => {
     const { maxAttempts, bumpGwei, gasCap, autoBump, nftContract, sweepAddr } = opts;
     const trs = logRow();
     setCell(trs, '.w-cell', w.address.slice(0,6)+'...'+w.address.slice(-4));
-    setCell(trs, '.am-cell', ethers.formatEther(call.value) + ' ETH');
+    setCell(trs, '.am-cell', amountCell(call.value));
     setStatus(trs, 'armed', 'preparing');
 
     let signer;
@@ -3949,7 +4078,7 @@ onmessage = (e) => {
       state.stats.gasSum += Number(ethers.formatUnits(receipt.gasPrice ?? sent.maxFeePerGas,'gwei')); state.stats.gasCount++;
       setCell(trs, '.h-cell', `<a href="${CHAINS[state.chain].tx}${esc(receipt.hash)}" target="_blank" rel="noopener">${esc(receipt.hash.slice(0,8))}...</a>`);
       setStatus(trs, 'success', 'minted');
-      if(sweepAddr) await sweepMinted(w, signer, nftContract, receipt, sweepAddr, trs);
+      if(sweepAddr && sweepAddr.toLowerCase() !== w.address.toLowerCase()) await sweepMinted(w, signer, nftContract, receipt, sweepAddr, trs);
       return;
     }
   }
@@ -3969,7 +4098,7 @@ onmessage = (e) => {
     const allowedTo = [SEADROP_ADDRESS, $('contractAddr').value.trim()].map(a => a.toLowerCase());
     if(!allowedTo.includes(r.to.toLowerCase())) throw Object.assign(new Error(`refused: OpenSea's tx goes to ${r.to.slice(0, 10)}…, not SeaDrop or this collection`), { final: true });
     const value = BigInt(r.value);
-    if(trs) setCell(trs, '.am-cell', esc(ethers.formatEther(value)) + ' ETH');
+    if(trs) setCell(trs, '.am-cell', amountCell(value));
     return { to: r.to, data: r.data, value };
   }
 
@@ -4016,17 +4145,29 @@ onmessage = (e) => {
         .filter(l => l.address.toLowerCase() === contractAddr.toLowerCase() && l.topics[0] === TRANSFER_TOPIC && l.topics.length === 4)
         .filter(l => ethers.getAddress('0x'+l.topics[2].slice(26)).toLowerCase() === w.address.toLowerCase())
         .map(l => BigInt(l.topics[3]));
-      if(!tokenIds.length){ setStatus(trs, 'success', 'minted (no tokenId found to sweep)'); return; }
+      if(!tokenIds.length){ setStatus(trs, 'success', 'minted (no NFT found to send on)'); return; }
       const sweepIface = new ethers.Interface(['function safeTransferFrom(address,address,uint256)']);
       for(const tokenId of tokenIds){
         setStatus(trs, 'pending', `sweeping #${tokenId}`);
         const data = sweepIface.encodeFunctionData('safeTransferFrom', [w.address, sweepAddr, tokenId]);
-        const tx = await signer.sendTransaction({ to: contractAddr, data });
+        // Right after a fast mint the provider can still hold the old nonce for a moment.
+        const send = async () => {
+          for(let attempt = 1; ; attempt++){
+            try{ return await signer.sendTransaction({ to: contractAddr, data }); }
+            catch(e){
+              if(e.code !== 'NONCE_EXPIRED' || attempt >= 3) throw e;
+              await pauseFor(1000);
+            }
+          }
+        };
+        const tx = w.injected
+          ? await withProviderLock(w.provider, async () => { await ensureWalletAccount(w, (msg) => setStatus(trs, 'pending', msg)); return send(); })
+          : await send();
         await tx.wait();
       }
-      setStatus(trs, 'success', `minted + swept to ${sweepAddr.slice(0,6)}...`);
+      setStatus(trs, 'success', `minted + sent to ${sweepAddr.slice(0,6)}...`);
     }catch(e){
-      setStatus(trs, 'success', 'minted (sweep failed: ' + shortErr(e) + ')');
+      setStatus(trs, 'success', 'minted, still in this wallet (send failed: ' + shortErr(e) + ')');
     }
   }
 
@@ -4043,6 +4184,40 @@ onmessage = (e) => {
   ['contractAddr','mintValue','mintQty','scheduleTime'].forEach(id => {
     $(id).addEventListener('input', () => { if(state.armed) disarm(); checkReadiness(); if(id==='mintValue') refreshUnitDisplays(); });
   });
+  $('scheduleTime').addEventListener('input', () => { state.scheduleChosen = true; state.scheduleAuto = false; state.selectedPhase = null; setScheduleHint(''); });
+
+  // ---------- where minted NFTs end up ----------
+  // Mints always land in the wallet that pays: SeaDrop only lets a payer mint to someone else if
+  // the collection approved that payer, and OpenSea builds its transaction for the minter. So a
+  // preferred wallet is reached with a transfer straight after the mint.
+  const MINT_TO_KEY = 'fuse.mintTo';
+  function mintRecipient(){ return $('mintToOtherWrap').hidden ? '' : $('sweepAddr').value.trim(); }
+  function saveMintTo(){
+    try{ localStorage.setItem(MINT_TO_KEY, JSON.stringify({ other: !$('mintToOtherWrap').hidden, address: $('sweepAddr').value.trim() })); }catch(e){}
+  }
+  function setMintToMode(other){
+    $('mintToOtherWrap').hidden = !other;
+    $('mintToSelf').classList.toggle('active', !other);
+    $('mintToOther').classList.toggle('active', other);
+  }
+  function renderMintToPick(){
+    const pick = $('mintToPick'), current = $('sweepAddr').value.trim().toLowerCase();
+    pick.innerHTML = '';
+    const add = (value, text) => { const o = document.createElement('option'); o.value = value; o.textContent = text; pick.appendChild(o); };
+    add('', 'Other address (type it below)');
+    state.wallets.forEach(w => add(w.address, `${w.name || 'Wallet'} · ${w.address.slice(0,6)}...${w.address.slice(-4)}`));
+    const match = state.wallets.find(w => w.address.toLowerCase() === current);
+    pick.value = match ? match.address : '';
+  }
+  $('mintToSelf').onclick = () => { if($('mintToOtherWrap').hidden) return; setMintToMode(false); saveMintTo(); if(state.armed) disarm(); };
+  $('mintToOther').onclick = () => { if(!$('mintToOtherWrap').hidden) return; setMintToMode(true); renderMintToPick(); saveMintTo(); if(state.armed) disarm(); };
+  $('mintToPick').onchange = () => { if($('mintToPick').value) $('sweepAddr').value = $('mintToPick').value; saveMintTo(); if(state.armed) disarm(); };
+  $('sweepAddr').addEventListener('input', () => { renderMintToPick(); saveMintTo(); if(state.armed) disarm(); });
+  try{
+    const saved = JSON.parse(localStorage.getItem(MINT_TO_KEY) || 'null');
+    if(saved){ $('sweepAddr').value = String(saved.address || ''); setMintToMode(!!saved.other); }
+  }catch(e){}
+  renderMintToPick();
 
   updateSidebarWalletInfo();
   renderPhases();
