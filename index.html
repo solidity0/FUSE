@@ -506,7 +506,12 @@
   #scheduleHint{ color:var(--pending); font-size:11.5px; }
   .qty-stepper{ display:flex; align-items:center; gap:8px; margin-bottom:12px; }
   .qty-btn{ width:34px; height:34px; border-radius:0; background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:16px; font-weight:700; }
-  .qty-input{ flex:1; text-align:center; font-family:var(--mono); font-size:15px; font-weight:700; background:var(--surface); border:1px solid var(--border); border-radius:0; padding:8px; color:var(--text); }
+  .qty-input{ flex:1; min-width:0; text-align:center; font-family:var(--mono); font-size:15px; font-weight:700; background:var(--surface); border:1px solid var(--border); border-radius:0; padding:8px; color:var(--text); }
+  @media (max-width:560px){
+    .disperse-amount-row{ flex-direction:column; gap:0; } /* side by side leaves the amount too narrow to read */
+    .disperse-amount-row > *{ flex:none; }
+    .disperse-amount-row .qty-input{ padding:8px 4px; }
+  }
   .gas-row{ display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:11.5px; color:var(--text-dim); margin-bottom:12px; padding:8px 10px; background:var(--surface); border-radius:0; }
 
   .phase-list-item{ border:1px solid var(--border); background:var(--surface); padding:10px 12px; margin-bottom:8px; cursor:pointer; transition:border-color .15s; }
@@ -924,7 +929,7 @@
           </div>
         </div>
 
-        <div class="field-row">
+        <div class="field-row disperse-amount-row">
           <div class="field">
             <label style="text-transform:uppercase; font-size:11px; letter-spacing:.5px;">Mode</label>
             <select id="disperseMode" style="width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px; font-family:var(--mono); font-size:12.5px;">
