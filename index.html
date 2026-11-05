@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-NbHJbMkQHDv9ZOVtK0hqQUWbUJVhrMFq/wUcscNoVA8=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-O4PKFh8IqulYfxeAUipGCQMCYiou6opRKvEUFvDshuQ=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -433,6 +433,23 @@
   @media (max-width:560px){ /* All sits under its tick box so the name boxes keep their room; the other headings line up with it */
     .select-all{ display:flex; flex-direction:column; gap:2px; }
     #page-wallets thead th{ vertical-align:bottom; white-space:nowrap; }
+    /* Each wallet is two lines, so the name gets the full width: name, then address and balance under it */
+    #page-wallets table, #page-wallets thead, #page-wallets tbody{ display:block; }
+    #page-wallets tbody tr{ display:grid; grid-template-columns:41px minmax(0,1fr) auto; column-gap:8px; align-items:center; }
+    /* The headings stack like the rows below them: NAME over ADDRESS, with ALL and BALANCE on ADDRESS's line */
+    #page-wallets thead tr{ display:grid; grid-template-columns:41px minmax(0,1fr) auto; column-gap:8px; align-items:end; padding-bottom:6px; border-bottom:1px solid var(--border); }
+    #page-wallets thead th{ width:auto !important; padding:2px 0; border:none; text-align:left !important; } /* All has a fixed width for desktop */
+    #page-wallets thead th:nth-child(1){ grid-row:1 / span 2; padding-left:10px; }
+    #page-wallets thead th:nth-child(2){ grid-column:2; grid-row:1; }
+    #page-wallets thead th:nth-child(3){ grid-column:2; grid-row:2; }
+    #page-wallets thead th:nth-child(4){ grid-column:3; grid-row:2; }
+    #page-wallets tbody td{ border:none; padding:3px 0; }
+    #page-wallets tbody tr{ padding:8px 0; border-bottom:1px solid var(--border-soft); }
+    #page-wallets tbody td:nth-child(1){ grid-row:1 / span 2; padding-left:16px; } /* under the All tick box */
+    #page-wallets tbody td:nth-child(2){ grid-column:2 / -1; }
+    #page-wallets tbody td:nth-child(3){ grid-column:2; }
+    #page-wallets tbody td:nth-child(4){ grid-column:3; text-align:right; white-space:nowrap; }
+    #page-wallets tbody td.log-empty{ grid-column:1 / -1; grid-row:auto; padding:26px 10px; }
   }
   .wa-list{ max-height:190px; overflow-y:auto; margin:12px 0; border-top:1px solid var(--border-soft); }
   .wa-list div{ display:flex; justify-content:space-between; gap:12px; padding:7px 0; border-bottom:1px solid var(--border-soft); font-size:12px; }
@@ -811,6 +828,11 @@
             <thead><tr><th>Hash</th><th>Wallet</th><th>Amount</th><th>Gas (gwei)</th><th>Status</th></tr></thead>
             <tbody id="logBody2"><tr><td colspan="5" class="log-empty">No transactions yet.</td></tr></tbody>
           </table>
+          <div class="dh-head">
+            <div class="section-title"><span class="dot"></span>History</div>
+            <button class="btn btn-secondary dh-clear" type="button" hidden>Clear</button>
+          </div>
+          <div class="dh-list"></div>
         </div>
         <div id="tabpane-analytics" style="display:none;">
           <div class="stats-grid">
@@ -956,9 +978,9 @@
 
         <div class="dh-head">
           <div class="section-title"><span class="dot"></span>History</div>
-          <button class="btn btn-secondary dh-clear" id="disperseHistoryClear" type="button" hidden>Clear</button>
+          <button class="btn btn-secondary dh-clear" type="button" hidden>Clear</button>
         </div>
-        <div class="dh-list" id="disperseHistory"></div>
+        <div class="dh-list"></div>
       </div>
     </div>
 
@@ -2518,100 +2540,111 @@
     $('disperseMaxHint').textContent = `MAX ≈ ${usable.toFixed(4)} ETH available across ${senderIdx.length} sender(s) after a small gas buffer.`;
   };
 
-  // Past sends, kept in this browser. Only public details: addresses, amounts and transaction hashes.
-  const DISPERSE_HISTORY_KEY = 'fuse.disperseHistory';
-  const DISPERSE_HISTORY_MAX = 100;
-  const DISPERSE_STATUS_TEXT = { pending:'pending', confirmed:'confirmed ✓', failed:'failed', cancelled:'cancelled in wallet' };
-  function readDisperseHistory(){
+  // Past mints and sends, kept in this browser. Only public details: addresses, amounts and transaction hashes.
+  const TX_HISTORY_KEY = 'fuse.disperseHistory';
+  const TX_HISTORY_MAX = 100;
+  const TX_STATUS_TEXT = { pending:'pending', confirmed:'confirmed ✓', failed:'failed', cancelled:'cancelled in wallet' };
+  function readTxHistory(){
     try{
-      const list = JSON.parse(localStorage.getItem(DISPERSE_HISTORY_KEY) || '[]');
+      const list = JSON.parse(localStorage.getItem(TX_HISTORY_KEY) || '[]');
       return Array.isArray(list) ? list : [];
     }catch(e){ return []; }
   }
-  function writeDisperseHistory(list){
+  function writeTxHistory(list){
     try{
-      if(list.length) localStorage.setItem(DISPERSE_HISTORY_KEY, JSON.stringify(list.slice(0, DISPERSE_HISTORY_MAX)));
-      else localStorage.removeItem(DISPERSE_HISTORY_KEY);
+      if(list.length) localStorage.setItem(TX_HISTORY_KEY, JSON.stringify(list.slice(0, TX_HISTORY_MAX)));
+      else localStorage.removeItem(TX_HISTORY_KEY);
     }catch(e){}
-    renderDisperseHistory();
+    renderTxHistory();
   }
-  function addDisperseHistory(entry){
+  function addTxHistory(entry){
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    writeDisperseHistory([{ ...entry, id, at: Date.now() }, ...readDisperseHistory()]);
+    writeTxHistory([{ ...entry, id, at: Date.now() }, ...readTxHistory()]);
     return id;
   }
   // Reads the list fresh each time, as another open tab may have added to it.
-  function setDisperseHistoryStatus(id, status){
-    writeDisperseHistory(readDisperseHistory().map(e => e.id === id ? { ...e, status } : e));
+  function updateTxHistory(id, patch){
+    writeTxHistory(readTxHistory().map(e => e.id === id ? { ...e, ...patch } : e));
+  }
+  function historyAmount(units, decimals, symbol){
+    return `${parseFloat(Number(ethers.formatUnits(units, decimals)).toPrecision(6))} ${symbol}`;
   }
   function shortAddress(a){ return `${String(a).slice(0,6)}...${String(a).slice(-4)}`; }
-  function renderDisperseHistory(){
-    const list = readDisperseHistory();
-    const box = $('disperseHistory');
-    box.innerHTML = '';
-    $('disperseHistoryClear').hidden = !list.length;
-    if(!list.length){
-      const empty = document.createElement('div');
-      empty.className = 'log-empty';
-      empty.textContent = 'No transactions yet.';
-      box.appendChild(empty);
-      return;
-    }
-    list.forEach(e => {
-      const row = document.createElement('div');
-      row.className = 'dh-row';
-      const chain = CHAINS[e.chain];
-      const route = document.createElement('span');
-      route.className = 'dh-route';
-      route.textContent = `${shortAddress(e.from)} → ${shortAddress(e.to)} · ${e.amount}${chain && !String(e.amount).endsWith(chain.name) ? ` · ${chain.name}` : ''}`;
-      const status = document.createElement('span');
-      status.className = 'dh-status ' + (DISPERSE_STATUS_TEXT[e.status] ? e.status : 'pending');
-      status.textContent = DISPERSE_STATUS_TEXT[e.status] || DISPERSE_STATUS_TEXT.pending;
-      const time = document.createElement('span');
-      time.className = 'dh-time';
-      time.textContent = new Date(e.at).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
-      row.append(route, status, time);
-      if(chain && /^0x[a-fA-F0-9]{64}$/.test(e.hash || '')){
-        const link = document.createElement('a');
-        link.href = chain.tx + e.hash;
-        link.target = '_blank';
-        link.rel = 'noopener';
-        link.textContent = 'View ↗';
-        row.appendChild(link);
+  function renderTxHistory(){
+    const list = readTxHistory();
+    document.querySelectorAll('.dh-clear').forEach(btn => { btn.hidden = !list.length; });
+    document.querySelectorAll('.dh-list').forEach(box => {
+      box.innerHTML = '';
+      if(!list.length){
+        const empty = document.createElement('div');
+        empty.className = 'log-empty';
+        empty.textContent = 'No transactions yet.';
+        box.appendChild(empty);
+        return;
       }
-      box.appendChild(row);
+      list.forEach(e => box.appendChild(txHistoryRow(e)));
     });
   }
-  // A send still pending when the page closed: ask the chain how it ended.
-  async function checkPendingDisperseHistory(){
-    const pending = readDisperseHistory().filter(e => e.status === 'pending' && e.hash && e.chain === state.chain);
+  function txHistoryRow(e){
+    const row = document.createElement('div');
+    row.className = 'dh-row';
+    const chain = CHAINS[e.chain];
+    const route = document.createElement('span');
+    route.className = 'dh-route';
+    route.textContent = `${e.kind === 'mint' ? 'Mint' : 'Send'} · ${shortAddress(e.from)} → ${shortAddress(e.to)} · ${e.amount}${chain && !String(e.amount).endsWith(chain.name) ? ` · ${chain.name}` : ''}`;
+    const status = document.createElement('span');
+    status.className = 'dh-status ' + (TX_STATUS_TEXT[e.status] ? e.status : 'pending');
+    status.textContent = e.kind === 'mint' && e.status === 'confirmed' ? 'minted ✓' : (TX_STATUS_TEXT[e.status] || TX_STATUS_TEXT.pending);
+    const time = document.createElement('span');
+    time.className = 'dh-time';
+    time.textContent = new Date(e.at).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    row.append(route, status, time);
+    if(chain && /^0x[a-fA-F0-9]{64}$/.test(e.hash || '')){
+      const link = document.createElement('a');
+      link.href = chain.tx + e.hash;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.textContent = 'View ↗';
+      row.appendChild(link);
+    }
+    return row;
+  }
+  // A transaction still pending when the page closed: ask the chain how it ended. A sped-up mint
+  // has several hashes, and any one of them may be the one that landed.
+  async function checkPendingTxHistory(){
+    const pending = readTxHistory().filter(e => e.status === 'pending' && e.hash && e.chain === state.chain);
     if(!pending.length) return;
     let provider;
     try{ provider = getProvider(); }catch(e){ return; }
     for(const e of pending){
       try{
-        const receipt = await provider.getTransactionReceipt(e.hash);
-        if(receipt) setDisperseHistoryStatus(e.id, receipt.status === 1 ? 'confirmed' : 'failed');
+        for(const hash of e.hashes || [e.hash]){
+          const receipt = await provider.getTransactionReceipt(hash);
+          if(receipt){ updateTxHistory(e.id, { hash, status: receipt.status === 1 ? 'confirmed' : 'failed' }); break; }
+        }
       }catch(err){}
     }
   }
-  let clearHistoryTimer = null;
-  $('disperseHistoryClear').onclick = () => {
-    const btn = $('disperseHistoryClear');
-    if(!clearHistoryTimer){ // second click within 3s confirms
-      btn.textContent = 'Clear all?';
-      clearHistoryTimer = setTimeout(() => { clearHistoryTimer = null; btn.textContent = 'Clear'; }, 3000);
-      return;
-    }
-    clearTimeout(clearHistoryTimer);
-    clearHistoryTimer = null;
-    btn.textContent = 'Clear';
-    writeDisperseHistory([]);
-  };
+  document.querySelectorAll('.dh-clear').forEach(btn => {
+    let timer = null;
+    btn.onclick = () => {
+      if(!timer){ // second click within 3s confirms
+        btn.textContent = 'Clear all?';
+        timer = setTimeout(() => { timer = null; btn.textContent = 'Clear'; }, 3000);
+        return;
+      }
+      clearTimeout(timer);
+      timer = null;
+      btn.textContent = 'Clear';
+      writeTxHistory([]);
+    };
+  });
+  renderTxHistory();
+  setTimeout(checkPendingTxHistory, 0); // after start-up finishes
 
   function populateDisperseFrom(){
-    renderDisperseHistory();
-    checkPendingDisperseHistory();
+    renderTxHistory();
+    checkPendingTxHistory();
     renderDisperseChainRow();
     renderDisperseSelectors();
     $('disperseUnitNative').classList.toggle('active', state.unit !== 'usd');
@@ -2665,7 +2698,7 @@
     const perUnits = isFlat ? totalUnits : totalUnits / BigInt(recipients.length);
     if(perUnits <= 0n){ notify('Amount per recipient rounds to zero.'); return; }
     const perLabel = `${ethers.formatUnits(perUnits, isErc20 ? decimals : 18)} ${isErc20 ? 'tokens' : CHAINS[state.chain].nativeSymbol}`;
-    const historyAmount = `${parseFloat(Number(ethers.formatUnits(perUnits, isErc20 ? decimals : 18)).toPrecision(6))} ${isErc20 ? 'tokens' : CHAINS[state.chain].nativeSymbol}`;
+    const sendAmount = historyAmount(perUnits, isErc20 ? decimals : 18, isErc20 ? 'tokens' : CHAINS[state.chain].nativeSymbol);
 
     for(let idx = 0; idx < recipients.length; idx++){
       const addr = recipients[idx];
@@ -2678,7 +2711,7 @@
         rowDiv.textContent = `${sender.address.slice(0,6)}... → ${addr.slice(0,6)}...${addr.slice(-4)} : skipped (sender is the recipient)`;
         continue;
       }
-      const historyEntry = { chain: state.chain, from: sender.address, to: addr, amount: historyAmount };
+      const historyEntry = { kind: 'send', chain: state.chain, from: sender.address, to: addr, amount: sendAmount };
       let historyId = null;
       try{
         const signer = await getSignerForWallet(sender, provider);
@@ -2691,16 +2724,16 @@
           tx = await signer.sendTransaction({ to: addr, value: perUnits, chainId });
         }
         rowDiv.textContent = `${sender.address.slice(0,6)}... → ${addr.slice(0,6)}...${addr.slice(-4)} : sent (${tx.hash.slice(0,10)}...)`;
-        historyId = addDisperseHistory({ ...historyEntry, hash: tx.hash, status: 'pending' });
+        historyId = addTxHistory({ ...historyEntry, hash: tx.hash, status: 'pending' });
         await tx.wait();
-        setDisperseHistoryStatus(historyId, 'confirmed');
+        updateTxHistory(historyId, { status: 'confirmed' });
         rowDiv.textContent = `${sender.address.slice(0,6)}... → ${addr.slice(0,6)}...${addr.slice(-4)} : confirmed ✓`;
         rowDiv.style.color = 'var(--success)';
       }catch(e){
         const cancelled = e && (e.code === 'ACTION_REJECTED' || e.code === 4001);
         // Once sent, only a revert is a known failure. A lost connection leaves it pending, to check later.
-        if(!historyId) addDisperseHistory({ ...historyEntry, status: cancelled ? 'cancelled' : 'failed' });
-        else if(e && e.code === 'CALL_EXCEPTION') setDisperseHistoryStatus(historyId, 'failed');
+        if(!historyId) addTxHistory({ ...historyEntry, status: cancelled ? 'cancelled' : 'failed' });
+        else if(e && e.code === 'CALL_EXCEPTION') updateTxHistory(historyId, { status: 'failed' });
         rowDiv.textContent = `${sender.address.slice(0,6)}... → ${addr.slice(0,6)}...${addr.slice(-4)} : ${cancelled ? 'cancelled in wallet' : `failed (${(e.shortMessage||e.message||'error').slice(0,40)})`}`;
         rowDiv.style.color = 'var(--fail)';
       }
@@ -4548,9 +4581,18 @@ onmessage = (e) => {
     setCell(trs, '.am-cell', amountCell(call.value));
     setStatus(trs, 'armed', 'preparing');
 
+    // A history row appears once there's an outcome or a transaction, not for each retry.
+    const symbol = CHAINS[state.chain].nativeSymbol;
+    const historyEntry = { kind: 'mint', chain: state.chain, from: w.address, to: nftContract, amount: call.value != null ? historyAmount(call.value, 18, symbol) : `— ${symbol}` };
+    let historyId = null;
+    const historyEnd = (status) => {
+      if(historyId) updateTxHistory(historyId, { status });
+      else addTxHistory({ ...historyEntry, status });
+    };
+
     let signer;
     try{ signer = await getSignerForWallet(w, provider); }
-    catch(e){ setStatus(trs, 'fail', shortErr(e)); state.stats.total++; state.stats.fail++; return; }
+    catch(e){ setStatus(trs, 'fail', shortErr(e)); state.stats.total++; state.stats.fail++; historyEnd('failed'); return; }
 
     // Before anything is broadcast, a failed send (not live yet, underpriced…) is retried as a
     // new tx. Once a tx is out, retries only ever replace it at the same nonce with higher
@@ -4561,7 +4603,7 @@ onmessage = (e) => {
     // Via OpenSea, every wallet gets its own calldata (its allowlist proof), fetched just before
     // the first send; a speed-up re-sends exactly that.
     let walletCall = call.opensea ? null : { to: call.to, data: call.data, value: call.value };
-    const fail = (text) => { setStatus(trs, 'fail', text); state.stats.total++; state.stats.fail++; };
+    const fail = (text) => { setStatus(trs, 'fail', text); state.stats.total++; state.stats.fail++; historyEnd('failed'); };
     while(true){
       attempt++;
       const canRetry = autoBump && attempt < maxAttempts;
@@ -4586,6 +4628,8 @@ onmessage = (e) => {
             : await signer.sendTransaction(req);
           sent = { nonce: tx.nonce, gasLimit: tx.gasLimit, ...fees };
           hashes.push(tx.hash);
+          if(historyId) updateTxHistory(historyId, { hash: tx.hash, hashes: [...hashes] });
+          else historyId = addTxHistory({ ...historyEntry, amount: historyAmount(walletCall.value ?? 0n, 18, symbol), hash: tx.hash, hashes: [...hashes], status: 'pending' });
           setCell(trs, '.h-cell', `<a href="${CHAINS[state.chain].tx}${esc(tx.hash)}" target="_blank" rel="noopener">${esc(tx.hash.slice(0,8))}...</a>`);
         }catch(e){
           if(!sent){
@@ -4593,7 +4637,7 @@ onmessage = (e) => {
             // Rejected in the wallet popup — asking again would just reopen it. Same for an
             // OpenSea "no" that a retry can't change (not on the allowlist, limit reached…).
             const rejected = e && (e.code === 'ACTION_REJECTED' || e.code === 4001);
-            if(!canRetry || rejected || (e && e.final)){ state.stats.total++; state.stats.fail++; return; }
+            if(!canRetry || rejected || (e && e.final)){ state.stats.total++; state.stats.fail++; historyEnd(rejected ? 'cancelled' : 'failed'); return; }
             // Stage not open yet (fired a moment early) — give it a beat instead of burning attempts.
             if(e && e.mintCode === 'NOT_MINTING') await pauseFor(1500);
             priorityBumpGwei += bumpGwei;
@@ -4612,6 +4656,7 @@ onmessage = (e) => {
       state.stats.gasSum += Number(ethers.formatUnits(receipt.gasPrice ?? sent.maxFeePerGas,'gwei')); state.stats.gasCount++;
       setCell(trs, '.h-cell', `<a href="${CHAINS[state.chain].tx}${esc(receipt.hash)}" target="_blank" rel="noopener">${esc(receipt.hash.slice(0,8))}...</a>`);
       setStatus(trs, 'success', 'minted');
+      updateTxHistory(historyId, { hash: receipt.hash, status: 'confirmed' });
       if(sweepAddr && sweepAddr.toLowerCase() !== w.address.toLowerCase()) await sweepMinted(w, signer, nftContract, receipt, sweepAddr, trs);
       return;
     }
