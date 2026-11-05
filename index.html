@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Tv+m9AMxW9hrFh5Vs+stDWwOAXABp/vhDYJbB97/vso=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-O4PKFh8IqulYfxeAUipGCQMCYiou6opRKvEUFvDshuQ=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -2446,8 +2446,32 @@
   // always go out in ETH, so USD input has to be converted first.
   function disperseUsdMode(){ return state.unit === 'usd' && !$('disperseErc20Toggle').checked; }
 
+  function disperseAmountText(){ return $('disperseAmount').value.replace(/[$,\s]/g, ''); }
+
+  // Keeps the box in step with the unit: a $ in USD, and the same value when the unit switches,
+  // so 29 dollars can't turn into 29 ETH. Tokens have no price, so USD to or from tokens clears it.
+  let disperseAmountMode = null;
+  function syncDisperseAmount(){
+    const box = $('disperseAmount');
+    const mode = $('disperseErc20Toggle').checked ? 'token' : disperseUsdMode() ? 'usd' : 'native';
+    let text = disperseAmountText();
+    if(disperseAmountMode && mode !== disperseAmountMode && (mode === 'usd' || disperseAmountMode === 'usd')){
+      const value = parseFloat(text) || 0;
+      if(mode === 'token' || disperseAmountMode === 'token' || !state.priceUsd) text = '0';
+      else text = String(mode === 'usd' ? +(value * state.priceUsd).toFixed(2) : +(value / state.priceUsd).toFixed(6));
+    }
+    disperseAmountMode = mode;
+    const shown = mode === 'usd' ? '$' + text : text;
+    if(box.value !== shown){
+      const fromEnd = box.value.length - (box.selectionEnd ?? box.value.length);
+      box.value = shown;
+      if(document.activeElement === box) box.setSelectionRange(shown.length - fromEnd, shown.length - fromEnd); // typing mid-number keeps its place
+    }
+  }
+
   function updateDisperseMaxHint(){
-    const amount = parseFloat($('disperseAmount').value) || 0;
+    syncDisperseAmount();
+    const amount = parseFloat(disperseAmountText()) || 0;
     const isErc20 = $('disperseErc20Toggle').checked;
     const sym = CHAINS[state.chain].nativeSymbol;
     if(isErc20){ $('disperseMaxHint').textContent = `ⓘ ${amount} tokens`; return; }
@@ -2462,8 +2486,14 @@
 
   $('disperseAmount').addEventListener('input', updateDisperseMaxHint);
 
-  $('disperseMinus').onclick = () => { $('disperseAmount').value = Math.max(0, (parseFloat($('disperseAmount').value)||0) - 0.001).toFixed(4); updateDisperseMaxHint(); };
-  $('dispersePlus').onclick = () => { $('disperseAmount').value = ((parseFloat($('disperseAmount').value)||0) + 0.001).toFixed(4); updateDisperseMaxHint(); };
+  function stepDisperseAmount(direction){
+    const usd = disperseUsdMode(); // a dollar at a time in USD, as 0.001 means nothing there
+    const next = Math.max(0, (parseFloat(disperseAmountText()) || 0) + direction * (usd ? 1 : 0.001));
+    $('disperseAmount').value = next.toFixed(usd ? 2 : 4);
+    updateDisperseMaxHint();
+  }
+  $('disperseMinus').onclick = () => stepDisperseAmount(-1);
+  $('dispersePlus').onclick = () => stepDisperseAmount(1);
 
   $('disperseSwap').onclick = () => {
     const tmp = state.senderSel;
@@ -2506,6 +2536,7 @@
     const val = isFlat ? usable / recipCount : usable;
     if(disperseUsdMode() && state.priceUsd) $('disperseAmount').value = (val * state.priceUsd).toFixed(2);
     else $('disperseAmount').value = val.toFixed(4);
+    syncDisperseAmount();
     $('disperseMaxHint').textContent = `MAX ≈ ${usable.toFixed(4)} ETH available across ${senderIdx.length} sender(s) after a small gas buffer.`;
   };
 
@@ -2636,7 +2667,7 @@
     const recipients = [...new Map([...recipIdx.map(i => state.wallets[i].address), ...externalRecipients()].map(a => [a.toLowerCase(), a])).values()];
     if(!senderIdx.length){ notify('Check at least one sender.'); return; }
     if(!recipients.length){ notify('Check at least one recipient or add an external address.'); return; }
-    const amountStr = $('disperseAmount').value.trim();
+    const amountStr = disperseAmountText();
     const amount = parseFloat(amountStr) || 0;
     if(amount <= 0){ notify('Enter an amount above 0.'); return; }
     const isFlat = $('disperseMode').value === 'flat';
