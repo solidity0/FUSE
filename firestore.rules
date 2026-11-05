@@ -1,0 +1,23 @@
+rules_version = '2';
+
+// FUSE accounts: one encrypted wallet vault per user. The vault is encrypted in the browser
+// before it's sent, so Firestore never holds a readable private key.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /vaults/{userId} {
+      function isOwner() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+      allow read, delete: if isOwner();
+      allow create, update: if isOwner()
+        && request.resource.data.keys().hasOnly(['vault', 'updatedAt'])
+        && request.resource.data.vault is string
+        && request.resource.data.vault.size() < 200000;
+    }
+
+    // Everything else stays closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

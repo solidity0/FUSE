@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-O4PKFh8IqulYfxeAUipGCQMCYiou6opRKvEUFvDshuQ=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-+JYxBwbEk/Qz3rsIvc2fVwu4OhOrVT/Zb2ZboBqWn44=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -190,7 +190,7 @@
   .tab.active{ background:var(--surface); color:var(--text); }
 
   label{ display:block; font-size:11.5px; color:var(--text-mid); margin-bottom:5px; font-weight:500; }
-  input[type=text], input[type=password], input[type=number], input[type=datetime-local], textarea{
+  input[type=text], input[type=email], input[type=password], input[type=number], input[type=datetime-local], textarea{
     width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text);
     padding:8px 10px; border-radius:0; font-family:var(--mono); font-size:12.5px; outline:none;
     transition: border-color .15s, box-shadow .15s;
@@ -455,6 +455,20 @@
   .wa-list div{ display:flex; justify-content:space-between; gap:12px; padding:7px 0; border-bottom:1px solid var(--border-soft); font-size:12px; }
   .wa-list span:first-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .wa-list span:last-child{ flex:none; font-family:var(--mono); color:var(--text-dim); }
+  .auth-gate{ position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px; overflow-y:auto; background:var(--bg); }
+  .auth-gate[hidden]{ display:none; }
+  .auth-card{ width:100%; max-width:380px; margin:auto; padding:24px; background:var(--surface); border:1px solid var(--border); }
+  .auth-brand{ font-family:var(--mono); font-size:20px; font-weight:700; letter-spacing:1px; text-align:center; margin-bottom:6px; }
+  .auth-sub{ font-size:12.5px; color:var(--text-mid); text-align:center; margin-bottom:18px; }
+  .auth-tabs{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px; }
+  .auth-tabs .active{ border-color:var(--accent); color:var(--text); }
+  .auth-card input[type=email], .auth-card input[type=password]{ width:100%; }
+  .auth-ack{ display:flex; align-items:flex-start; gap:8px; margin:12px 0; font-size:12px; color:var(--text-mid); text-transform:none; letter-spacing:0; }
+  .auth-ack input{ flex:none; margin-top:2px; }
+  .auth-message{ min-height:18px; margin-top:12px; font-size:12.5px; text-align:center; color:var(--text-mid); }
+  .auth-message.err{ color:var(--fail); }
+  .account-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .account-row #accountEmail{ font-family:var(--mono); font-size:12.5px; overflow-wrap:anywhere; }
   .modal-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:100; display:flex; align-items:center; justify-content:center; }
   .wallet-pick-btn{ display:flex; align-items:center; gap:10px; width:100%; padding:10px 12px; margin-bottom:6px; background:var(--surface-raised); border:1px solid var(--border); color:var(--text); font-size:13px; font-weight:600; text-align:left; }
   .wallet-pick-btn:hover{ border-color:var(--accent); }
@@ -546,6 +560,27 @@
 </style>
 </head>
 <body>
+<div class="auth-gate" id="authGate">
+  <div class="auth-card">
+    <div class="auth-brand">FUSE</div>
+    <div class="auth-sub" id="authSub">Sign in to use FUSE</div>
+    <form id="authForm" novalidate>
+      <div class="auth-tabs">
+        <button class="btn btn-secondary active" id="authTabSignIn" type="button">Sign in</button>
+        <button class="btn btn-secondary" id="authTabSignUp" type="button">Create account</button>
+      </div>
+      <div class="field"><label for="authEmail">Email</label><input type="email" id="authEmail" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
+      <div class="field"><label for="authPassword">Password</label><input type="password" id="authPassword" autocomplete="current-password"></div>
+      <div id="authSignUpFields" hidden>
+        <div class="field"><label for="authConfirm">Confirm password</label><input type="password" id="authConfirm" autocomplete="new-password"></div>
+        <label class="auth-ack"><input type="checkbox" id="authAck"> <span>I understand that if I forget this password, nobody can recover my account or the wallets saved in it. I'll keep my own copy of my private keys.</span></label>
+      </div>
+      <button class="btn btn-primary" id="authSubmit" type="submit" style="width:100%;">Sign in</button>
+    </form>
+    <button class="btn btn-primary" id="authRetry" type="button" style="width:100%;" hidden>Try again</button>
+    <div class="auth-message" id="authMessage" role="status"></div>
+  </div>
+</div>
 
 <div class="mobile-topbar">
   <div class="mobile-acct">
@@ -847,7 +882,7 @@
 
     <div class="page" id="page-wallets" hidden>
       <div class="diag-banner" style="background:var(--accent-dim); color:var(--accent-text); border-color:rgba(59,43,229,.3);">
-        <span>⚑</span><span class="flex-fill">Created wallets stay in this browser until you delete them. Imported keys clear on refresh. Keep your own copy of any key you want to keep.</span>
+        <span>⚑</span><span class="flex-fill">Your wallets are encrypted and saved to your account. If you forget your password they're gone for good, so keep your own copy of any key you want to keep.</span>
         <a href="#" id="walletSecurityLink" style="color:var(--accent-text);">Learn more</a>
       </div>
 
@@ -986,6 +1021,12 @@
 
     <div class="page" id="page-settings" hidden>
       <div class="card">
+        <div class="account-row">
+          <div><div class="section-title"><span class="dot"></span>Account</div><span id="accountEmail"></span></div>
+          <button class="btn btn-secondary" id="signOutBtn" type="button">Sign out</button>
+        </div>
+      </div>
+      <div class="card">
         <div class="section-title"><span class="dot"></span>Chain &amp; connection</div>
         <div class="field">
           <label>Chain</label>
@@ -1114,7 +1155,7 @@
       <button class="modal-x" id="nwCancel" title="Cancel — discard these wallets">✕</button>
     </div>
 
-    <div class="security-note" style="margin-bottom:14px;">⚠ This is shown once. FUSE keeps it in this browser only, so clearing browser data without your copy loses it for good.</div>
+    <div class="security-note" style="margin-bottom:14px;">⚠ This is shown once. FUSE saves it encrypted to your account, but if you forget your password it's gone for good without your own copy.</div>
 
     <div id="nwList"></div>
     <button class="btn btn-secondary" id="nwCopyAll" style="width:100%;" hidden>Copy all (address, private key)</button>
@@ -1163,7 +1204,7 @@
     </div>
 
     <button class="btn btn-primary" id="importWalletsGo" style="width:100%; margin-top:14px;">+ Import</button>
-    <div class="hint" style="text-align:center; margin-top:8px;">Private keys stay in this browser tab's memory only — never saved to disk or sent anywhere.</div>
+    <div class="hint" style="text-align:center; margin-top:8px;">Private keys are encrypted in this browser before they're saved to your account. Nobody else can read them, and they aren't sent anywhere else.</div>
   </div>
 </div>
 
@@ -1800,42 +1841,284 @@
     await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
   }
 
-  // Wallets created here stay in this browser until deleted, in localStorage and not encrypted.
-  // Imported keys are deliberately left out, as they may be someone's main wallet.
-  const CREATED_WALLETS_KEY = 'fuse.createdWallets';
-  const createdSeenHere = new Set(); // anything stored but not seen here belongs to another open tab, so it stays
-  let createdStored = true;
-  function readStoredCreatedWallets(storage){
-    const list = JSON.parse(storage.getItem(CREATED_WALLETS_KEY) || '[]');
+  // Accounts, on Firebase. Keys are encrypted here with a key made from the password, and Firebase
+  // only ever receives a separate value made from it, so it can't read the wallets. This is also why
+  // a forgotten password can't be reset. These values only identify the project; firestore.rules
+  // protects the data. Sign-in stops at this page, so the encryption is what actually guards keys.
+  const FIREBASE = { apiKey:'AIzaSyCQ51fCeUu1SfIAMT5bFvl_i5FBBukSee8', projectId:'fuse-40c31' };
+  const ACCOUNT_SESSION_KEY = 'fuse.session'; // this tab only, so a refresh stays signed in and a new tab asks again
+  const LAST_EMAIL_KEY = 'fuse.lastEmail';
+  const LAST_ACCOUNT_KEY = 'fuse.lastAccount';
+  const OLD_WALLETS_KEY = 'fuse.createdWallets'; // earlier versions kept created wallets unencrypted in the browser
+  const MIN_PASSWORD_LENGTH = 12;
+  const PBKDF2_ROUNDS = 600000;
+  const AUTH_ERRORS = {
+    EMAIL_EXISTS:'That email already has an account. Sign in instead.',
+    INVALID_EMAIL:'Enter a valid email address.',
+    INVALID_LOGIN_CREDENTIALS:'Wrong email or password.',
+    EMAIL_NOT_FOUND:'Wrong email or password.',
+    INVALID_PASSWORD:'Wrong email or password.',
+    USER_DISABLED:'This account has been disabled.',
+    TOO_MANY_ATTEMPTS_TRY_LATER:'Too many attempts. Wait a few minutes and try again.',
+    OPERATION_NOT_ALLOWED:'Sign-up is turned off right now.',
+  };
+  let account = null; // { uid, email, idToken, refreshToken, expiresAt, key (base64), cryptoKey }
+  const utf8 = (text) => new TextEncoder().encode(text);
+  const toBase64 = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes)));
+  const fromBase64 = (text) => Uint8Array.from(atob(text), c => c.charCodeAt(0));
+
+  async function deriveAccountSecrets(email, password){
+    const base = await crypto.subtle.importKey('raw', utf8(password), 'PBKDF2', false, ['deriveBits']);
+    const master = await crypto.subtle.deriveBits({ name:'PBKDF2', hash:'SHA-256', salt:utf8('fuse-account-v1:' + email), iterations:PBKDF2_ROUNDS }, base, 256);
+    const hkdf = await crypto.subtle.importKey('raw', master, 'HKDF', false, ['deriveBits']);
+    const part = (info) => crypto.subtle.deriveBits({ name:'HKDF', hash:'SHA-256', salt:new Uint8Array(32), info:utf8(info) }, hkdf, 256);
+    const signIn = Array.from(new Uint8Array(await part('sign-in')), b => b.toString(16).padStart(2, '0')).join('');
+    return { signIn, key: toBase64(await part('vault')) };
+  }
+
+  async function authError(res){
+    let code = '';
+    try{ code = (await res.json()).error.message.split(' ')[0]; }catch(e){}
+    return new Error(AUTH_ERRORS[code] || `Couldn't reach your account (${code || res.status}). Try again.`);
+  }
+  async function accountFromSignIn(path, email, signIn, key){
+    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:${path}?key=${FIREBASE.apiKey}`, {
+      method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ email, password:signIn, returnSecureToken:true }),
+    });
+    if(!res.ok) throw await authError(res);
+    const r = await res.json();
+    return { uid:r.localId, email, idToken:r.idToken, refreshToken:r.refreshToken, expiresAt:Date.now() + Number(r.expiresIn) * 1000, key };
+  }
+  async function freshIdToken(){
+    if(Date.now() < account.expiresAt - 60000) return account.idToken;
+    const res = await fetch(`https://securetoken.googleapis.com/v1/token?key=${FIREBASE.apiKey}`, {
+      method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
+      body:new URLSearchParams({ grant_type:'refresh_token', refresh_token:account.refreshToken }),
+    });
+    if(!res.ok) throw await authError(res);
+    const r = await res.json();
+    Object.assign(account, { idToken:r.id_token, refreshToken:r.refresh_token, expiresAt:Date.now() + Number(r.expires_in) * 1000 });
+    keepAccountSession();
+    return account.idToken;
+  }
+  function keepAccountSession(){
+    const { cryptoKey, ...session } = account;
+    try{ sessionStorage.setItem(ACCOUNT_SESSION_KEY, JSON.stringify(session)); }catch(e){}
+  }
+
+  function vaultUrl(query){
+    return `https://firestore.googleapis.com/v1/projects/${FIREBASE.projectId}/databases/(default)/documents/vaults/${account.uid}${query || ''}`;
+  }
+  // The account id is bound into each encryption, so one account's vault can't be passed off as another's.
+  async function sealVault(entries){
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const sealed = await crypto.subtle.encrypt({ name:'AES-GCM', iv, additionalData:utf8(account.uid) }, account.cryptoKey, utf8(JSON.stringify(entries)));
+    return `v1.${toBase64(iv)}.${toBase64(sealed)}`;
+  }
+  async function openVault(text){
+    const [version, iv, sealed] = text.split('.');
+    if(version !== 'v1') throw new Error('This account was saved by a newer version of FUSE. Refresh the page.');
+    const plain = await crypto.subtle.decrypt({ name:'AES-GCM', iv:fromBase64(iv), additionalData:utf8(account.uid) }, account.cryptoKey, fromBase64(sealed));
+    return JSON.parse(new TextDecoder().decode(plain));
+  }
+  async function readVault(){
+    const res = await fetch(vaultUrl(), { headers:{ Authorization:'Bearer ' + await freshIdToken() } });
+    if(res.status === 404) return { entries:[], updateTime:null };
+    if(!res.ok) throw new Error(`Couldn't read your wallets (${res.status}).`);
+    const doc = await res.json();
+    return { entries: await openVault(doc.fields.vault.stringValue), updateTime: doc.updateTime };
+  }
+  // Writes only if the vault is unchanged since it was read. Returns false if it changed.
+  async function writeVault(entries, updateTime){
+    const precondition = updateTime ? `currentDocument.updateTime=${encodeURIComponent(updateTime)}` : 'currentDocument.exists=false';
+    const res = await fetch(vaultUrl('?' + precondition), {
+      method:'PATCH',
+      headers:{ Authorization:'Bearer ' + await freshIdToken(), 'Content-Type':'application/json' },
+      body:JSON.stringify({ fields:{ vault:{ stringValue: await sealVault(entries) }, updatedAt:{ timestampValue:new Date().toISOString() } } }),
+    });
+    if(res.ok) return true;
+    if(res.status === 400 || res.status === 409 || res.status === 412) return false;
+    throw new Error(`Couldn't save your wallets (${res.status}).`);
+  }
+
+  // Saves in the background, one at a time. Wallets this tab has never seen came from another tab or
+  // device, so they stay. Wallets it has seen but no longer holds were deleted here, so they go.
+  const walletsSeenHere = new Set();
+  let vaultUnsaved = false, vaultSaving = null, vaultTimer = null, vaultFailed = false;
+  function queueVaultSave(){
+    if(!account) return;
+    vaultUnsaved = true;
+    clearTimeout(vaultTimer);
+    vaultTimer = setTimeout(saveVaultNow, 300);
+  }
+  function saveVaultNow(){
+    if(vaultSaving) return vaultSaving;
+    vaultSaving = (async () => {
+      while(vaultUnsaved && account){
+        vaultUnsaved = false;
+        try{ await pushVault(); }
+        catch(e){
+          vaultUnsaved = true;
+          if(!vaultFailed) notify('Couldn\'t save your wallets to your account. FUSE keeps trying, so don\'t close this tab yet.');
+          vaultFailed = true;
+          clearTimeout(vaultTimer);
+          vaultTimer = setTimeout(saveVaultNow, 15000);
+          return;
+        }
+      }
+      if(vaultFailed && !vaultUnsaved){ vaultFailed = false; notify('Your wallets are saved to your account.'); }
+    })().finally(() => { vaultSaving = null; });
+    return vaultSaving;
+  }
+  async function pushVault(){
+    const here = state.wallets.filter(w => w.pk);
+    here.forEach(w => walletsSeenHere.add(w.address));
+    const entries = here.map(w => ({ pk:w.pk, address:w.address, name:w.name, enabled:w.enabled !== false }));
+    for(let attempt = 0; attempt < 5; attempt++){
+      const { entries: saved, updateTime } = await readVault();
+      if(await writeVault(saved.filter(e => !walletsSeenHere.has(e.address)).concat(entries), updateTime)){
+        try{ localStorage.removeItem(OLD_WALLETS_KEY); sessionStorage.removeItem(OLD_WALLETS_KEY); }catch(e){} // only once they're safely saved
+        return;
+      }
+    }
+    throw new Error('Your wallets kept changing while saving.');
+  }
+  window.addEventListener('online', () => { if(vaultUnsaved) saveVaultNow(); });
+
+  function setAuthMessage(text, isError){
+    $('authMessage').textContent = text;
+    $('authMessage').classList.toggle('err', !!isError);
+  }
+  let authSigningUp = false;
+  function setAuthMode(signUp){
+    authSigningUp = signUp;
+    $('authTabSignIn').classList.toggle('active', !signUp);
+    $('authTabSignUp').classList.toggle('active', signUp);
+    $('authSignUpFields').hidden = !signUp;
+    $('authSubmit').textContent = signUp ? 'Create account' : 'Sign in';
+    $('authPassword').autocomplete = signUp ? 'new-password' : 'current-password';
+    $('authSub').textContent = signUp ? `Use a password of at least ${MIN_PASSWORD_LENGTH} characters` : 'Sign in to use FUSE';
+    setAuthMessage('');
+  }
+  $('authTabSignIn').onclick = () => setAuthMode(false);
+  $('authTabSignUp').onclick = () => setAuthMode(true);
+
+  $('authForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = $('authEmail').value.trim().toLowerCase();
+    const password = $('authPassword').value;
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ setAuthMessage('Enter a valid email address.', true); return; }
+    if(!password){ setAuthMessage('Enter your password.', true); return; }
+    if(authSigningUp){
+      if(password.length < MIN_PASSWORD_LENGTH){ setAuthMessage(`Use at least ${MIN_PASSWORD_LENGTH} characters.`, true); return; }
+      if(password !== $('authConfirm').value){ setAuthMessage('The passwords don\'t match.', true); return; }
+      if(!$('authAck').checked){ setAuthMessage('Tick the box to confirm you understand.', true); return; }
+    }
+    $('authSubmit').disabled = true;
+    setAuthMessage(authSigningUp ? 'Creating your account…' : 'Signing in…');
+    try{
+      const { signIn, key } = await deriveAccountSecrets(email, password);
+      await openAccount(await accountFromSignIn(authSigningUp ? 'signUp' : 'signInWithPassword', email, signIn, key));
+    }catch(err){
+      account = null;
+      setAuthMessage(err instanceof TypeError ? 'Couldn\'t reach your account. Check your connection and try again.' : err.message, true);
+    }finally{ $('authSubmit').disabled = false; }
+  });
+
+  async function openAccount(next){
+    account = next;
+    account.cryptoKey = await crypto.subtle.importKey('raw', fromBase64(account.key), 'AES-GCM', false, ['encrypt', 'decrypt']);
+    keepAccountSession();
+    let lastAccount = null;
+    try{
+      lastAccount = localStorage.getItem(LAST_ACCOUNT_KEY);
+      localStorage.setItem(LAST_ACCOUNT_KEY, account.uid);
+      localStorage.setItem(LAST_EMAIL_KEY, account.email);
+    }catch(e){}
+    // Someone else used this browser last: their history and connected addresses aren't for this account.
+    if(lastAccount && lastAccount !== account.uid){
+      try{ [TX_HISTORY_KEY, CONNECTED_WALLETS_KEY].forEach(k => localStorage.removeItem(k)); }catch(e){}
+      location.reload();
+      return;
+    }
+    const { entries } = await readVault();
+    let older = [];
+    try{ older = readOldWallets(localStorage).concat(readOldWallets(sessionStorage)); }catch(e){}
+    const loaded = entries.concat(older).flatMap(({ pk, name, enabled }) => {
+      try{
+        const w = addKeyWallet(pk, name);
+        if(w){ w.enabled = enabled !== false; walletsSeenHere.add(w.address); }
+        return w ? [w] : [];
+      }catch(e){ return []; }
+    });
+    $('accountEmail').textContent = account.email;
+    $('authPassword').value = ''; $('authConfirm').value = '';
+    $('authGate').hidden = true;
+    if(loaded.length){ afterWalletsChanged(); loadBalances(loaded); }
+    if(older.length) queueVaultSave();
+  }
+  function readOldWallets(storage){
+    const list = JSON.parse(storage.getItem(OLD_WALLETS_KEY) || '[]');
     return Array.isArray(list) ? list : [];
   }
-  function saveCreatedWallets(){
+
+  // After a refresh: same tab, so no password. If the connection is down, keep trying.
+  let resumeTimer = null;
+  async function resumeAccount(saved){
+    clearTimeout(resumeTimer);
+    $('authForm').hidden = true;
+    $('authRetry').hidden = true;
+    $('authSub').textContent = 'Opening your account…';
+    setAuthMessage('');
     try{
-      const created = state.wallets.filter(w => w.created && w.pk);
-      created.forEach(w => createdSeenHere.add(w.address));
-      let others = [];
-      try{ others = readStoredCreatedWallets(localStorage).filter(e => !createdSeenHere.has(e.address)); }catch(e){}
-      const all = others.concat(created.map(w => ({ pk: w.pk, address: w.address, name: w.name, enabled: w.enabled !== false })));
-      if(all.length) localStorage.setItem(CREATED_WALLETS_KEY, JSON.stringify(all));
-      else localStorage.removeItem(CREATED_WALLETS_KEY);
-      sessionStorage.removeItem(CREATED_WALLETS_KEY); // earlier versions kept them per tab
-      createdStored = true;
-    }catch(e){ createdStored = false; }
+      await openAccount(saved);
+    }catch(err){
+      account = null;
+      if(!(err instanceof TypeError) && !/\(5\d\d\)/.test(err.message)){
+        try{ sessionStorage.removeItem(ACCOUNT_SESSION_KEY); }catch(e){}
+        $('authForm').hidden = false;
+        setAuthMode(false);
+        setAuthMessage('Please sign in again.', true);
+        return;
+      }
+      $('authRetry').hidden = false;
+      setAuthMessage('Couldn\'t reach your account. Trying again…', true);
+      resumeTimer = setTimeout(() => resumeAccount(saved), 5000);
+    }
   }
+  $('authRetry').onclick = () => { if(resumeSaved) resumeAccount(resumeSaved); };
+  let resumeSaved = null;
+  function startAccount(){
+    try{
+      resumeSaved = JSON.parse(sessionStorage.getItem(ACCOUNT_SESSION_KEY) || 'null');
+      $('authEmail').value = localStorage.getItem(LAST_EMAIL_KEY) || '';
+    }catch(e){}
+    if(resumeSaved) resumeAccount(resumeSaved);
+    else setAuthMode(false);
+  }
+
+  $('signOutBtn').onclick = async () => {
+    clearTimeout(vaultTimer);
+    await saveVaultNow();
+    if(vaultUnsaved){ notify('Your latest wallets aren\'t saved yet, so you weren\'t signed out. Check your connection and try again.'); return; }
+    account = null;
+    try{ sessionStorage.removeItem(ACCOUNT_SESSION_KEY); }catch(e){}
+    state.wallets = [];
+    location.reload();
+  };
 
   function afterWalletsChanged(){
     renderWallets(); updateSidebarWalletInfo(); checkReadiness(); updateConnectWalletBtnStatus();
     renderMintToPick();
     saveConnectedWallets();
-    saveCreatedWallets();
+    queueVaultSave();
     if(state.armed) disarm();
     checkEligibility();
   }
 
-  // Warn before leaving would lose a key: imported keys clear on any refresh, and so do created
-  // ones if the browser refused to store them.
+  // Warn before leaving would lose a key that hasn't reached the account yet.
   window.addEventListener('beforeunload', (e) => {
-    if(state.wallets.some(w => w.pk && !(w.created && createdStored))){ e.preventDefault(); e.returnValue = ''; }
+    if(vaultUnsaved || vaultSaving){ e.preventDefault(); e.returnValue = ''; }
   });
 
   function updateSidebarWalletInfo(){
@@ -1920,7 +2203,7 @@
       btn.onclick = () => copyToClipboard(state.wallets[+btn.dataset.i].address, btn);
     });
     list.querySelectorAll('.wallet-name-input').forEach(inp => {
-      inp.oninput = () => { state.wallets[+inp.dataset.i].name = inp.value; updateSidebarWalletInfo(); saveConnectedWallets(); saveCreatedWallets(); };
+      inp.oninput = () => { state.wallets[+inp.dataset.i].name = inp.value; updateSidebarWalletInfo(); saveConnectedWallets(); queueVaultSave(); };
     });
   }
 
@@ -1932,7 +2215,7 @@
   };
   $('walletSecurityLink').addEventListener('click', (e) => {
     e.preventDefault();
-    notify('Created wallets are kept in this browser, not encrypted, until you delete them. Imported keys stay in memory only and clear on refresh. Keys aren\'t sent anywhere, and transactions are signed in this page. Anyone using this browser, or an extension allowed on this site, could read saved keys, so only hold mint funds in them, and don\'t save wallets on a shared computer.');
+    notify('Created and imported wallets are encrypted in this browser using your password, then saved to your account, so they follow you to other devices. Your password itself is never sent. While you\'re signed in, a browser extension allowed on this site could still read your keys, so only hold mint funds in them. If you forget your password, nobody can recover them.');
   });
   $('selectAllWallets').addEventListener('change', e => {
     // Applies to the rows currently shown (respects the search box).
@@ -2058,7 +2341,6 @@
     const count = parseInt($('cwCount').value);
     newWalletsShown = Array.from({ length: count }, () => ethers.Wallet.createRandom());
     newWalletEntries = newWalletsShown.map(w => addKeyWallet(w.privateKey));
-    newWalletEntries.forEach(w => { w.created = true; });
     afterWalletsChanged();
     loadBalances(newWalletEntries);
     const list = $('nwList');
@@ -3059,19 +3341,7 @@
   // already signed are loaded. A locked extension shares nothing yet, so they load as not
   // selected and FUSE asks for the account when it signs. Extensions that aren't here this
   // time (disabled, say) keep their saved accounts for later.
-  (function restoreCreatedWallets(){
-    let saved = [];
-    try{ saved = readStoredCreatedWallets(localStorage); }catch(e){}
-    try{ saved = saved.concat(readStoredCreatedWallets(sessionStorage)); }catch(e){}
-    const restored = saved.flatMap(({ pk, name, enabled }) => {
-      try{
-        const w = addKeyWallet(pk, name);
-        if(w) Object.assign(w, { created: true, enabled: enabled !== false });
-        return w ? [w] : [];
-      }catch(e){ return []; }
-    });
-    if(restored.length) setTimeout(() => { afterWalletsChanged(); loadBalances(restored); }, 0); // after start-up finishes
-  })();
+  startAccount();
 
   const walletsRestoring = (async function restoreConnectedWallets(){
     const restored = [];
