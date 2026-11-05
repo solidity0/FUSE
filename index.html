@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-hcvrOkdBSIQ4SWtJri73TRfuXeVdb3p9RTy64qhU2LY=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-IQSWTQYYCGORvfzjKXxMlmC5gBiphXgtSYE6fk/vnmw=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -467,6 +467,34 @@
   .auth-ack input{ flex:none; margin-top:2px; }
   .auth-message{ min-height:18px; margin-top:12px; font-size:12.5px; text-align:center; color:var(--text-mid); }
   .auth-message.err{ color:var(--fail); }
+  .auth-card .auth-note{ font-size:12.5px; color:var(--text-mid); line-height:1.5; text-align:center; margin-bottom:14px; overflow-wrap:anywhere; }
+  .auth-card .btn + .btn{ margin-top:8px; }
+  .auth-card input[type=text]{ width:100%; }
+  .auth-link{ display:block; width:100%; margin-top:12px; background:none; border:none; color:var(--text-dim); font-size:12px; }
+  .auth-link:hover{ color:var(--text); }
+  .member{ border:1px solid var(--border); padding:12px; margin-top:10px; }
+  .member-badge{ display:block; width:max-content; margin:0 auto 8px; padding:2px 10px; border:1px solid var(--border); border-radius:999px; font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; }
+  .member-badge.pending{ color:var(--pending); border-color:var(--pending); }
+  .member-badge.approved{ color:var(--success); border-color:var(--success); }
+  .member-badge.declined, .member-badge.banned{ color:var(--fail); border-color:var(--fail); }
+  .member-badge.master{ color:var(--accent-text); border-color:var(--accent); }
+  .member-row{ display:flex; justify-content:space-between; gap:12px; padding:5px 0; border-bottom:1px dashed var(--border-soft); font-size:12px; }
+  .member-row span:first-child{ color:var(--text-dim); flex:none; }
+  .member-row span:last-child, .member-row a{ font-weight:600; text-align:right; overflow-wrap:anywhere; }
+  .member-online{ color:var(--success); }
+  .member-actions{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .member-actions .btn{ flex:1; padding:7px 10px; font-size:12px; }
+  .admin-section{ margin-top:20px; }
+  .admin-section > .hint{ margin-bottom:8px; }
+  .master-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid var(--border-soft); font-family:var(--mono); font-size:12px; overflow-wrap:anywhere; }
+  .master-row .btn{ flex:none; padding:4px 10px; font-size:11px; }
+  .master-add{ display:flex; gap:8px; margin-top:10px; }
+  .master-add input{ flex:1; min-width:0; }
+  .activity-wallet{ border-bottom:1px solid var(--border-soft); padding:9px 0; font-size:12px; }
+  .activity-wallet b{ display:block; font-size:12.5px; }
+  .activity-wallet .mono{ font-family:var(--mono); color:var(--text-dim); }
+  .activity-wallet .nums{ display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:4px; color:var(--text-mid); }
+  .activity-filter{ width:100%; margin:12px 0 4px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px; font-family:var(--mono); font-size:12.5px; }
   .account-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
   .account-row #accountEmail{ font-family:var(--mono); font-size:12.5px; overflow-wrap:anywhere; }
   .modal-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:100; display:flex; align-items:center; justify-content:center; }
@@ -573,11 +601,30 @@
       <div class="field"><label for="authPassword">Password</label><input type="password" id="authPassword" autocomplete="current-password"></div>
       <div id="authSignUpFields" hidden>
         <div class="field"><label for="authConfirm">Confirm password</label><input type="password" id="authConfirm" autocomplete="new-password"></div>
-        <label class="auth-ack"><input type="checkbox" id="authAck"> <span>I understand that if I forget this password, nobody can recover my account or the wallets saved in it. I'll keep my own copy of my private keys.</span></label>
+        <div class="field"><label for="authX">X username</label><input type="text" id="authX" maxlength="64" autocapitalize="none" spellcheck="false" placeholder="@username"></div>
+        <div class="field"><label for="authDiscord">Discord username</label><input type="text" id="authDiscord" maxlength="64" autocapitalize="none" spellcheck="false"></div>
+        <label class="auth-ack"><input type="checkbox" id="authAck"> <span>I understand that if I forget this password, nobody can recover my account or the wallets saved in it, so I'll keep my own copy of my private keys. FUSE's admins approve accounts and can see my usernames, email and activity, including wallet addresses and transactions, but never my private keys.</span></label>
       </div>
       <button class="btn btn-primary" id="authSubmit" type="submit" style="width:100%;">Sign in</button>
     </form>
     <button class="btn btn-primary" id="authRetry" type="button" style="width:100%;" hidden>Try again</button>
+    <div id="authVerify" hidden>
+      <div class="auth-note">We sent a link to <b id="authVerifyEmail"></b>. Click it, then come back here. Check your spam folder if you can't see it.</div>
+      <button class="btn btn-primary" id="authVerified" type="button" style="width:100%;">I've verified my email</button>
+      <button class="btn btn-secondary" id="authResend" type="button" style="width:100%;">Send the link again</button>
+    </div>
+    <form id="authProfile" novalidate hidden>
+      <div class="auth-note">Add your usernames so an admin knows who's asking to use FUSE.</div>
+      <div class="field"><label for="authProfileX">X username</label><input type="text" id="authProfileX" maxlength="64" autocapitalize="none" spellcheck="false" placeholder="@username"></div>
+      <div class="field"><label for="authProfileDiscord">Discord username</label><input type="text" id="authProfileDiscord" maxlength="64" autocapitalize="none" spellcheck="false"></div>
+      <button class="btn btn-primary" type="submit" style="width:100%;">Request access</button>
+    </form>
+    <div class="auth-note" id="authWaiting" hidden>Your request is with an admin. This page opens FUSE by itself once you're approved, so you can leave it open or come back later.</div>
+    <div id="authBlocked" hidden>
+      <div class="auth-note" id="authBlockedText"></div>
+      <button class="btn btn-primary" id="authExport" type="button" style="width:100%;" hidden>Export my private keys</button>
+    </div>
+    <button class="auth-link" id="authLeave" type="button" hidden>Sign out</button>
     <div class="auth-message" id="authMessage" role="status"></div>
   </div>
 </div>
@@ -635,6 +682,10 @@
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 7h13l-4-4M17 17H4l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <span>Disperse</span>
   </button>
+  <button class="mobile-tab" data-page="activity">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <span>Activity</span>
+  </button>
   <button class="mobile-tab" data-page="settings">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="currentColor" stroke-width="1.4"/></svg>
     <span>Settings</span>
@@ -665,6 +716,7 @@
       </span> Mints</button>
       <button class="s-nav-item" data-page="wallets"><span class="ic">▤</span> Wallets <span class="badge" id="navWalletCount">0</span></button>
       <button class="s-nav-item" data-page="disperse"><span class="ic">⇄</span> Disperse</button>
+      <button class="s-nav-item" data-page="activity"><span class="ic">≣</span> Activity</button>
 
       <div class="s-toggle-row">
         <label class="switch"><input type="checkbox" id="usdToggle"><span class="slider"></span></label>
@@ -1019,11 +1071,43 @@
       </div>
     </div>
 
+    <div class="page" id="page-activity" hidden>
+      <div class="card">
+        <div class="dh-head" style="margin-top:0;">
+          <div class="section-title"><span class="dot"></span>Activity</div>
+          <button class="btn btn-secondary dh-clear" id="activityRefresh" type="button">Refresh</button>
+        </div>
+        <div id="myActivity"></div>
+      </div>
+    </div>
+
     <div class="page" id="page-settings" hidden>
       <div class="card">
         <div class="account-row">
           <div><div class="section-title"><span class="dot"></span>Account</div><span id="accountEmail"></span></div>
           <button class="btn btn-secondary" id="signOutBtn" type="button">Sign out</button>
+        </div>
+      </div>
+      <div class="card" id="adminCard" hidden>
+        <div class="section-title"><span class="dot"></span>Master Admin</div>
+        <div class="hint">Only master emails see this. Approve, decline or ban who can use FUSE. You see who signed up and what they did, never their private keys. A declined or banned person can only export their own keys.</div>
+        <button class="btn btn-secondary" id="adminRefresh" type="button" style="width:100%; margin-top:10px;">Refresh list</button>
+        <div class="hint" id="adminCount" style="text-align:center; margin-top:8px;"></div>
+        <div id="adminMembers"></div>
+        <div class="admin-section" id="adminUserView" hidden>
+          <div class="dh-head"><div class="section-title"><span class="dot"></span><span id="adminUserTitle"></span></div><button class="btn btn-secondary dh-clear" id="adminUserClose" type="button">Close</button></div>
+          <div id="adminUserActivity"></div>
+        </div>
+        <div class="admin-section">
+          <div class="section-title"><span class="dot"></span>Master emails</div>
+          <div class="hint">Up to 3. Each must sign up with that email and verify it before it works.</div>
+          <div id="adminMasters"></div>
+          <div class="master-add"><input type="text" id="adminMasterInput" placeholder="Add a master email" autocapitalize="none" spellcheck="false"><button class="btn btn-secondary" id="adminMasterAdd" type="button">Add</button></div>
+        </div>
+        <div class="admin-section">
+          <div class="section-title"><span class="dot"></span>Recent activity</div>
+          <div class="hint">Each person's own browser reports this, so treat it as a guide, not proof. Transactions can be checked with their explorer link.</div>
+          <div class="dh-list" id="adminFeed"></div>
         </div>
       </div>
       <div class="card">
@@ -1456,6 +1540,8 @@
       else document.querySelectorAll(`.mobile-tab[data-page="${target}"]`).forEach(n => n.classList.add('active'));
       if(target === 'wallets') renderWallets();
       if(target === 'disperse') populateDisperseFrom();
+      if(target === 'activity') loadMyActivity();
+      if(target === 'settings') loadAdmin();
     });
   });
 
@@ -1961,7 +2047,8 @@
   const walletsSeenHere = new Set();
   let vaultUnsaved = false, vaultSaving = null, vaultTimer = null, vaultFailed = false;
   function queueVaultSave(){
-    if(!account) return;
+    if(!account || !walletsOpen) return;
+    logWalletChanges();
     vaultUnsaved = true;
     clearTimeout(vaultTimer);
     vaultTimer = setTimeout(saveVaultNow, 300);
@@ -2027,6 +2114,8 @@
     if(authSigningUp){
       if(password.length < MIN_PASSWORD_LENGTH){ setAuthMessage(`Use at least ${MIN_PASSWORD_LENGTH} characters.`, true); return; }
       if(password !== $('authConfirm').value){ setAuthMessage('The passwords don\'t match.', true); return; }
+      newProfile = { xUsername: cleanUsername($('authX').value), discordUsername: cleanUsername($('authDiscord').value) };
+      if(!newProfile.xUsername || !newProfile.discordUsername){ setAuthMessage('Add your X and Discord usernames so an admin knows who you are.', true); return; }
       if(!$('authAck').checked){ setAuthMessage('Tick the box to confirm you understand.', true); return; }
     }
     $('authSubmit').disabled = true;
@@ -2042,12 +2131,87 @@
         try{ opened = await accountFromSignIn('signInWithPassword', email, signIn, key); }
         catch(e){ throw err; }
       }
+      signedInNow = true;
       await openAccount(opened);
     }catch(err){
       account = null;
       setAuthMessage(err instanceof TypeError ? 'Couldn\'t reach your account. Check your connection and try again.' : err.message, true);
     }finally{ $('authSubmit').disabled = false; }
   });
+
+  const cleanUsername = (text) => text.trim().replace(/^@/, '').slice(0, 64);
+  const SIGNUP_KEY = 'fuse.signup';
+  let newProfile = null, signedInNow = false, walletsOpen = false, masterEmails = null, accountProfile = null;
+
+  // Firestore's web API, with values converted to and from plain objects.
+  function firestoreUrl(path, query){
+    return `https://firestore.googleapis.com/v1/projects/${FIREBASE.projectId}/databases/(default)/documents/${path}${query ? '?' + query : ''}`;
+  }
+  function toFirestore(data){
+    const fields = {};
+    Object.entries(data).forEach(([k, v]) => {
+      if(v == null) return;
+      if(v instanceof Date) fields[k] = { timestampValue:v.toISOString() };
+      else if(Array.isArray(v)) fields[k] = { arrayValue:{ values:v.map(x => ({ stringValue:String(x) })) } };
+      else fields[k] = { stringValue:String(v) };
+    });
+    return { fields };
+  }
+  function fromFirestore(doc){
+    const data = { id: doc.name ? doc.name.split('/').pop() : '' };
+    Object.entries(doc.fields || {}).forEach(([k, v]) => {
+      if('arrayValue' in v) data[k] = (v.arrayValue.values || []).map(x => x.stringValue);
+      else data[k] = v.stringValue ?? v.timestampValue ?? null;
+    });
+    return data;
+  }
+  async function firestoreRead(path){
+    const res = await accountFetch(firestoreUrl(path), { headers:{ Authorization:'Bearer ' + await freshIdToken() } });
+    if(res.status === 404) return null;
+    if(!res.ok) throw Object.assign(new Error(`Couldn't read your account (${res.status}).`), { status:res.status });
+    return fromFirestore(await res.json());
+  }
+  async function firestoreList(path, query){
+    const res = await accountFetch(firestoreUrl(path, query), { headers:{ Authorization:'Bearer ' + await freshIdToken() } });
+    if(!res.ok) throw Object.assign(new Error(`Couldn't read the list (${res.status}).`), { status:res.status });
+    return ((await res.json()).documents || []).map(fromFirestore);
+  }
+  async function firestoreWrite(path, data, query){
+    const res = await accountFetch(firestoreUrl(path, query), {
+      method:'PATCH',
+      headers:{ Authorization:'Bearer ' + await freshIdToken(), 'Content-Type':'application/json' },
+      body:JSON.stringify(toFirestore(data)),
+    });
+    if(!res.ok) throw Object.assign(new Error(`Couldn't save that (${res.status}).`), { status:res.status });
+    return fromFirestore(await res.json());
+  }
+  const fieldMask = (keys) => keys.map(k => `updateMask.fieldPaths=${k}`).join('&');
+
+  function tokenClaims(){
+    try{ return JSON.parse(atob(account.idToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); }
+    catch(e){ return {}; }
+  }
+  async function sendVerifyEmail(){
+    const res = await accountFetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE.apiKey}`, {
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body:JSON.stringify({ requestType:'VERIFY_EMAIL', idToken: await freshIdToken() }),
+    });
+    if(!res.ok) throw await authError(res);
+  }
+
+  // Shows one step of the sign-in screen at a time.
+  function showAuthStep(step, subtitle){
+    ['authForm', 'authVerify', 'authProfile', 'authWaiting', 'authBlocked'].forEach(id => { $(id).hidden = id !== step; });
+    $('authRetry').hidden = true;
+    $('authLeave').hidden = step === 'authForm';
+    if(subtitle) $('authSub').textContent = subtitle;
+    setAuthMessage('');
+    $('authGate').hidden = false;
+  }
+  const authBusy = async (work) => {
+    try{ await work(); }
+    catch(err){ setAuthMessage(err instanceof TypeError ? 'Couldn\'t reach your account. Check your connection and try again.' : err.message, true); }
+  };
 
   async function openAccount(next){
     account = next;
@@ -2061,26 +2225,381 @@
     }catch(e){}
     // Someone else used this browser last: their history and connected addresses aren't for this account.
     if(lastAccount && lastAccount !== account.uid){
-      try{ [TX_HISTORY_KEY, CONNECTED_WALLETS_KEY].forEach(k => localStorage.removeItem(k)); }catch(e){}
+      try{
+        [TX_HISTORY_KEY, CONNECTED_WALLETS_KEY].forEach(k => localStorage.removeItem(k));
+        sessionStorage.setItem(SIGNUP_KEY, JSON.stringify({ newProfile, signedInNow })); // survives the reload
+      }catch(e){}
       location.reload();
       return;
     }
+    $('authEmail').value = account.email;
+    $('authPassword').value = ''; $('authConfirm').value = '';
+    await continueAccount();
+  }
+
+  // Each step checks where the account has got to: email verified, usernames given, then approved.
+  async function continueAccount(){
+    clearTimeout(waitingTimer);
+    if(!tokenClaims().email_verified){
+      $('authVerifyEmail').textContent = account.email;
+      showAuthStep('authVerify', 'Verify your email');
+      if(newProfile && signedInNow) await sendVerifyEmail();
+      return;
+    }
+    masterEmails = null;
+    try{ masterEmails = (await firestoreRead('config/admins') || {}).emails || null; }
+    catch(e){ if(e.status !== 403) throw e; }
+    let profile = await firestoreRead(`profiles/${account.uid}`);
+    if(!profile){
+      if(!masterEmails && !newProfile){
+        showAuthStep('authProfile', 'Request access');
+        return;
+      }
+      const now = new Date();
+      profile = await firestoreWrite(`profiles/${account.uid}`, {
+        email:account.email,
+        xUsername:newProfile ? newProfile.xUsername : '',
+        discordUsername:newProfile ? newProfile.discordUsername : '',
+        status:masterEmails ? 'approved' : 'pending',
+        createdAt:now, lastSignInAt:now, lastSeenAt:now,
+      }, 'currentDocument.exists=false');
+    }else if(signedInNow){
+      firestoreWrite(`profiles/${account.uid}`, { lastSignInAt:new Date(), lastSeenAt:new Date() }, fieldMask(['lastSignInAt', 'lastSeenAt'])).catch(() => {});
+    }
+    accountProfile = profile;
+    if(signedInNow) logAccountEvent('signin');
+    signedInNow = false;
+    if(masterEmails || profile.status === 'approved'){ await openWallets(); return; }
+    if(profile.status === 'pending'){
+      showAuthStep('authWaiting', 'Waiting for approval');
+      waitingTimer = setTimeout(() => authBusy(continueAccount), 20000);
+      return;
+    }
+    const saved = await readVault();
+    let older = [];
+    try{ older = readOldWallets(localStorage).concat(readOldWallets(sessionStorage)); }catch(e){}
+    blockedWallets = saved.entries.concat(older);
+    $('authBlockedText').textContent = (profile.status === 'banned' ? 'This account has been banned from FUSE.' : 'Your request to use FUSE was declined.')
+      + (blockedWallets.length ? ' You can still export your private keys, so you keep access to your funds.' : '');
+    $('authExport').hidden = !blockedWallets.length;
+    showAuthStep('authBlocked', profile.status === 'banned' ? 'Account banned' : 'Request declined');
+  }
+  let waitingTimer = null, blockedWallets = [];
+
+  $('authVerified').onclick = () => authBusy(async () => {
+    account.expiresAt = 0; // the new status only shows up in a fresh token
+    await freshIdToken();
+    if(!tokenClaims().email_verified){ setAuthMessage('That email isn\'t verified yet. Click the link in it, then try again.', true); return; }
+    await continueAccount();
+  });
+  $('authResend').onclick = () => authBusy(async () => { await sendVerifyEmail(); setAuthMessage('Sent. Check your inbox and spam folder.'); });
+  $('authProfile').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const x = cleanUsername($('authProfileX').value), discord = cleanUsername($('authProfileDiscord').value);
+    if(!x || !discord){ setAuthMessage('Add your X and Discord usernames.', true); return; }
+    newProfile = { xUsername:x, discordUsername:discord };
+    authBusy(continueAccount);
+  });
+  $('authExport').onclick = () => { downloadWalletCsv(blockedWallets); setAuthMessage('Exported. Keep that file somewhere safe, and delete it from Downloads once you have.'); };
+  $('authLeave').onclick = () => signOutAccount();
+
+  async function openWallets(){
     const { entries } = await readVault();
     let older = [];
     try{ older = readOldWallets(localStorage).concat(readOldWallets(sessionStorage)); }catch(e){}
     const loaded = entries.concat(older).flatMap(({ pk, name, enabled }) => {
       try{
         const w = addKeyWallet(pk, name);
-        if(w){ w.enabled = enabled !== false; walletsSeenHere.add(w.address); }
+        if(w){ w.enabled = enabled !== false; walletsSeenHere.add(w.address); walletsLogged.add(w.address); }
         return w ? [w] : [];
       }catch(e){ return []; }
     });
+    walletsOpen = true;
     $('accountEmail').textContent = account.email;
-    $('authPassword').value = ''; $('authConfirm').value = '';
     $('authGate').hidden = true;
     if(loaded.length){ afterWalletsChanged(); loadBalances(loaded); }
     if(older.length) queueVaultSave();
+    startHeartbeat();
   }
+
+  // Keeps "Online now" current, and notices if an admin has removed this account.
+  function startHeartbeat(){
+    setInterval(async () => {
+      if(document.hidden || !account) return;
+      try{
+        firestoreWrite(`profiles/${account.uid}`, { lastSeenAt:new Date() }, fieldMask(['lastSeenAt'])).catch(() => {});
+        const profile = await firestoreRead(`profiles/${account.uid}`);
+        if(profile && profile.status !== 'approved' && !masterEmails){
+          clearTimeout(vaultTimer);
+          vaultUnsaved = false;
+          location.reload();
+        }
+      }catch(e){}
+    }, 300000);
+  }
+
+  // One entry per thing that happened. Transactions use their history id, so two open tabs can't log one twice.
+  function logAccountEvent(type, details, id){
+    if(!account) return;
+    const name = `profiles/${account.uid}/events/${id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`}`;
+    firestoreWrite(name, { type, at:new Date(), ...details }, 'currentDocument.exists=false').catch(() => {});
+  }
+  const walletsLogged = new Set();
+  function logWalletChanges(){
+    const here = new Map(state.wallets.filter(w => w.pk).map(w => [w.address, w]));
+    here.forEach((w, address) => {
+      if(walletsLogged.has(address)) return;
+      walletsLogged.add(address);
+      logAccountEvent(w.imported ? 'wallet_imported' : 'wallet_created', { address, name:w.name });
+    });
+    [...walletsLogged].filter(address => !here.has(address)).forEach(address => {
+      walletsLogged.delete(address);
+      logAccountEvent('wallet_deleted', { address });
+    });
+  }
+  function logTxEvent(entry){
+    if(!entry || !['confirmed', 'failed', 'cancelled'].includes(entry.status)) return;
+    const { kind, chain, from, to, amount, hash, status, id } = entry;
+    logAccountEvent(kind, { chain, from, to, amount, hash, status }, id);
+  }
+
+  // Each person's log and overview, worked out from their events. Masters see the same for anyone.
+  const activityEl = (tag, className, text) => {
+    const el = document.createElement(tag);
+    if(className) el.className = className;
+    if(text != null) el.textContent = text;
+    return el;
+  };
+  function addAmount(totals, amount){
+    const m = /^([\d.e+-]+)\s+(\S+)/.exec(amount || '');
+    if(m) totals[m[2]] = (totals[m[2]] || 0) + parseFloat(m[1]);
+  }
+  const showTotals = (totals) => Object.entries(totals).map(([sym, n]) => `${parseFloat(n.toPrecision(6))} ${sym}`).join(', ') || '0';
+  function summarizeEvents(events){
+    const wallets = new Map();
+    const wallet = (address) => {
+      if(!wallets.has(address)) wallets.set(address, { address, name:'', minted:0, mintFailed:0, sends:0, sent:{}, received:{}, spent:{} });
+      return wallets.get(address);
+    };
+    const own = new Set(events.filter(e => e.type === 'wallet_created' || e.type === 'wallet_imported').map(e => e.address));
+    const total = { created:0, imported:0, minted:0, mintFailed:0, sends:0, fundings:0, spent:{}, sent:{} };
+    [...events].reverse().forEach(e => {
+      if(e.type === 'wallet_created' || e.type === 'wallet_imported'){
+        total[e.type === 'wallet_created' ? 'created' : 'imported']++;
+        wallet(e.address).name = e.name || '';
+      }else if(e.type === 'wallet_deleted' && wallets.has(e.address)){
+        wallet(e.address).deleted = true;
+      }else if(e.type === 'mint'){
+        const w = wallet(e.from);
+        if(e.status === 'confirmed'){ w.minted++; total.minted++; addAmount(w.spent, e.amount); addAmount(total.spent, e.amount); }
+        else{ w.mintFailed++; total.mintFailed++; }
+      }else if(e.type === 'send' && e.status === 'confirmed'){
+        const w = wallet(e.from);
+        w.sends++; total.sends++;
+        addAmount(w.sent, e.amount); addAmount(total.sent, e.amount);
+        if(own.has(e.to)){ total.fundings++; addAmount(wallet(e.to).received, e.amount); }
+      }
+    });
+    return { wallets:[...wallets.values()], total, own };
+  }
+  const ACTIVITY_LABEL = { signin:'Signed in', signout:'Signed out', wallet_created:'Created a wallet', wallet_imported:'Imported a wallet', wallet_deleted:'Deleted a wallet' };
+  function activityRow(e, own, who){
+    const row = activityEl('div', 'dh-row');
+    let text, statusText = null, statusClass = '';
+    if(e.type === 'mint' || e.type === 'send'){
+      const label = e.type === 'mint' ? 'Mint' : (own && own.has(e.to) ? 'Funding' : 'Send');
+      const chain = CHAINS[e.chain];
+      text = `${label} · ${shortAddress(e.from)} → ${shortAddress(e.to)} · ${e.amount}${chain && !String(e.amount).endsWith(chain.name) ? ` · ${chain.name}` : ''}`;
+      statusClass = e.status;
+      statusText = e.type === 'mint' && e.status === 'confirmed' ? 'minted ✓' : (TX_STATUS_TEXT[e.status] || e.status);
+    }else{
+      text = (ACTIVITY_LABEL[e.type] || e.type) + (e.address ? ` · ${shortAddress(e.address)}` : '');
+    }
+    row.append(activityEl('span', 'dh-route', (who ? who + ' · ' : '') + text));
+    if(statusText) row.append(activityEl('span', 'dh-status ' + statusClass, statusText));
+    row.append(activityEl('span', 'dh-time', new Date(e.at).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })));
+    const chain = CHAINS[e.chain];
+    if(chain && /^0x[a-fA-F0-9]{64}$/.test(e.hash || '')){
+      const link = activityEl('a', '', 'View ↗');
+      link.href = chain.tx + e.hash; link.target = '_blank'; link.rel = 'noopener';
+      row.append(link);
+    }
+    return row;
+  }
+  function renderActivity(root, events, liveWallets){
+    root.innerHTML = '';
+    if(!events.length){ root.append(activityEl('div', 'log-empty', 'Nothing yet. Wallets, sends and mints show here as they happen.')); return; }
+    const { wallets, total, own } = summarizeEvents(events);
+    const stats = activityEl('div', 'stats-grid');
+    [['Wallets', total.created + total.imported], ['Minted', total.minted], ['Failed mints', total.mintFailed], ['Sends', total.sends]].forEach(([label, n]) => {
+      const box = activityEl('div', 'stat-box');
+      box.append(activityEl('div', 'stat-num', n), activityEl('div', 'stat-label', label));
+      stats.append(box);
+    });
+    root.append(stats);
+    root.append(activityEl('div', 'hint', `Spent on mints: ${showTotals(total.spent)} · Sent: ${showTotals(total.sent)} · Funded wallets: ${total.fundings}. Gas isn't included. Money arriving from outside FUSE isn't either.`));
+    if(wallets.length){
+      const head = activityEl('div', 'dh-head');
+      head.append(activityEl('div', 'section-title', 'Wallets'));
+      root.append(head);
+      wallets.forEach(w => {
+        const row = activityEl('div', 'activity-wallet');
+        const live = liveWallets && liveWallets.find(x => x.address === w.address);
+        row.append(activityEl('b', '', (live && live.name) || w.name || 'Wallet'), activityEl('span', 'mono', shortAddress(w.address) + (w.deleted ? ' · deleted' : '')));
+        const nums = activityEl('div', 'nums');
+        if(live && live.balance != null && live.balance !== 'err') nums.append(activityEl('span', '', `Balance ${fmtNative(parseFloat(live.balance))}`));
+        nums.append(activityEl('span', '', `Minted ${w.minted}`), activityEl('span', '', `Failed ${w.mintFailed}`), activityEl('span', '', `Sent ${showTotals(w.sent)}`), activityEl('span', '', `Funded ${showTotals(w.received)}`), activityEl('span', '', `Mint spend ${showTotals(w.spent)}`));
+        row.append(nums);
+        root.append(row);
+      });
+    }
+    const select = activityEl('select', 'activity-filter');
+    select.append(new Option('All wallets', ''));
+    wallets.forEach(w => select.append(new Option(`${w.name || 'Wallet'} · ${shortAddress(w.address)}`, w.address)));
+    const log = activityEl('div', 'dh-list');
+    const draw = () => {
+      log.innerHTML = '';
+      const a = select.value;
+      const shown = events.filter(e => !a || e.address === a || e.from === a || e.to === a);
+      if(!shown.length) log.append(activityEl('div', 'log-empty', 'Nothing for this wallet yet.'));
+      shown.forEach(e => log.append(activityRow(e, own)));
+    };
+    select.onchange = draw;
+    draw();
+    const head = activityEl('div', 'dh-head');
+    head.append(activityEl('div', 'section-title', 'Transaction log'));
+    root.append(head, select, log);
+  }
+  const EVENT_QUERY = 'orderBy=at%20desc&pageSize=300';
+  async function loadMyActivity(){
+    if(!account || !walletsOpen) return;
+    const root = $('myActivity');
+    if(!root.children.length) root.append(activityEl('div', 'log-empty', 'Loading…'));
+    try{ renderActivity(root, await firestoreList(`profiles/${account.uid}/events`, EVENT_QUERY), state.wallets); }
+    catch(e){ root.innerHTML = ''; root.append(activityEl('div', 'log-empty', 'Couldn\'t load your activity. Check your connection and refresh.')); }
+  }
+  $('activityRefresh').onclick = loadMyActivity;
+
+  // Master Admin. Everything here is also enforced by firestore.rules, so hiding it isn't the protection.
+  const STATUS_ORDER = { pending:0, approved:1, declined:2, banned:3 };
+  const STATUS_LABEL = { pending:'Waiting', approved:'Active', declined:'Declined', banned:'Banned' };
+  const ONLINE_MS = 6 * 60000;
+  async function loadAdmin(){
+    if(!masterEmails){ $('adminCard').hidden = true; return; }
+    $('adminCard').hidden = false;
+    renderMasters();
+    let members;
+    try{ members = await firestoreList('profiles', 'pageSize=300'); }
+    catch(e){ $('adminCount').textContent = 'Couldn\'t load the list. Check your connection and refresh.'; return; }
+    members.sort((a, b) => (STATUS_ORDER[a.status] - STATUS_ORDER[b.status]) || String(b.createdAt).localeCompare(String(a.createdAt)));
+    const waiting = members.filter(m => m.status === 'pending').length;
+    $('adminCount').textContent = `${members.length} ${plural(members.length, 'person', 'people')}${waiting ? ` · ${waiting} waiting` : ''}`;
+    const box = $('adminMembers');
+    box.innerHTML = '';
+    members.forEach(m => box.append(memberCard(m)));
+    loadAdminFeed(members);
+  }
+  function memberRow(label, value){
+    const row = activityEl('div', 'member-row');
+    row.append(activityEl('span', '', label), value instanceof Node ? value : activityEl('span', '', value || '—'));
+    return row;
+  }
+  function memberCard(m){
+    const card = activityEl('div', 'member');
+    const isMasterEmail = masterEmails.includes(m.email);
+    card.append(activityEl('div', 'member-badge ' + (isMasterEmail ? 'master' : m.status), isMasterEmail ? 'Master admin' : (STATUS_LABEL[m.status] || m.status)));
+    const x = m.xUsername;
+    if(/^[A-Za-z0-9_]{1,15}$/.test(x || '')){
+      const link = activityEl('a', '', '@' + x);
+      link.href = 'https://x.com/' + x; link.target = '_blank'; link.rel = 'noopener';
+      card.append(memberRow('X', link));
+    }else card.append(memberRow('X', x));
+    card.append(memberRow('Discord', m.discordUsername), memberRow('Email', m.email), memberRow('Signed up', m.createdAt && new Date(m.createdAt).toLocaleString()));
+    const online = m.lastSeenAt && Date.now() - new Date(m.lastSeenAt) < ONLINE_MS;
+    card.append(memberRow('Last seen', online ? activityEl('span', 'member-online', 'Online now') : (m.lastSeenAt && new Date(m.lastSeenAt).toLocaleString())));
+    const actions = activityEl('div', 'member-actions');
+    const act = (label, className, run) => {
+      const btn = activityEl('button', 'btn ' + className, label);
+      btn.type = 'button'; btn.onclick = run;
+      actions.append(btn);
+    };
+    const who = (x && '@' + x) || m.email;
+    if(!isMasterEmail){
+      if(m.status === 'pending' || m.status === 'declined') act('Approve', 'btn-primary', () => setMemberStatus(m, 'approved'));
+      if(m.status === 'pending') act('Decline', 'btn-secondary', () => setMemberStatus(m, 'declined'));
+      if(m.status === 'banned') act('Restore', 'btn-primary', () => setMemberStatus(m, 'approved'));
+      if(m.status === 'approved') act('Ban', 'btn-danger', () => askWalletAction({
+        title:`Ban ${who}?`,
+        text:'They\'ll be removed from FUSE within about 5 minutes, or at their next refresh. They can still sign in to export their own private keys. You can restore them later.',
+        wallets:[], label:'Ban', run:() => setMemberStatus(m, 'banned'),
+      }));
+    }
+    act('View activity', 'btn-secondary', () => viewMemberActivity(m, who));
+    card.append(actions);
+    return card;
+  }
+  async function setMemberStatus(m, status){
+    try{
+      await firestoreWrite(`profiles/${m.id}`, { status, decidedAt:new Date(), decidedBy:account.email }, fieldMask(['status', 'decidedAt', 'decidedBy']));
+    }catch(e){ notify('That didn\'t save. Check your connection and try again.'); return; }
+    loadAdmin();
+  }
+  async function viewMemberActivity(m, who){
+    $('adminUserTitle').textContent = who;
+    $('adminUserView').hidden = false;
+    const root = $('adminUserActivity');
+    root.innerHTML = '';
+    root.append(activityEl('div', 'log-empty', 'Loading…'));
+    $('adminUserView').scrollIntoView({ block:'nearest' });
+    try{ renderActivity(root, await firestoreList(`profiles/${m.id}/events`, EVENT_QUERY)); }
+    catch(e){ root.innerHTML = ''; root.append(activityEl('div', 'log-empty', 'Couldn\'t load their activity. Try again.')); }
+  }
+  $('adminUserClose').onclick = () => { $('adminUserView').hidden = true; };
+  $('adminRefresh').onclick = loadAdmin;
+  async function loadAdminFeed(members){
+    const feed = $('adminFeed');
+    const lists = await Promise.all(members.map(async m => {
+      try{ return (await firestoreList(`profiles/${m.id}/events`, 'orderBy=at%20desc&pageSize=20')).map(e => ({ ...e, who:(m.xUsername && '@' + m.xUsername) || m.email })); }
+      catch(e){ return []; }
+    }));
+    const events = lists.flat().sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 100);
+    feed.innerHTML = '';
+    if(!events.length){ feed.append(activityEl('div', 'log-empty', 'No activity yet.')); return; }
+    events.forEach(e => feed.append(activityRow(e, null, e.who)));
+  }
+  function renderMasters(){
+    const box = $('adminMasters');
+    box.innerHTML = '';
+    masterEmails.forEach(email => {
+      const row = activityEl('div', 'master-row');
+      row.append(activityEl('span', '', email));
+      if(email !== account.email){
+        const btn = activityEl('button', 'btn btn-secondary', 'Remove');
+        btn.type = 'button';
+        btn.onclick = () => askWalletAction({ title:`Remove ${email}?`, text:'They\'ll lose access to this section straight away.', wallets:[], label:'Remove', run:() => saveMasters(masterEmails.filter(x => x !== email)) });
+        row.append(btn);
+      }
+      box.append(row);
+    });
+    $('adminMasterAdd').disabled = masterEmails.length >= 3;
+    $('adminMasterInput').disabled = masterEmails.length >= 3;
+    $('adminMasterInput').placeholder = masterEmails.length >= 3 ? 'The limit of 3 is reached' : 'Add a master email';
+  }
+  async function saveMasters(emails){
+    try{
+      await firestoreWrite('config/admins', { emails }, fieldMask(['emails']));
+      masterEmails = emails;
+      renderMasters();
+    }catch(e){ notify('That didn\'t save. Check your connection and try again.'); }
+  }
+  $('adminMasterAdd').onclick = () => {
+    const email = $('adminMasterInput').value.trim().toLowerCase();
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ notify('Enter a valid email address.'); return; }
+    if(masterEmails.includes(email)){ notify('That email is already a master.'); return; }
+    $('adminMasterInput').value = '';
+    saveMasters([...masterEmails, email]);
+  };
+
   function readOldWallets(storage){
     const list = JSON.parse(storage.getItem(OLD_WALLETS_KEY) || '[]');
     return Array.isArray(list) ? list : [];
@@ -2100,7 +2619,7 @@
       account = null;
       if(!(err instanceof TypeError) && !/\(5\d\d\)/.test(err.message)){
         try{ sessionStorage.removeItem(ACCOUNT_SESSION_KEY); }catch(e){}
-        $('authForm').hidden = false;
+        showAuthStep('authForm');
         setAuthMode(false);
         setAuthMessage('Please sign in again.', true);
         return;
@@ -2115,21 +2634,29 @@
   function startAccount(){
     try{
       resumeSaved = JSON.parse(sessionStorage.getItem(ACCOUNT_SESSION_KEY) || 'null');
+      const signup = JSON.parse(sessionStorage.getItem(SIGNUP_KEY) || 'null');
+      if(signup) ({ newProfile, signedInNow } = signup);
+      sessionStorage.removeItem(SIGNUP_KEY);
       $('authEmail').value = localStorage.getItem(LAST_EMAIL_KEY) || '';
     }catch(e){}
     if(resumeSaved) resumeAccount(resumeSaved);
     else setAuthMode(false);
   }
 
-  $('signOutBtn').onclick = async () => {
+  async function signOutAccount(){
     clearTimeout(vaultTimer);
+    clearTimeout(waitingTimer);
     await saveVaultNow();
     if(vaultUnsaved){ notify('Your latest wallets aren\'t saved yet, so you weren\'t signed out. Check your connection and try again.'); return; }
+    if(account){
+      await firestoreWrite(`profiles/${account.uid}/events/${Date.now()}-signout`, { type:'signout', at:new Date() }, 'currentDocument.exists=false').catch(() => {});
+    }
     account = null;
     try{ sessionStorage.removeItem(ACCOUNT_SESSION_KEY); }catch(e){}
     state.wallets = [];
     location.reload();
-  };
+  }
+  $('signOutBtn').onclick = signOutAccount;
 
   function afterWalletsChanged(){
     renderWallets(); updateSidebarWalletInfo(); checkReadiness(); updateConnectWalletBtnStatus();
@@ -2299,7 +2826,7 @@
     const tryAdd = (pk, name, label) => {
       try{
         const w = addKeyWallet(pk, name);
-        if(w) added.push(w); else dupes.push(label);
+        if(w){ w.imported = true; added.push(w); } else dupes.push(label);
       }catch(e){ bad.push(label); }
     };
     if($('bulkImportToggle').checked){
@@ -2866,11 +3393,14 @@
   function addTxHistory(entry){
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     writeTxHistory([{ ...entry, id, at: Date.now() }, ...readTxHistory()]);
+    logTxEvent({ ...entry, id });
     return id;
   }
   // Reads the list fresh each time, as another open tab may have added to it.
   function updateTxHistory(id, patch){
-    writeTxHistory(readTxHistory().map(e => e.id === id ? { ...e, ...patch } : e));
+    const list = readTxHistory().map(e => e.id === id ? { ...e, ...patch } : e);
+    writeTxHistory(list);
+    if(patch.status) logTxEvent(list.find(e => e.id === id));
   }
   function historyAmount(units, decimals, symbol){
     return `${parseFloat(Number(ethers.formatUnits(units, decimals)).toPrecision(6))} ${symbol}`;

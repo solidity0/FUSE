@@ -10,7 +10,8 @@ FUSE is a browser tool for minting NFTs from several wallets at once. Paste a mi
 
 Read this before you add a wallet.
 
-- **You need an account.** FUSE asks you to sign in before it opens.
+- **You need an approved account.** Sign up with your email, X and Discord username, verify your email, then wait for an admin to approve you. Admins can see your usernames, email and activity, including wallet addresses and transactions, but never your private keys.
+- **If you're declined or banned,** you can still sign in to export your own private keys.
 - **Use dedicated mint wallets.** Don't use your main wallet, and only keep mint funds in these ones.
 - **Created and imported wallets are encrypted in your browser,** using your password, then saved to your account so they follow you to other devices. Your password itself is never sent, so nobody else can read them.
 - **A forgotten password can't be recovered.** Nobody can reset it or get those wallets back, so keep your own copy of your keys.
@@ -23,7 +24,8 @@ Read this before you add a wallet.
 2. **Fund them:** use Disperse to send ETH to your wallets, or to an outside address.
 3. **Mints:** paste a mint link. FUSE shows the stages and which wallets can mint.
 4. **Arm, then fire:** Simulate checks the call, Arm gets it ready, and Fire now sends it. Scheduled stages fire by themselves while the page stays open.
-5. **History:** past mints and sends are listed with their status and a link to the block explorer. History stays in your browser.
+5. **Activity:** your overview and log show wallets, fundings, sends and mints on every device.
+6. **History:** past mints and sends are listed with their status and a link to the block explorer. History stays in your browser.
 
 ## How it's built
 
@@ -31,7 +33,7 @@ Read this before you add a wallet.
 |---|---|
 | `index.html` | The whole app in one page, served by GitHub Pages from `main` |
 | `worker.js` | A Cloudflare Worker for what a browser can't do alone: OpenSea and ABI lookups, an RPC relay and reading mint pages |
-| `firestore.rules` | Lets each signed-in user reach only their own encrypted wallets. Publish changes in the Firebase console |
+| `firestore.rules` | Enforces approvals, master emails and each person's access to their own encrypted wallets. Publish changes in the Firebase console |
 | `wrangler.toml` | Worker settings, including which sites may use it |
 | `scripts/csp-hash.mjs` | Keeps the page's security policy in step with its script |
 

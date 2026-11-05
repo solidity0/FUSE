@@ -1,15 +1,74 @@
 rules_version = '2';
 
-// FUSE accounts: one encrypted wallet vault per user. The vault is encrypted in the browser
-// before it's sent, so Firestore never holds a readable private key.
+// FUSE accounts. Wallets are encrypted in the browser before they're sent, so nothing here holds a
+// readable private key, and master emails can't read them either.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /vaults/{userId} {
-      function isOwner() {
-        return request.auth != null && request.auth.uid == userId;
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+    function isVerified() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    function isMaster() {
+      return isVerified()
+        && request.auth.token.email in get(/databases/$(database)/documents/config/admins).data.emails;
+    }
+    function isApproved() {
+      return isVerified()
+        && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.status == 'approved';
+    }
+    function isShortText(value) {
+      return value is string && value.size() <= 64;
+    }
+
+    // Master emails, at most 3. The first is added in the Firebase console.
+    match /config/admins {
+      allow read: if isMaster();
+      allow update: if isMaster()
+        && request.resource.data.keys().hasOnly(['emails'])
+        && request.resource.data.emails is list
+        && request.resource.data.emails.size() >= 1
+        && request.resource.data.emails.size() <= 3;
+    }
+
+    // Who signed up. Only a master can change a status.
+    match /profiles/{uid} {
+      allow get: if isOwner(uid) || isMaster();
+      allow list: if isMaster();
+      allow create: if isOwner(uid) && isVerified()
+        && request.resource.data.keys().hasOnly(['email', 'xUsername', 'discordUsername', 'status', 'createdAt', 'lastSignInAt', 'lastSeenAt'])
+        && request.resource.data.email == request.auth.token.email
+        && isShortText(request.resource.data.xUsername)
+        && isShortText(request.resource.data.discordUsername)
+        && (
+          (request.resource.data.status == 'pending'
+            && request.resource.data.xUsername.size() > 0
+            && request.resource.data.discordUsername.size() > 0)
+          || (request.resource.data.status == 'approved' && isMaster())
+        );
+      allow update: if
+        (isOwner(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSignInAt', 'lastSeenAt']))
+        || (isMaster()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decidedAt', 'decidedBy', 'lastSignInAt', 'lastSeenAt'])
+          && request.resource.data.status in ['pending', 'approved', 'declined', 'banned']);
+
+      // Each person's log. It can only be added to, and holds public details, never keys.
+      match /events/{eventId} {
+        allow read: if isOwner(uid) || isMaster();
+        allow create: if isOwner(uid) && isVerified()
+          && request.resource.data.keys().hasOnly(['type', 'at', 'chain', 'from', 'to', 'amount', 'hash', 'status', 'name', 'address'])
+          && isShortText(request.resource.data.type)
+          && request.resource.data.at is timestamp;
       }
-      allow read, delete: if isOwner();
-      allow create, update: if isOwner()
+    }
+
+    // One encrypted vault per person. Its owner can always read it, so a declined or banned
+    // person can still export their keys. Saving needs approval.
+    match /vaults/{uid} {
+      allow read: if isOwner(uid);
+      allow delete: if isOwner(uid) && (isApproved() || isMaster());
+      allow create, update: if isOwner(uid) && (isApproved() || isMaster())
         && request.resource.data.keys().hasOnly(['vault', 'updatedAt'])
         && request.resource.data.vault is string
         && request.resource.data.vault.size() < 200000;
