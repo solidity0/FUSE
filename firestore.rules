@@ -30,6 +30,23 @@ service cloud.firestore {
       return value is string && value.size() <= 64;
     }
 
+    function ownsUsername(data) {
+      return !('username' in data)
+        || get(/databases/$(database)/documents/usernames/$(data.username)).data.uid == request.auth.uid;
+    }
+
+    // Lets someone sign in with a username, so anyone who knows a username can look up its email.
+    // The list can't be read as a whole, and a username belongs to one account at a time.
+    match /usernames/{name} {
+      allow get: if true;
+      allow create: if request.auth != null
+        && name.matches('^[a-z0-9_]{3,20}$')
+        && request.resource.data.keys().hasOnly(['uid', 'email'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email;
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+
     // Master emails, at most 3. The first is added in the Firebase console. Only someone on the
     // list can read it, which tells them to verify. Nothing else works until they have.
     match /config/admins {
@@ -47,7 +64,8 @@ service cloud.firestore {
       allow get: if isOwner(uid) || isMaster();
       allow list: if isMaster();
       allow create: if isOwner(uid)
-        && request.resource.data.keys().hasOnly(['email', 'xUsername', 'discordUsername', 'status', 'createdAt', 'lastSignInAt', 'lastSeenAt'])
+        && request.resource.data.keys().hasOnly(['email', 'username', 'xUsername', 'discordUsername', 'status', 'createdAt', 'lastSignInAt', 'lastSeenAt'])
+        && ownsUsername(request.resource.data)
         && request.resource.data.email == request.auth.token.email
         && isShortText(request.resource.data.xUsername)
         && isShortText(request.resource.data.discordUsername)
@@ -58,7 +76,9 @@ service cloud.firestore {
           || (request.resource.data.status == 'approved' && isMaster())
         );
       allow update: if
-        (isOwner(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSignInAt', 'lastSeenAt']))
+        (isOwner(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['username', 'lastSignInAt', 'lastSeenAt'])
+          && ownsUsername(request.resource.data))
         || (isMaster()
           && !(resource.data.status == 'banned' && resource.data.get('banCount', 0) >= 3)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decidedAt', 'decidedBy', 'lastSignInAt', 'lastSeenAt', 'banCount'])

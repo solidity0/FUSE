@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2wRPRnFFTuqHGwjuOXlmZ/ZfKmd4eBugNWpj04zpgfs=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-TKPdKz1YIxuRNEHNLQtm3L6V3jj7g7nKZy+c5wkUT1k=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -475,6 +475,11 @@
   .support-copy{ padding:2px 8px; background:none; border:1px solid var(--border); color:var(--text-mid); font-size:11px; }
   .auth-link{ display:block; width:100%; margin-top:12px; background:none; border:none; color:var(--text-dim); font-size:12px; }
   .auth-link:hover{ color:var(--text); }
+  .auth-link[hidden]{ display:none; }
+  .account-username{ display:flex; gap:8px; margin-top:12px; }
+  .account-username input{ flex:1; min-width:0; }
+  .account-note{ min-height:16px; margin-top:6px; font-size:12px; color:var(--text-dim); }
+  .account-note.err{ color:var(--fail); }
   .member{ border:1px solid var(--border); padding:12px; margin-top:10px; }
   .member-badge{ display:block; width:max-content; margin:0 auto 8px; padding:2px 10px; border:1px solid var(--border); border-radius:999px; font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; }
   .member-badge.pending{ color:var(--pending); border-color:var(--pending); }
@@ -600,7 +605,8 @@
         <button class="btn btn-secondary active" id="authTabSignIn" type="button">Sign in</button>
         <button class="btn btn-secondary" id="authTabSignUp" type="button">Create account</button>
       </div>
-      <div class="field"><label for="authEmail">Email</label><input type="email" id="authEmail" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
+      <div class="field"><label for="authEmail" id="authEmailLabel">Email or username</label><input type="text" id="authEmail" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
+      <div class="field" id="authUsernameField" hidden><label for="authUsername">Username</label><input type="text" id="authUsername" maxlength="20" autocapitalize="none" spellcheck="false" placeholder="3-20 letters, numbers or _"></div>
       <div class="field"><label for="authPassword">Password</label><input type="password" id="authPassword" autocomplete="current-password"></div>
       <div id="authSignUpFields" hidden>
         <div class="field"><label for="authConfirm">Confirm password</label><input type="password" id="authConfirm" autocomplete="new-password"></div>
@@ -617,7 +623,8 @@
       <button class="btn btn-secondary" id="authResend" type="button" style="width:100%;">Send the link again</button>
     </div>
     <form id="authProfile" novalidate hidden>
-      <div class="auth-note">Add your usernames so an admin knows who's asking to use FUSE.</div>
+      <div class="auth-note">Choose a username, and add your X and Discord so an admin knows who's asking to use FUSE.</div>
+      <div class="field"><label for="authProfileUsername">Username</label><input type="text" id="authProfileUsername" maxlength="20" autocapitalize="none" spellcheck="false" placeholder="3-20 letters, numbers or _"></div>
       <div class="field"><label for="authProfileX">X username</label><input type="text" id="authProfileX" maxlength="64" autocapitalize="none" spellcheck="false" placeholder="@username"></div>
       <div class="field"><label for="authProfileDiscord">Discord username</label><input type="text" id="authProfileDiscord" maxlength="64" autocapitalize="none" spellcheck="false"></div>
       <button class="btn btn-primary" type="submit" style="width:100%;">Request access</button>
@@ -1091,6 +1098,12 @@
           <div><div class="section-title"><span class="dot"></span>Account</div><span id="accountEmail"></span></div>
           <button class="btn btn-secondary" id="signOutBtn" type="button">Sign out</button>
         </div>
+        <label for="accountUsername" style="display:block; margin-top:12px;">Username</label>
+        <div class="account-username" style="margin-top:0;">
+          <input type="text" id="accountUsername" maxlength="20" autocapitalize="none" spellcheck="false" placeholder="3-20 letters, numbers or _">
+          <button class="btn btn-secondary" id="accountUsernameSave" type="button">Save</button>
+        </div>
+        <div class="account-note" id="accountUsernameNote" role="status"></div>
         <div class="support-line" style="justify-content:flex-start;">Contact support on Discord: <b>seedhqx</b> <button class="support-copy" type="button" data-copy="seedhqx">Copy</button></div>
       </div>
       <div class="card" id="adminCard" hidden>
@@ -1946,9 +1959,9 @@
   const AUTH_ERRORS = {
     EMAIL_EXISTS:'That email already has an account. Sign in instead.',
     INVALID_EMAIL:'Enter a valid email address.',
-    INVALID_LOGIN_CREDENTIALS:'Wrong email or password.',
-    EMAIL_NOT_FOUND:'Wrong email or password.',
-    INVALID_PASSWORD:'Wrong email or password.',
+    INVALID_LOGIN_CREDENTIALS:'Wrong login or password.',
+    EMAIL_NOT_FOUND:'Wrong login or password.',
+    INVALID_PASSWORD:'Wrong login or password.',
     USER_DISABLED:'This account has been disabled.',
     TOO_MANY_ATTEMPTS_TRY_LATER:'Too many attempts. Wait a few minutes and try again.',
     OPERATION_NOT_ALLOWED:'Sign-up is turned off right now.',
@@ -2104,6 +2117,8 @@
     $('authTabSignIn').classList.toggle('active', !signUp);
     $('authTabSignUp').classList.toggle('active', signUp);
     $('authSignUpFields').hidden = !signUp;
+    $('authUsernameField').hidden = !signUp;
+    $('authEmailLabel').textContent = signUp ? 'Email' : 'Email or username';
     $('authSubmit').textContent = signUp ? 'Create account' : 'Sign in';
     $('authPassword').autocomplete = signUp ? 'new-password' : 'current-password';
     $('authSub').textContent = signUp ? `Use a password of at least ${MIN_PASSWORD_LENGTH} characters` : 'Sign in to use FUSE';
@@ -2114,20 +2129,31 @@
 
   $('authForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = $('authEmail').value.trim().toLowerCase();
+    const login = $('authEmail').value.trim().toLowerCase();
     const password = $('authPassword').value;
-    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ setAuthMessage('Enter a valid email address.', true); return; }
+    const looksLikeEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(login);
+    if(authSigningUp ? !looksLikeEmail : !login){ setAuthMessage(authSigningUp ? 'Enter a valid email address.' : 'Enter your email or username.', true); return; }
     if(!password){ setAuthMessage('Enter your password.', true); return; }
+    const username = cleanUsername($('authUsername').value).toLowerCase();
+    if(authSigningUp && !USERNAME_RE.test(username)){ setAuthMessage('Choose a username of 3-20 letters, numbers or underscores.', true); return; }
     if(authSigningUp){
       if(password.length < MIN_PASSWORD_LENGTH){ setAuthMessage(`Use at least ${MIN_PASSWORD_LENGTH} characters.`, true); return; }
       if(password !== $('authConfirm').value){ setAuthMessage('The passwords don\'t match.', true); return; }
-      newProfile = { xUsername: cleanUsername($('authX').value), discordUsername: cleanUsername($('authDiscord').value) };
+      newProfile = { username, xUsername: cleanUsername($('authX').value), discordUsername: cleanUsername($('authDiscord').value) };
       if(!newProfile.xUsername || !newProfile.discordUsername){ setAuthMessage('Add your X and Discord usernames so an admin knows who you are.', true); return; }
       if(!$('authAck').checked){ setAuthMessage('Tick the box to confirm you understand.', true); return; }
     }
     $('authSubmit').disabled = true;
     setAuthMessage(authSigningUp ? 'Creating your account…' : 'Signing in…');
     try{
+      let email = login;
+      if(authSigningUp){
+        if(await lookUpUsername(username)) throw new Error('That username is taken. Try another.');
+      }else if(!looksLikeEmail){
+        const known = await lookUpUsername(login.replace(/^@/, ''));
+        if(!known) throw new Error(AUTH_ERRORS.INVALID_LOGIN_CREDENTIALS);
+        email = known.email;
+      }
       const { signIn, key } = await deriveAccountSecrets(email, password);
       let opened;
       try{ opened = await accountFromSignIn(authSigningUp ? 'signUp' : 'signInWithPassword', email, signIn, key); }
@@ -2147,6 +2173,42 @@
   });
 
   const cleanUsername = (text) => text.trim().replace(/^@/, '').slice(0, 64);
+  const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
+  async function lookUpUsername(name){
+    if(!USERNAME_RE.test(name)) return null;
+    const res = await accountFetch(firestoreUrl(`usernames/${name}`));
+    if(res.status === 404) return null;
+    if(!res.ok) throw new Error(`Couldn't check that username (${res.status}). Try again.`);
+    return fromFirestore(await res.json());
+  }
+  async function claimUsername(name){
+    try{ await firestoreWrite(`usernames/${name}`, { uid:account.uid, email:account.email }, 'currentDocument.exists=false'); }
+    catch(e){
+      const current = e.status === 409 ? await lookUpUsername(name) : null;
+      if(current && current.uid === account.uid) return;
+      throw Object.assign(new Error(e.status === 409 ? 'That username is taken. Try another.' : e.message), { taken:e.status === 409 });
+    }
+  }
+  async function saveUsername(){
+    const name = $('accountUsername').value.trim().replace(/^@/, '').toLowerCase();
+    const note = $('accountUsernameNote');
+    const say = (text, isError) => { note.textContent = text; note.classList.toggle('err', !!isError); };
+    const old = accountProfile && accountProfile.username;
+    if(name === old){ say('That\'s already your username.'); return; }
+    if(!USERNAME_RE.test(name)){ say('Use 3-20 letters, numbers or underscores.', true); return; }
+    $('accountUsernameSave').disabled = true;
+    say('Saving…');
+    try{
+      await claimUsername(name);
+      await firestoreWrite(`profiles/${account.uid}`, { username:name }, fieldMask(['username']));
+      accountProfile.username = name;
+      $('accountUsername').value = name;
+      if(old) await accountFetch(firestoreUrl(`usernames/${old}`), { method:'DELETE', headers:{ Authorization:'Bearer ' + await freshIdToken() } }).catch(() => {});
+      say('Saved. You can sign in with it now.');
+    }catch(e){ say(e instanceof TypeError ? 'Couldn\'t reach your account. Check your connection and try again.' : e.message, true); }
+    finally{ $('accountUsernameSave').disabled = false; }
+  }
+  $('accountUsernameSave').onclick = saveUsername;
   const SIGNUP_KEY = 'fuse.signup';
   let accountReady;
   const accountOpened = new Promise(resolve => { accountReady = resolve; });
@@ -2283,9 +2345,21 @@
         showAuthStep('authProfile', 'Request access');
         return;
       }
+      if(newProfile && newProfile.username){
+        try{ await claimUsername(newProfile.username); }
+        catch(e){
+          if(!e.taken) throw e;
+          $('authProfileX').value = newProfile.xUsername; $('authProfileDiscord').value = newProfile.discordUsername;
+          newProfile = null;
+          showAuthStep('authProfile', 'Choose another username');
+          setAuthMessage(e.message, true);
+          return;
+        }
+      }
       const now = new Date();
       profile = await firestoreWrite(`profiles/${account.uid}`, {
         email:account.email,
+        username:newProfile ? newProfile.username : null,
         xUsername:newProfile ? newProfile.xUsername : '',
         discordUsername:newProfile ? newProfile.discordUsername : '',
         status:masterEmails ? 'approved' : 'pending',
@@ -2333,9 +2407,11 @@
   $('authResend').onclick = () => authBusy(async () => { await sendVerifyEmail(); setAuthMessage('Sent. Check your inbox and spam folder.'); });
   $('authProfile').addEventListener('submit', (e) => {
     e.preventDefault();
+    const username = cleanUsername($('authProfileUsername').value).toLowerCase();
     const x = cleanUsername($('authProfileX').value), discord = cleanUsername($('authProfileDiscord').value);
+    if(!USERNAME_RE.test(username)){ setAuthMessage('Choose a username of 3-20 letters, numbers or underscores.', true); return; }
     if(!x || !discord){ setAuthMessage('Add your X and Discord usernames.', true); return; }
-    newProfile = { xUsername:x, discordUsername:discord };
+    newProfile = { username, xUsername:x, discordUsername:discord };
     authBusy(continueAccount);
   });
   $('authExport').onclick = () => { downloadWalletCsv(blockedWallets); setAuthMessage('Exported. Keep that file somewhere safe, and delete it from Downloads once you have.'); };
@@ -2354,6 +2430,7 @@
     });
     walletsOpen = true;
     $('accountEmail').textContent = account.email;
+    $('accountUsername').value = (accountProfile && accountProfile.username) || '';
     $('authGate').hidden = true;
     relayStatus.clear(); // checked before sign-in, when the worker turns everyone away
     probeRpcs();
@@ -2557,6 +2634,7 @@
       link.href = 'https://x.com/' + x; link.target = '_blank'; link.rel = 'noopener';
       card.append(memberRow('X', link));
     }else card.append(memberRow('X', x));
+    card.append(memberRow('Username', m.username));
     card.append(memberRow('Discord', m.discordUsername), memberRow('Email', m.email), memberRow('Signed up', m.createdAt && new Date(m.createdAt).toLocaleString()));
     const online = m.lastSeenAt && Date.now() - new Date(m.lastSeenAt) < ONLINE_MS;
     card.append(memberRow('Last seen', online ? activityEl('span', 'member-online', 'Online now') : (m.lastSeenAt && new Date(m.lastSeenAt).toLocaleString())));
@@ -2566,7 +2644,7 @@
       btn.type = 'button'; btn.onclick = run;
       actions.append(btn);
     };
-    const who = (x && '@' + x) || m.email;
+    const who = (x && '@' + x) || m.username || m.email;
     if(!isMasterEmail){
       if(m.status === 'pending' || m.status === 'declined') act('Approve', 'btn-primary', () => setMemberStatus(m, 'approved'));
       if(m.status === 'pending') act('Decline', 'btn-secondary', () => setMemberStatus(m, 'declined'));
