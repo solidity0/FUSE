@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-+JYxBwbEk/Qz3rsIvc2fVwu4OhOrVT/Zb2ZboBqWn44=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-hcvrOkdBSIQ4SWtJri73TRfuXeVdb3p9RTy64qhU2LY=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -1876,13 +1876,28 @@
     return { signIn, key: toBase64(await part('vault')) };
   }
 
+  // Connections drop for a moment, so each request gets a few tries before FUSE asks you to do anything.
+  // Repeating is safe: a save checks the vault is unchanged, and sign-up handles a first try that landed.
+  async function accountFetch(url, options){
+    for(let attempt = 1; ; attempt++){
+      const timeout = new AbortController();
+      const timer = setTimeout(() => timeout.abort(), 15000);
+      try{ return await fetch(url, { ...options, signal:timeout.signal }); }
+      catch(e){
+        if(attempt >= 4) throw new TypeError('Failed to fetch');
+        if(!$('authGate').hidden) setAuthMessage('Connection dropped. Trying again…');
+        await new Promise(res => setTimeout(res, 2000));
+      }
+      finally{ clearTimeout(timer); }
+    }
+  }
   async function authError(res){
     let code = '';
     try{ code = (await res.json()).error.message.split(' ')[0]; }catch(e){}
-    return new Error(AUTH_ERRORS[code] || `Couldn't reach your account (${code || res.status}). Try again.`);
+    return Object.assign(new Error(AUTH_ERRORS[code] || `Couldn't reach your account (${code || res.status}). Try again.`), { code });
   }
   async function accountFromSignIn(path, email, signIn, key){
-    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:${path}?key=${FIREBASE.apiKey}`, {
+    const res = await accountFetch(`https://identitytoolkit.googleapis.com/v1/accounts:${path}?key=${FIREBASE.apiKey}`, {
       method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ email, password:signIn, returnSecureToken:true }),
     });
     if(!res.ok) throw await authError(res);
@@ -1891,7 +1906,7 @@
   }
   async function freshIdToken(){
     if(Date.now() < account.expiresAt - 60000) return account.idToken;
-    const res = await fetch(`https://securetoken.googleapis.com/v1/token?key=${FIREBASE.apiKey}`, {
+    const res = await accountFetch(`https://securetoken.googleapis.com/v1/token?key=${FIREBASE.apiKey}`, {
       method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
       body:new URLSearchParams({ grant_type:'refresh_token', refresh_token:account.refreshToken }),
     });
@@ -1922,7 +1937,7 @@
     return JSON.parse(new TextDecoder().decode(plain));
   }
   async function readVault(){
-    const res = await fetch(vaultUrl(), { headers:{ Authorization:'Bearer ' + await freshIdToken() } });
+    const res = await accountFetch(vaultUrl(), { headers:{ Authorization:'Bearer ' + await freshIdToken() } });
     if(res.status === 404) return { entries:[], updateTime:null };
     if(!res.ok) throw new Error(`Couldn't read your wallets (${res.status}).`);
     const doc = await res.json();
@@ -1931,7 +1946,7 @@
   // Writes only if the vault is unchanged since it was read. Returns false if it changed.
   async function writeVault(entries, updateTime){
     const precondition = updateTime ? `currentDocument.updateTime=${encodeURIComponent(updateTime)}` : 'currentDocument.exists=false';
-    const res = await fetch(vaultUrl('?' + precondition), {
+    const res = await accountFetch(vaultUrl('?' + precondition), {
       method:'PATCH',
       headers:{ Authorization:'Bearer ' + await freshIdToken(), 'Content-Type':'application/json' },
       body:JSON.stringify({ fields:{ vault:{ stringValue: await sealVault(entries) }, updatedAt:{ timestampValue:new Date().toISOString() } } }),
@@ -2018,7 +2033,16 @@
     setAuthMessage(authSigningUp ? 'Creating your account…' : 'Signing in…');
     try{
       const { signIn, key } = await deriveAccountSecrets(email, password);
-      await openAccount(await accountFromSignIn(authSigningUp ? 'signUp' : 'signInWithPassword', email, signIn, key));
+      let opened;
+      try{ opened = await accountFromSignIn(authSigningUp ? 'signUp' : 'signInWithPassword', email, signIn, key); }
+      catch(err){
+        if(err.code !== 'EMAIL_EXISTS') throw err;
+        // Either an earlier try got through before the connection dropped, or the account is theirs
+        // already. The same email and password simply signs in; anything else gets the original message.
+        try{ opened = await accountFromSignIn('signInWithPassword', email, signIn, key); }
+        catch(e){ throw err; }
+      }
+      await openAccount(opened);
     }catch(err){
       account = null;
       setAuthMessage(err instanceof TypeError ? 'Couldn\'t reach your account. Check your connection and try again.' : err.message, true);
