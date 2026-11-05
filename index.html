@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-TKPdKz1YIxuRNEHNLQtm3L6V3jj7g7nKZy+c5wkUT1k=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-wyfrQkRFeNhki8QtaEIYkjk16kQJQa7T8h5uItZv2pM=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -473,6 +473,8 @@
   .support-line{ display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px; margin-top:14px; font-size:12px; color:var(--text-dim); }
   .support-line b{ font-family:var(--mono); color:var(--text); }
   .support-copy{ padding:2px 8px; background:none; border:1px solid var(--border); color:var(--text-mid); font-size:11px; }
+  .auth-ban-timer{ margin-bottom:14px; text-align:center; font-family:var(--mono); font-size:15px; font-weight:700; color:var(--pending); }
+  .auth-ban-timer[hidden]{ display:none; }
   .auth-link{ display:block; width:100%; margin-top:12px; background:none; border:none; color:var(--text-dim); font-size:12px; }
   .auth-link:hover{ color:var(--text); }
   .auth-link[hidden]{ display:none; }
@@ -606,7 +608,6 @@
         <button class="btn btn-secondary" id="authTabSignUp" type="button">Create account</button>
       </div>
       <div class="field"><label for="authEmail" id="authEmailLabel">Email or username</label><input type="text" id="authEmail" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
-      <div class="field" id="authUsernameField" hidden><label for="authUsername">Username</label><input type="text" id="authUsername" maxlength="20" autocapitalize="none" spellcheck="false" placeholder="3-20 letters, numbers or _"></div>
       <div class="field"><label for="authPassword">Password</label><input type="password" id="authPassword" autocomplete="current-password"></div>
       <div id="authSignUpFields" hidden>
         <div class="field"><label for="authConfirm">Confirm password</label><input type="password" id="authConfirm" autocomplete="new-password"></div>
@@ -623,8 +624,7 @@
       <button class="btn btn-secondary" id="authResend" type="button" style="width:100%;">Send the link again</button>
     </div>
     <form id="authProfile" novalidate hidden>
-      <div class="auth-note">Choose a username, and add your X and Discord so an admin knows who's asking to use FUSE.</div>
-      <div class="field"><label for="authProfileUsername">Username</label><input type="text" id="authProfileUsername" maxlength="20" autocapitalize="none" spellcheck="false" placeholder="3-20 letters, numbers or _"></div>
+      <div class="auth-note">Add your X and Discord so an admin knows who's asking to use FUSE.</div>
       <div class="field"><label for="authProfileX">X username</label><input type="text" id="authProfileX" maxlength="64" autocapitalize="none" spellcheck="false" placeholder="@username"></div>
       <div class="field"><label for="authProfileDiscord">Discord username</label><input type="text" id="authProfileDiscord" maxlength="64" autocapitalize="none" spellcheck="false"></div>
       <button class="btn btn-primary" type="submit" style="width:100%;">Request access</button>
@@ -632,6 +632,7 @@
     <div class="auth-note" id="authWaiting" hidden>Your request is with an admin. This page opens FUSE by itself once you're approved, so you can leave it open or come back later.</div>
     <div id="authBlocked" hidden>
       <div class="auth-note" id="authBlockedText"></div>
+      <div class="auth-ban-timer" id="authBanTimer" hidden></div>
       <button class="btn btn-primary" id="authExport" type="button" style="width:100%;" hidden>Export my private keys</button>
     </div>
     <button class="auth-link" id="authLeave" type="button" hidden>Sign out</button>
@@ -1108,7 +1109,7 @@
       </div>
       <div class="card" id="adminCard" hidden>
         <div class="section-title"><span class="dot"></span>Master Admin</div>
-        <div class="hint">Only master emails see this. Approve, decline, remove or ban who can use FUSE. You see who signed up, and what approved people did, never their private keys. Someone declined or removed can only export their own keys. Someone banned can't export anything, and a third ban is permanent.</div>
+        <div class="hint">Only master emails see this. Approve, decline, remove or ban who can use FUSE. You see who signed up, and what approved people did, never their private keys. Someone declined or removed can only export their own keys. Someone banned can't export anything. A first ban lasts 12 hours, a second 72 hours, and a third is permanent. A banned email, X or Discord can't start a new account.</div>
         <button class="btn btn-secondary" id="adminRefresh" type="button" style="width:100%; margin-top:10px;">Refresh list</button>
         <div class="hint" id="adminCount" style="text-align:center; margin-top:8px;"></div>
         <div id="adminMembers"></div>
@@ -2117,7 +2118,6 @@
     $('authTabSignIn').classList.toggle('active', !signUp);
     $('authTabSignUp').classList.toggle('active', signUp);
     $('authSignUpFields').hidden = !signUp;
-    $('authUsernameField').hidden = !signUp;
     $('authEmailLabel').textContent = signUp ? 'Email' : 'Email or username';
     $('authSubmit').textContent = signUp ? 'Create account' : 'Sign in';
     $('authPassword').autocomplete = signUp ? 'new-password' : 'current-password';
@@ -2134,12 +2134,10 @@
     const looksLikeEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(login);
     if(authSigningUp ? !looksLikeEmail : !login){ setAuthMessage(authSigningUp ? 'Enter a valid email address.' : 'Enter your email or username.', true); return; }
     if(!password){ setAuthMessage('Enter your password.', true); return; }
-    const username = cleanUsername($('authUsername').value).toLowerCase();
-    if(authSigningUp && !USERNAME_RE.test(username)){ setAuthMessage('Choose a username of 3-20 letters, numbers or underscores.', true); return; }
     if(authSigningUp){
       if(password.length < MIN_PASSWORD_LENGTH){ setAuthMessage(`Use at least ${MIN_PASSWORD_LENGTH} characters.`, true); return; }
       if(password !== $('authConfirm').value){ setAuthMessage('The passwords don\'t match.', true); return; }
-      newProfile = { username, xUsername: cleanUsername($('authX').value), discordUsername: cleanUsername($('authDiscord').value) };
+      newProfile = { xUsername: cleanUsername($('authX').value), discordUsername: cleanUsername($('authDiscord').value) };
       if(!newProfile.xUsername || !newProfile.discordUsername){ setAuthMessage('Add your X and Discord usernames so an admin knows who you are.', true); return; }
       if(!$('authAck').checked){ setAuthMessage('Tick the box to confirm you understand.', true); return; }
     }
@@ -2148,7 +2146,7 @@
     try{
       let email = login;
       if(authSigningUp){
-        if(await lookUpUsername(username)) throw new Error('That username is taken. Try another.');
+        if(await hasBannedDetail(email, newProfile)) throw new Error(BANNED_DETAILS_TEXT);
       }else if(!looksLikeEmail){
         const known = await lookUpUsername(login.replace(/^@/, ''));
         if(!known) throw new Error(AUTH_ERRORS.INVALID_LOGIN_CREDENTIALS);
@@ -2174,6 +2172,13 @@
 
   const cleanUsername = (text) => text.trim().replace(/^@/, '').slice(0, 64);
   const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
+  const BANNED_DETAILS_TEXT = 'An account with these details has been banned, so a new one can\'t be created. Contact support on Discord: seedhqx';
+  // Emails and usernames are matched without regard to capitals.
+  const bannedDetailIds = (email, { xUsername, discordUsername }) => [`email:${email}`, `x:${xUsername.toLowerCase()}`, `discord:${discordUsername.toLowerCase()}`];
+  async function hasBannedDetail(email, details){
+    const answers = await Promise.all(bannedDetailIds(email, details).map(id => accountFetch(firestoreUrl(`banned/${encodeURIComponent(id)}`))));
+    return answers.some(res => res.ok);
+  }
   async function lookUpUsername(name){
     if(!USERNAME_RE.test(name)) return null;
     const res = await accountFetch(firestoreUrl(`usernames/${name}`));
@@ -2345,21 +2350,15 @@
         showAuthStep('authProfile', 'Request access');
         return;
       }
-      if(newProfile && newProfile.username){
-        try{ await claimUsername(newProfile.username); }
-        catch(e){
-          if(!e.taken) throw e;
-          $('authProfileX').value = newProfile.xUsername; $('authProfileDiscord').value = newProfile.discordUsername;
-          newProfile = null;
-          showAuthStep('authProfile', 'Choose another username');
-          setAuthMessage(e.message, true);
-          return;
-        }
+      if(!masterEmails && await hasBannedDetail(account.email, newProfile)){
+        newProfile = null;
+        showAuthStep('authProfile', 'Request access');
+        setAuthMessage(BANNED_DETAILS_TEXT, true);
+        return;
       }
       const now = new Date();
       profile = await firestoreWrite(`profiles/${account.uid}`, {
         email:account.email,
-        username:newProfile ? newProfile.username : null,
         xUsername:newProfile ? newProfile.xUsername : '',
         discordUsername:newProfile ? newProfile.discordUsername : '',
         status:masterEmails ? 'approved' : 'pending',
@@ -2379,10 +2378,20 @@
     }
     if(profile.status === 'banned'){
       const bans = profile.banCount || 0;
+      const until = bans < MAX_BANS && profile.bannedUntil ? Date.parse(profile.bannedUntil) : 0;
+      // The ban's time is up: this account lets itself back in, and the rules check the time.
+      if(until && Date.now() >= until){
+        try{
+          await firestoreWrite(`profiles/${account.uid}`, { status:'approved' }, fieldMask(['status']));
+          await openWallets();
+          return;
+        }catch(e){ if(e instanceof TypeError) throw e; } // a clock slightly ahead: the countdown below tries again
+      }
       $('authBlockedText').textContent = (bans >= MAX_BANS
         ? 'This account has been permanently banned from FUSE. You can\'t use it or the wallets saved in it here again.'
-        : `This account has been banned from FUSE${bans ? ` (ban ${bans} of ${MAX_BANS})` : ''}. You can't use it or the wallets saved in it unless an admin restores it, and a third ban is permanent.`)
+        : `This account has been banned from FUSE${bans ? ` (ban ${bans} of ${MAX_BANS})` : ''}. You can't use it or the wallets saved in it until the ban ends, and a third ban is permanent.`)
         + ' Your own copy of your private keys still works in any wallet app.';
+      startBanCountdown(until);
       $('authExport').hidden = true;
       showAuthStep('authBlocked', 'Account banned');
       return;
@@ -2396,7 +2405,25 @@
     $('authExport').hidden = !blockedWallets.length;
     showAuthStep('authBlocked', profile.status === 'removed' ? 'Access removed' : 'Request declined');
   }
-  let waitingTimer = null, blockedWallets = [];
+  let waitingTimer = null, blockedWallets = [], banCountdown = null;
+  function startBanCountdown(until){
+    clearInterval(banCountdown);
+    $('authBanTimer').hidden = !until;
+    if(!until) return;
+    const tick = () => {
+      const left = Math.ceil((until - Date.now()) / 1000);
+      if(left <= 0){
+        clearInterval(banCountdown);
+        $('authBanTimer').textContent = 'Opening FUSE…';
+        setTimeout(() => authBusy(continueAccount), 2000); // leaves room for a clock slightly ahead
+        return;
+      }
+      const pad = (n) => String(n).padStart(2, '0');
+      $('authBanTimer').textContent = `Time left: ${pad(Math.floor(left / 3600))}:${pad(Math.floor(left / 60) % 60)}:${pad(left % 60)}`;
+    };
+    tick();
+    banCountdown = setInterval(tick, 1000);
+  }
 
   $('authVerified').onclick = () => authBusy(async () => {
     account.expiresAt = 0; // the new status only shows up in a fresh token
@@ -2407,11 +2434,9 @@
   $('authResend').onclick = () => authBusy(async () => { await sendVerifyEmail(); setAuthMessage('Sent. Check your inbox and spam folder.'); });
   $('authProfile').addEventListener('submit', (e) => {
     e.preventDefault();
-    const username = cleanUsername($('authProfileUsername').value).toLowerCase();
     const x = cleanUsername($('authProfileX').value), discord = cleanUsername($('authProfileDiscord').value);
-    if(!USERNAME_RE.test(username)){ setAuthMessage('Choose a username of 3-20 letters, numbers or underscores.', true); return; }
     if(!x || !discord){ setAuthMessage('Add your X and Discord usernames.', true); return; }
-    newProfile = { username, xUsername:x, discordUsername:discord };
+    newProfile = { xUsername:x, discordUsername:discord };
     authBusy(continueAccount);
   });
   $('authExport').onclick = () => { downloadWalletCsv(blockedWallets); setAuthMessage('Exported. Keep that file somewhere safe, and delete it from Downloads once you have.'); };
@@ -2603,6 +2628,7 @@
   const STATUS_LABEL = { pending:'Waiting', approved:'Active', removed:'Access removed', declined:'Declined', banned:'Banned' };
   const WAS_APPROVED = ['approved', 'removed', 'banned'];
   const MAX_BANS = 3;
+  const BAN_HOURS = [12, 72]; // the first and second ban. The third has no end.
   const ONLINE_MS = 6 * 60000;
   async function loadAdmin(){
     if(!masterEmails){ $('adminCard').hidden = true; return; }
@@ -2658,24 +2684,34 @@
         const next = (m.banCount || 0) + 1;
         act('Ban', 'btn-danger', () => askWalletAction(next >= MAX_BANS ? {
           title:`Permanently ban ${who}?`,
-          text:`This is ban ${next} of ${MAX_BANS}. They can never use FUSE again with this login, and they lose access to the wallets saved in it, including any funds, unless they kept their own private keys. You can't undo this from here.`,
+          text:`This is ban ${next} of ${MAX_BANS}. They can never use FUSE again with this login, their email, X and Discord can't start a new account, and they lose access to the wallets saved in it, including any funds, unless they kept their own private keys. You can't undo this from here.`,
           wallets:[], ack:'I understand this is permanent.', label:'Ban', run:() => setMemberStatus(m, 'banned'),
         } : {
           title:`Ban ${who}?`,
-          text:`This is ban ${next} of ${MAX_BANS}, and the third is permanent. They'll be out of FUSE within about 5 minutes, or at their next refresh, and can't export their saved wallets while banned. You can restore them.`,
+          text:`This is ban ${next} of ${MAX_BANS}, lasting ${BAN_HOURS[next - 1]} hours, and the third is permanent. They'll be out of FUSE within about 5 minutes, or at their next refresh, and can't export their saved wallets while banned. Their email, X and Discord also can't start a new account. You can restore them early.`,
           wallets:[], label:'Ban', run:() => setMemberStatus(m, 'banned'),
         }));
       }
     }
     if(WAS_APPROVED.includes(m.status) || isMasterEmail) act('View activity', 'btn-secondary', () => viewMemberActivity(m, who));
     if(m.banCount) card.append(memberRow('Bans', `${m.banCount} of ${MAX_BANS}`));
+    if(m.status === 'banned'){
+      card.append(memberRow('Ban ends', (m.banCount || 0) >= MAX_BANS ? 'Never' : (m.bannedUntil ? new Date(m.bannedUntil).toLocaleString() : 'When restored')));
+    }
     card.append(actions);
     return card;
   }
   async function setMemberStatus(m, status){
     try{
       const change = { status, decidedAt:new Date(), decidedBy:account.email };
-      if(status === 'banned') change.banCount = (m.banCount || 0) + 1;
+      if(status === 'banned'){
+        change.banCount = (m.banCount || 0) + 1;
+        const hours = BAN_HOURS[change.banCount - 1];
+        if(hours) change.bannedUntil = new Date(Date.now() + hours * 3600000);
+        await Promise.all(bannedDetailIds(m.email, { xUsername:m.xUsername || '', discordUsername:m.discordUsername || '' })
+          .filter(id => !id.endsWith(':'))
+          .map(id => firestoreWrite(`banned/${encodeURIComponent(id)}`, { uid:m.id, at:new Date() })));
+      }
       await firestoreWrite(`profiles/${m.id}`, change, fieldMask(Object.keys(change)));
     }catch(e){ notify('That didn\'t save. Check your connection and try again.'); return; }
     loadAdmin();

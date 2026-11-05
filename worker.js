@@ -66,6 +66,7 @@ function corsHeadersFor(request, env) {
 const FIREBASE_KEYS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 const ACCOUNT_RECHECK_MS = 60000; // how long an answer is used before it's checked again
 const ACCOUNT_FORGET_MS = 600000; // past this, an approved person waits for a fresh answer
+const ACCOUNT_REFUSED_RECHECK_MS = 10000; // someone just approved shouldn't wait long
 const accountCache = new Map(); // uid -> { allowed, at, checking }
 let firebaseKeys = { byId: new Map(), at: 0 };
 
@@ -153,7 +154,7 @@ async function accountDenied(request, env, ctx, corsHeaders) {
   const cached = accountCache.get(claims.sub);
   const age = cached ? Date.now() - cached.at : Infinity;
   let allowed;
-  if (cached && age < ACCOUNT_RECHECK_MS) {
+  if (cached && age < (cached.allowed ? ACCOUNT_RECHECK_MS : ACCOUNT_REFUSED_RECHECK_MS)) {
     allowed = cached.allowed;
   } else if (cached && cached.allowed && age < ACCOUNT_FORGET_MS) {
     allowed = true;
