@@ -49,7 +49,7 @@ function corsHeadersFor(request, env) {
   const allowed = (env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
   const headers = {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     // Lets a public site (e.g. GitHub Pages) call this worker while it runs locally under
     // `wrangler dev` — Chrome's Private Network Access check asks for this on preflight.
     'Access-Control-Allow-Private-Network': 'true',
@@ -58,6 +58,118 @@ function corsHeadersFor(request, env) {
   if (!allowed.length) headers['Access-Control-Allow-Origin'] = '*';
   else if (origin && allowed.includes(origin)) headers['Access-Control-Allow-Origin'] = origin;
   return { headers, originAllowed: !allowed.length || (origin && allowed.includes(origin)) };
+}
+
+// ---------- Who may use this worker: approved FUSE accounts ----------
+// The page sends its Firebase sign-in token. The token's signature proves who it is, and its own
+// Firestore profile says whether a master has approved them. Set FIREBASE_PROJECT_ID to turn this on.
+const FIREBASE_KEYS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
+const ACCOUNT_RECHECK_MS = 60000; // how long an answer is used before it's checked again
+const ACCOUNT_FORGET_MS = 600000; // past this, an approved person waits for a fresh answer
+const ACCOUNT_REFUSED_RECHECK_MS = 10000; // someone just approved shouldn't wait long
+const accountCache = new Map(); // uid -> { allowed, at, checking }
+let firebaseKeys = { byId: new Map(), at: 0 };
+
+const fromBase64Url = (text) => Uint8Array.from(atob(text.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+
+async function firebaseKey(kid) {
+  if (!firebaseKeys.byId.has(kid) || Date.now() - firebaseKeys.at > 3600000) {
+    const res = await fetchWithTimeout(FIREBASE_KEYS_URL);
+    if (!res.ok) throw new Error('could not load sign-in keys');
+    const { keys } = await res.json();
+    firebaseKeys = { byId: new Map(keys.map((k) => [k.kid, k])), at: Date.now() };
+  }
+  const jwk = firebaseKeys.byId.get(kid);
+  return jwk ? crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']) : null;
+}
+
+// Returns the token's claims, or null if it isn't a valid token for this project right now.
+async function verifyFirebaseToken(token, projectId) {
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  let header, claims;
+  try {
+    const text = (b) => new TextDecoder().decode(fromBase64Url(b));
+    header = JSON.parse(text(parts[0]));
+    claims = JSON.parse(text(parts[1]));
+  } catch (e) {
+    return null;
+  }
+  if (header.alg !== 'RS256' || !header.kid) return null;
+  const now = Date.now() / 1000;
+  if (claims.iss !== `https://securetoken.google.com/${projectId}` || claims.aud !== projectId) return null;
+  if (typeof claims.sub !== 'string' || !claims.sub || !(claims.exp > now) || claims.iat > now + 300) return null;
+  const key = await firebaseKey(header.kid);
+  if (!key) return null;
+  const signed = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
+  return (await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, fromBase64Url(parts[2]), signed)) ? claims : null;
+}
+
+// Asked with the person's own token, so firestore.rules decides what they can read.
+async function isAccountAllowed(claims, token, projectId) {
+  const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+  const headers = { Authorization: `Bearer ${token}` };
+  const profile = await fetchWithTimeout(`${base}/profiles/${encodeURIComponent(claims.sub)}`, { headers });
+  if (profile.status >= 500) throw new Error('profile check failed');
+  if (profile.ok && (await profile.json()).fields?.status?.stringValue === 'approved') return true;
+  if (claims.email_verified !== true) return false;
+  const admins = await fetchWithTimeout(`${base}/config/admins`, { headers });
+  if (admins.status >= 500) throw new Error('profile check failed');
+  return admins.ok;
+}
+
+function checkAccountNow(claims, token, projectId, cached) {
+  const checking = isAccountAllowed(claims, token, projectId).then(
+    (allowed) => {
+      accountCache.set(claims.sub, { allowed, at: Date.now() });
+      if (accountCache.size > 5000) accountCache.delete(accountCache.keys().next().value);
+      return allowed;
+    },
+    (e) => {
+      if (cached) accountCache.set(claims.sub, { ...cached, checking: null });
+      else accountCache.delete(claims.sub);
+      throw e;
+    }
+  );
+  accountCache.set(claims.sub, { ...(cached || { allowed: false, at: 0 }), checking });
+  return checking;
+}
+
+// Returns a response if this request must stop here. A known approved person isn't held up while
+// their status is rechecked, so a mint already firing never waits on this.
+async function accountDenied(request, env, ctx, corsHeaders) {
+  const projectId = env.FIREBASE_PROJECT_ID;
+  if (!projectId) return null;
+  const token = (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
+  const refuse = () => json({ error: 'sign in to FUSE first', code: 'sign_in_required' }, 401, corsHeaders);
+  if (!token) return refuse();
+  let claims;
+  try {
+    claims = await verifyFirebaseToken(token, projectId);
+  } catch (e) {
+    return json({ error: 'could not check your account, try again', code: 'account_check_failed' }, 503, corsHeaders);
+  }
+  if (!claims) return refuse();
+
+  const cached = accountCache.get(claims.sub);
+  const age = cached ? Date.now() - cached.at : Infinity;
+  let allowed;
+  if (cached && age < (cached.allowed ? ACCOUNT_RECHECK_MS : ACCOUNT_REFUSED_RECHECK_MS)) {
+    allowed = cached.allowed;
+  } else if (cached && cached.allowed && age < ACCOUNT_FORGET_MS) {
+    allowed = true;
+    if (!cached.checking) {
+      const check = checkAccountNow(claims, token, projectId, cached).catch(() => {});
+      if (ctx) ctx.waitUntil(check);
+    }
+  } else {
+    try {
+      allowed = await (cached && cached.checking ? cached.checking : checkAccountNow(claims, token, projectId, cached));
+    } catch (e) {
+      return json({ error: 'could not check your account, try again', code: 'account_check_failed' }, 503, corsHeaders);
+    }
+  }
+  return allowed ? null : json({ error: 'this account is not approved to use FUSE', code: 'not_approved' }, 403, corsHeaders);
 }
 
 function json(body, status, corsHeaders) {
@@ -473,7 +585,7 @@ async function handleCollection(id, env, corsHeaders) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const { headers: corsHeaders, originAllowed } = corsHeadersFor(request, env);
 
     if (request.method === 'OPTIONS') {
@@ -482,14 +594,19 @@ export default {
     if (!originAllowed) return json({ error: 'origin not allowed' }, 403, corsHeaders);
 
     const params = new URL(request.url).searchParams;
-    if (request.method === 'POST' && /^[a-z_]{2,30}$/.test(params.get('rpc') || '')) {
+    const isRpc = request.method === 'POST' && /^[a-z_]{2,30}$/.test(params.get('rpc') || '');
+    if (!isRpc && request.method !== 'GET') return json({ error: 'GET only (POST for ?rpc=)' }, 405, corsHeaders);
+
+    const denied = await accountDenied(request, env, ctx, corsHeaders);
+    if (denied) return denied;
+
+    if (isRpc) {
       try {
         return await handleRpc(params.get('rpc'), request, env, corsHeaders);
       } catch (e) {
         return json({ error: 'RPC relay failed: ' + (e.message || 'unknown error') }, 502, corsHeaders);
       }
     }
-    if (request.method !== 'GET') return json({ error: 'GET only (POST for ?rpc=)' }, 405, corsHeaders);
 
     // The Origin check only stops browsers — scripts can send any Origin header. The LIMITER
     // binding (wrangler.toml) caps how much anyone can pull through your OpenSea/Etherscan keys.

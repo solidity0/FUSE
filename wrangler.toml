@@ -11,6 +11,8 @@ compatibility_date = "2026-09-01"
 # Comma-separated origins allowed to use this worker ("null" = FUSE opened as a local file).
 # Leave empty to allow any origin. `wrangler deploy` applies this value, so keep it current.
 ALLOWED_ORIGINS = "https://solidity0.github.io,null"
+# Only approved FUSE accounts on this Firebase project can use the worker. Remove it to turn the check off.
+FIREBASE_PROJECT_ID = "fuse-40c31"
 
 # Per-IP cap on the OpenSea / ABI / page-scan endpoints (not the RPC relay). FUSE polls a
 # collection every 15s, so 300 a minute is far above normal use but stops quota draining.

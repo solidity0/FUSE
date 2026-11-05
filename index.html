@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-mO0dY5DovMA0maJTLxKVhC+wBd6AtVT/RqG1hk5ZMLI=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-wyfrQkRFeNhki8QtaEIYkjk16kQJQa7T8h5uItZv2pM=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -473,8 +473,15 @@
   .support-line{ display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px; margin-top:14px; font-size:12px; color:var(--text-dim); }
   .support-line b{ font-family:var(--mono); color:var(--text); }
   .support-copy{ padding:2px 8px; background:none; border:1px solid var(--border); color:var(--text-mid); font-size:11px; }
+  .auth-ban-timer{ margin-bottom:14px; text-align:center; font-family:var(--mono); font-size:15px; font-weight:700; color:var(--pending); }
+  .auth-ban-timer[hidden]{ display:none; }
   .auth-link{ display:block; width:100%; margin-top:12px; background:none; border:none; color:var(--text-dim); font-size:12px; }
   .auth-link:hover{ color:var(--text); }
+  .auth-link[hidden]{ display:none; }
+  .account-username{ display:flex; gap:8px; margin-top:12px; }
+  .account-username input{ flex:1; min-width:0; }
+  .account-note{ min-height:16px; margin-top:6px; font-size:12px; color:var(--text-dim); }
+  .account-note.err{ color:var(--fail); }
   .member{ border:1px solid var(--border); padding:12px; margin-top:10px; }
   .member-badge{ display:block; width:max-content; margin:0 auto 8px; padding:2px 10px; border:1px solid var(--border); border-radius:999px; font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; }
   .member-badge.pending{ color:var(--pending); border-color:var(--pending); }
@@ -600,13 +607,13 @@
         <button class="btn btn-secondary active" id="authTabSignIn" type="button">Sign in</button>
         <button class="btn btn-secondary" id="authTabSignUp" type="button">Create account</button>
       </div>
-      <div class="field"><label for="authEmail">Email</label><input type="email" id="authEmail" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
+      <div class="field"><label for="authEmail" id="authEmailLabel">Email or username</label><input type="text" id="authEmail" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
       <div class="field"><label for="authPassword">Password</label><input type="password" id="authPassword" autocomplete="current-password"></div>
       <div id="authSignUpFields" hidden>
         <div class="field"><label for="authConfirm">Confirm password</label><input type="password" id="authConfirm" autocomplete="new-password"></div>
         <div class="field"><label for="authX">X username</label><input type="text" id="authX" maxlength="64" autocapitalize="none" spellcheck="false" placeholder="@username"></div>
         <div class="field"><label for="authDiscord">Discord username</label><input type="text" id="authDiscord" maxlength="64" autocapitalize="none" spellcheck="false"></div>
-        <label class="auth-ack"><input type="checkbox" id="authAck"> <span>I understand that if I forget this password, nobody can recover my account or the wallets saved in it, so I'll write down and securely store my private keys. If my account is banned, I lose access to the wallets saved here and any funds in them. FUSE's admins approve accounts and can see my usernames, email and activity, including wallet addresses and transactions, but never my private keys.</span></label>
+        <label class="auth-ack"><input type="checkbox" id="authAck"> <span>I understand that if I forget this password, nobody can recover my account or the wallets saved in it, so I'll write down and securely store my private keys. If my account is banned, I lose access to the wallets saved here and any funds in them, and a third ban makes that permanent. FUSE's admins approve accounts and can see my usernames, email and activity, including wallet addresses and transactions, but never my private keys.</span></label>
       </div>
       <button class="btn btn-primary" id="authSubmit" type="submit" style="width:100%;">Sign in</button>
     </form>
@@ -617,7 +624,7 @@
       <button class="btn btn-secondary" id="authResend" type="button" style="width:100%;">Send the link again</button>
     </div>
     <form id="authProfile" novalidate hidden>
-      <div class="auth-note">Add your usernames so an admin knows who's asking to use FUSE.</div>
+      <div class="auth-note">Add your X and Discord so an admin knows who's asking to use FUSE.</div>
       <div class="field"><label for="authProfileX">X username</label><input type="text" id="authProfileX" maxlength="64" autocapitalize="none" spellcheck="false" placeholder="@username"></div>
       <div class="field"><label for="authProfileDiscord">Discord username</label><input type="text" id="authProfileDiscord" maxlength="64" autocapitalize="none" spellcheck="false"></div>
       <button class="btn btn-primary" type="submit" style="width:100%;">Request access</button>
@@ -625,6 +632,7 @@
     <div class="auth-note" id="authWaiting" hidden>Your request is with an admin. This page opens FUSE by itself once you're approved, so you can leave it open or come back later.</div>
     <div id="authBlocked" hidden>
       <div class="auth-note" id="authBlockedText"></div>
+      <div class="auth-ban-timer" id="authBanTimer" hidden></div>
       <button class="btn btn-primary" id="authExport" type="button" style="width:100%;" hidden>Export my private keys</button>
     </div>
     <button class="auth-link" id="authLeave" type="button" hidden>Sign out</button>
@@ -938,7 +946,7 @@
 
     <div class="page" id="page-wallets" hidden>
       <div class="diag-banner" style="background:var(--accent-dim); color:var(--accent-text); border-color:rgba(59,43,229,.3);">
-        <span>⚑</span><span class="flex-fill">Your wallets are encrypted and saved to your account. Write down and securely store your private keys. If your account is banned from FUSE, you lose access to the wallets saved here and any funds in them. Forgetting your password loses them too.</span>
+        <span>⚑</span><span class="flex-fill">Your wallets are encrypted and saved to your account. Write down and securely store your private keys. If your account is banned from FUSE, you lose access to the wallets saved here and any funds in them, and a third ban makes that permanent. Forgetting your password loses them too.</span>
         <a href="#" id="walletSecurityLink" style="color:var(--accent-text);">Learn more</a>
       </div>
 
@@ -1091,11 +1099,17 @@
           <div><div class="section-title"><span class="dot"></span>Account</div><span id="accountEmail"></span></div>
           <button class="btn btn-secondary" id="signOutBtn" type="button">Sign out</button>
         </div>
+        <label for="accountUsername" style="display:block; margin-top:12px;">Username</label>
+        <div class="account-username" style="margin-top:0;">
+          <input type="text" id="accountUsername" maxlength="20" autocapitalize="none" spellcheck="false" placeholder="3-20 letters, numbers or _">
+          <button class="btn btn-secondary" id="accountUsernameSave" type="button">Save</button>
+        </div>
+        <div class="account-note" id="accountUsernameNote" role="status"></div>
         <div class="support-line" style="justify-content:flex-start;">Contact support on Discord: <b>seedhqx</b> <button class="support-copy" type="button" data-copy="seedhqx">Copy</button></div>
       </div>
       <div class="card" id="adminCard" hidden>
         <div class="section-title"><span class="dot"></span>Master Admin</div>
-        <div class="hint">Only master emails see this. Approve, decline, remove or ban who can use FUSE. You see who signed up, and what approved people did, never their private keys. Someone declined or removed can only export their own keys. A ban is permanent and they can't export anything.</div>
+        <div class="hint">Only master emails see this. Approve, decline, remove or ban who can use FUSE. You see who signed up, and what approved people did, never their private keys. Someone declined or removed can only export their own keys. Someone banned can't export anything. A first ban lasts 12 hours, a second 72 hours, and a third is permanent. A banned email, X or Discord can't start a new account.</div>
         <button class="btn btn-secondary" id="adminRefresh" type="button" style="width:100%; margin-top:10px;">Refresh list</button>
         <div class="hint" id="adminCount" style="text-align:center; margin-top:8px;"></div>
         <div id="adminMembers"></div>
@@ -1244,7 +1258,7 @@
       <button class="modal-x" id="nwCancel" title="Cancel — discard these wallets">✕</button>
     </div>
 
-    <div class="security-note" style="margin-bottom:14px;">⚠ This is shown once. Write down and securely store your private keys. If your account is banned from FUSE, you lose access to the wallets saved here and any funds in them. Forgetting your password loses them too.</div>
+    <div class="security-note" style="margin-bottom:14px;">⚠ This is shown once. Write down and securely store your private keys. If your account is banned from FUSE, you lose access to the wallets saved here and any funds in them, and a third ban makes that permanent. Forgetting your password loses them too.</div>
 
     <div id="nwList"></div>
     <button class="btn btn-secondary" id="nwCopyAll" style="width:100%;" hidden>Copy all (address, private key)</button>
@@ -1946,9 +1960,9 @@
   const AUTH_ERRORS = {
     EMAIL_EXISTS:'That email already has an account. Sign in instead.',
     INVALID_EMAIL:'Enter a valid email address.',
-    INVALID_LOGIN_CREDENTIALS:'Wrong email or password.',
-    EMAIL_NOT_FOUND:'Wrong email or password.',
-    INVALID_PASSWORD:'Wrong email or password.',
+    INVALID_LOGIN_CREDENTIALS:'Wrong login or password.',
+    EMAIL_NOT_FOUND:'Wrong login or password.',
+    INVALID_PASSWORD:'Wrong login or password.',
     USER_DISABLED:'This account has been disabled.',
     TOO_MANY_ATTEMPTS_TRY_LATER:'Too many attempts. Wait a few minutes and try again.',
     OPERATION_NOT_ALLOWED:'Sign-up is turned off right now.',
@@ -2104,6 +2118,7 @@
     $('authTabSignIn').classList.toggle('active', !signUp);
     $('authTabSignUp').classList.toggle('active', signUp);
     $('authSignUpFields').hidden = !signUp;
+    $('authEmailLabel').textContent = signUp ? 'Email' : 'Email or username';
     $('authSubmit').textContent = signUp ? 'Create account' : 'Sign in';
     $('authPassword').autocomplete = signUp ? 'new-password' : 'current-password';
     $('authSub').textContent = signUp ? `Use a password of at least ${MIN_PASSWORD_LENGTH} characters` : 'Sign in to use FUSE';
@@ -2114,9 +2129,10 @@
 
   $('authForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = $('authEmail').value.trim().toLowerCase();
+    const login = $('authEmail').value.trim().toLowerCase();
     const password = $('authPassword').value;
-    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ setAuthMessage('Enter a valid email address.', true); return; }
+    const looksLikeEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(login);
+    if(authSigningUp ? !looksLikeEmail : !login){ setAuthMessage(authSigningUp ? 'Enter a valid email address.' : 'Enter your email or username.', true); return; }
     if(!password){ setAuthMessage('Enter your password.', true); return; }
     if(authSigningUp){
       if(password.length < MIN_PASSWORD_LENGTH){ setAuthMessage(`Use at least ${MIN_PASSWORD_LENGTH} characters.`, true); return; }
@@ -2128,6 +2144,14 @@
     $('authSubmit').disabled = true;
     setAuthMessage(authSigningUp ? 'Creating your account…' : 'Signing in…');
     try{
+      let email = login;
+      if(authSigningUp){
+        if(await hasBannedDetail(email, newProfile)) throw new Error(BANNED_DETAILS_TEXT);
+      }else if(!looksLikeEmail){
+        const known = await lookUpUsername(login.replace(/^@/, ''));
+        if(!known) throw new Error(AUTH_ERRORS.INVALID_LOGIN_CREDENTIALS);
+        email = known.email;
+      }
       const { signIn, key } = await deriveAccountSecrets(email, password);
       let opened;
       try{ opened = await accountFromSignIn(authSigningUp ? 'signUp' : 'signInWithPassword', email, signIn, key); }
@@ -2147,7 +2171,52 @@
   });
 
   const cleanUsername = (text) => text.trim().replace(/^@/, '').slice(0, 64);
+  const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
+  const BANNED_DETAILS_TEXT = 'An account with these details has been banned, so a new one can\'t be created. Contact support on Discord: seedhqx';
+  // Emails and usernames are matched without regard to capitals.
+  const bannedDetailIds = (email, { xUsername, discordUsername }) => [`email:${email}`, `x:${xUsername.toLowerCase()}`, `discord:${discordUsername.toLowerCase()}`];
+  async function hasBannedDetail(email, details){
+    const answers = await Promise.all(bannedDetailIds(email, details).map(id => accountFetch(firestoreUrl(`banned/${encodeURIComponent(id)}`))));
+    return answers.some(res => res.ok);
+  }
+  async function lookUpUsername(name){
+    if(!USERNAME_RE.test(name)) return null;
+    const res = await accountFetch(firestoreUrl(`usernames/${name}`));
+    if(res.status === 404) return null;
+    if(!res.ok) throw new Error(`Couldn't check that username (${res.status}). Try again.`);
+    return fromFirestore(await res.json());
+  }
+  async function claimUsername(name){
+    try{ await firestoreWrite(`usernames/${name}`, { uid:account.uid, email:account.email }, 'currentDocument.exists=false'); }
+    catch(e){
+      const current = e.status === 409 ? await lookUpUsername(name) : null;
+      if(current && current.uid === account.uid) return;
+      throw Object.assign(new Error(e.status === 409 ? 'That username is taken. Try another.' : e.message), { taken:e.status === 409 });
+    }
+  }
+  async function saveUsername(){
+    const name = $('accountUsername').value.trim().replace(/^@/, '').toLowerCase();
+    const note = $('accountUsernameNote');
+    const say = (text, isError) => { note.textContent = text; note.classList.toggle('err', !!isError); };
+    const old = accountProfile && accountProfile.username;
+    if(name === old){ say('That\'s already your username.'); return; }
+    if(!USERNAME_RE.test(name)){ say('Use 3-20 letters, numbers or underscores.', true); return; }
+    $('accountUsernameSave').disabled = true;
+    say('Saving…');
+    try{
+      await claimUsername(name);
+      await firestoreWrite(`profiles/${account.uid}`, { username:name }, fieldMask(['username']));
+      accountProfile.username = name;
+      $('accountUsername').value = name;
+      if(old) await accountFetch(firestoreUrl(`usernames/${old}`), { method:'DELETE', headers:{ Authorization:'Bearer ' + await freshIdToken() } }).catch(() => {});
+      say('Saved. You can sign in with it now.');
+    }catch(e){ say(e instanceof TypeError ? 'Couldn\'t reach your account. Check your connection and try again.' : e.message, true); }
+    finally{ $('accountUsernameSave').disabled = false; }
+  }
+  $('accountUsernameSave').onclick = saveUsername;
   const SIGNUP_KEY = 'fuse.signup';
+  let accountReady;
+  const accountOpened = new Promise(resolve => { accountReady = resolve; });
   let newProfile = null, signedInNow = false, walletsOpen = false, masterEmails = null, accountProfile = null;
 
   // Firestore's web API, with values converted to and from plain objects.
@@ -2159,6 +2228,7 @@
     Object.entries(data).forEach(([k, v]) => {
       if(v == null) return;
       if(v instanceof Date) fields[k] = { timestampValue:v.toISOString() };
+      else if(typeof v === 'number') fields[k] = { integerValue:String(v) };
       else if(Array.isArray(v)) fields[k] = { arrayValue:{ values:v.map(x => ({ stringValue:String(x) })) } };
       else fields[k] = { stringValue:String(v) };
     });
@@ -2168,6 +2238,7 @@
     const data = { id: doc.name ? doc.name.split('/').pop() : '' };
     Object.entries(doc.fields || {}).forEach(([k, v]) => {
       if('arrayValue' in v) data[k] = (v.arrayValue.values || []).map(x => x.stringValue);
+      else if('integerValue' in v) data[k] = Number(v.integerValue);
       else data[k] = v.stringValue ?? v.timestampValue ?? null;
     });
     return data;
@@ -2244,6 +2315,21 @@
     await continueAccount();
   }
 
+  // The built-in worker only serves approved accounts, so its requests carry the sign-in token.
+  // A worker you set up yourself in Settings never receives it.
+  const fetchWithoutToken = window.fetch.bind(window);
+  window.fetch = async (input, init) => {
+    const url = typeof input === 'string' ? input : (input && input.url) || String(input);
+    const method = (init && init.method) || (input && input.method) || 'GET';
+    if(!account || method === 'HEAD' || !(url === DEFAULT_PROXY_URL || url.startsWith(DEFAULT_PROXY_URL + '?') || url.startsWith(DEFAULT_PROXY_URL + '/'))) return fetchWithoutToken(input, init);
+    let token = null;
+    try{ token = await freshIdToken(); }catch(e){}
+    if(!token) return fetchWithoutToken(input, init);
+    const headers = new Headers((init && init.headers) || (input instanceof Request ? input.headers : undefined));
+    headers.set('Authorization', 'Bearer ' + token);
+    return fetchWithoutToken(input, { ...init, headers });
+  };
+
   // Each step checks where the account has got to: master emails verified, usernames given, then approved.
   async function continueAccount(){
     clearTimeout(waitingTimer);
@@ -2262,6 +2348,12 @@
     if(!profile){
       if(!masterEmails && !newProfile){
         showAuthStep('authProfile', 'Request access');
+        return;
+      }
+      if(!masterEmails && await hasBannedDetail(account.email, newProfile)){
+        newProfile = null;
+        showAuthStep('authProfile', 'Request access');
+        setAuthMessage(BANNED_DETAILS_TEXT, true);
         return;
       }
       const now = new Date();
@@ -2285,7 +2377,21 @@
       return;
     }
     if(profile.status === 'banned'){
-      $('authBlockedText').textContent = 'This account has been permanently banned from FUSE. You can\'t use it or the wallets saved in it here again. Your own copy of your private keys still works in any wallet app.';
+      const bans = profile.banCount || 0;
+      const until = bans < MAX_BANS && profile.bannedUntil ? Date.parse(profile.bannedUntil) : 0;
+      // The ban's time is up: this account lets itself back in, and the rules check the time.
+      if(until && Date.now() >= until){
+        try{
+          await firestoreWrite(`profiles/${account.uid}`, { status:'approved' }, fieldMask(['status']));
+          await openWallets();
+          return;
+        }catch(e){ if(e instanceof TypeError) throw e; } // a clock slightly ahead: the countdown below tries again
+      }
+      $('authBlockedText').textContent = (bans >= MAX_BANS
+        ? 'This account has been permanently banned from FUSE. You can\'t use it or the wallets saved in it here again.'
+        : `This account has been banned from FUSE${bans ? ` (ban ${bans} of ${MAX_BANS})` : ''}. You can't use it or the wallets saved in it until the ban ends, and a third ban is permanent.`)
+        + ' Your own copy of your private keys still works in any wallet app.';
+      startBanCountdown(until);
       $('authExport').hidden = true;
       showAuthStep('authBlocked', 'Account banned');
       return;
@@ -2299,7 +2405,25 @@
     $('authExport').hidden = !blockedWallets.length;
     showAuthStep('authBlocked', profile.status === 'removed' ? 'Access removed' : 'Request declined');
   }
-  let waitingTimer = null, blockedWallets = [];
+  let waitingTimer = null, blockedWallets = [], banCountdown = null;
+  function startBanCountdown(until){
+    clearInterval(banCountdown);
+    $('authBanTimer').hidden = !until;
+    if(!until) return;
+    const tick = () => {
+      const left = Math.ceil((until - Date.now()) / 1000);
+      if(left <= 0){
+        clearInterval(banCountdown);
+        $('authBanTimer').textContent = 'Opening FUSE…';
+        setTimeout(() => authBusy(continueAccount), 2000); // leaves room for a clock slightly ahead
+        return;
+      }
+      const pad = (n) => String(n).padStart(2, '0');
+      $('authBanTimer').textContent = `Time left: ${pad(Math.floor(left / 3600))}:${pad(Math.floor(left / 60) % 60)}:${pad(left % 60)}`;
+    };
+    tick();
+    banCountdown = setInterval(tick, 1000);
+  }
 
   $('authVerified').onclick = () => authBusy(async () => {
     account.expiresAt = 0; // the new status only shows up in a fresh token
@@ -2331,10 +2455,14 @@
     });
     walletsOpen = true;
     $('accountEmail').textContent = account.email;
+    $('accountUsername').value = (accountProfile && accountProfile.username) || '';
     $('authGate').hidden = true;
+    relayStatus.clear(); // checked before sign-in, when the worker turns everyone away
+    probeRpcs();
     if(loaded.length){ afterWalletsChanged(); loadBalances(loaded); }
     if(older.length) queueVaultSave();
     startHeartbeat();
+    accountReady();
   }
 
   // Keeps "Online now" current, and notices if an admin has removed this account.
@@ -2499,6 +2627,8 @@
   const STATUS_ORDER = { pending:0, approved:1, removed:2, declined:3, banned:4 };
   const STATUS_LABEL = { pending:'Waiting', approved:'Active', removed:'Access removed', declined:'Declined', banned:'Banned' };
   const WAS_APPROVED = ['approved', 'removed', 'banned'];
+  const MAX_BANS = 3;
+  const BAN_HOURS = [12, 72]; // the first and second ban. The third has no end.
   const ONLINE_MS = 6 * 60000;
   async function loadAdmin(){
     if(!masterEmails){ $('adminCard').hidden = true; return; }
@@ -2530,6 +2660,7 @@
       link.href = 'https://x.com/' + x; link.target = '_blank'; link.rel = 'noopener';
       card.append(memberRow('X', link));
     }else card.append(memberRow('X', x));
+    card.append(memberRow('Username', m.username));
     card.append(memberRow('Discord', m.discordUsername), memberRow('Email', m.email), memberRow('Signed up', m.createdAt && new Date(m.createdAt).toLocaleString()));
     const online = m.lastSeenAt && Date.now() - new Date(m.lastSeenAt) < ONLINE_MS;
     card.append(memberRow('Last seen', online ? activityEl('span', 'member-online', 'Online now') : (m.lastSeenAt && new Date(m.lastSeenAt).toLocaleString())));
@@ -2539,29 +2670,49 @@
       btn.type = 'button'; btn.onclick = run;
       actions.append(btn);
     };
-    const who = (x && '@' + x) || m.email;
+    const who = (x && '@' + x) || m.username || m.email;
     if(!isMasterEmail){
       if(m.status === 'pending' || m.status === 'declined') act('Approve', 'btn-primary', () => setMemberStatus(m, 'approved'));
       if(m.status === 'pending') act('Decline', 'btn-secondary', () => setMemberStatus(m, 'declined'));
-      if(m.status === 'removed') act('Restore', 'btn-primary', () => setMemberStatus(m, 'approved'));
+      if(m.status === 'removed' || (m.status === 'banned' && (m.banCount || 0) < MAX_BANS)) act('Restore', 'btn-primary', () => setMemberStatus(m, 'approved'));
       if(m.status === 'approved') act('Remove access', 'btn-secondary', () => askWalletAction({
         title:`Remove ${who}'s access?`,
         text:'They\'ll be out of FUSE within about 5 minutes, or at their next refresh. They can still sign in to export their own private keys, and you can restore them later.',
         wallets:[], label:'Remove access', run:() => setMemberStatus(m, 'removed'),
       }));
-      if(m.status !== 'banned') act('Ban', 'btn-danger', () => askWalletAction({
-        title:`Permanently ban ${who}?`,
-        text:'They can never use FUSE again with this login, and they lose access to the wallets saved in it, including any funds, unless they kept their own private keys. You can\'t undo this from here.',
-        wallets:[], ack:'I understand this is permanent.', label:'Ban', run:() => setMemberStatus(m, 'banned'),
-      }));
+      if(m.status !== 'banned'){
+        const next = (m.banCount || 0) + 1;
+        act('Ban', 'btn-danger', () => askWalletAction(next >= MAX_BANS ? {
+          title:`Permanently ban ${who}?`,
+          text:`This is ban ${next} of ${MAX_BANS}. They can never use FUSE again with this login, their email, X and Discord can't start a new account, and they lose access to the wallets saved in it, including any funds, unless they kept their own private keys. You can't undo this from here.`,
+          wallets:[], ack:'I understand this is permanent.', label:'Ban', run:() => setMemberStatus(m, 'banned'),
+        } : {
+          title:`Ban ${who}?`,
+          text:`This is ban ${next} of ${MAX_BANS}, lasting ${BAN_HOURS[next - 1]} hours, and the third is permanent. They'll be out of FUSE within about 5 minutes, or at their next refresh, and can't export their saved wallets while banned. Their email, X and Discord also can't start a new account. You can restore them early.`,
+          wallets:[], label:'Ban', run:() => setMemberStatus(m, 'banned'),
+        }));
+      }
     }
     if(WAS_APPROVED.includes(m.status) || isMasterEmail) act('View activity', 'btn-secondary', () => viewMemberActivity(m, who));
+    if(m.banCount) card.append(memberRow('Bans', `${m.banCount} of ${MAX_BANS}`));
+    if(m.status === 'banned'){
+      card.append(memberRow('Ban ends', (m.banCount || 0) >= MAX_BANS ? 'Never' : (m.bannedUntil ? new Date(m.bannedUntil).toLocaleString() : 'When restored')));
+    }
     card.append(actions);
     return card;
   }
   async function setMemberStatus(m, status){
     try{
-      await firestoreWrite(`profiles/${m.id}`, { status, decidedAt:new Date(), decidedBy:account.email }, fieldMask(['status', 'decidedAt', 'decidedBy']));
+      const change = { status, decidedAt:new Date(), decidedBy:account.email };
+      if(status === 'banned'){
+        change.banCount = (m.banCount || 0) + 1;
+        const hours = BAN_HOURS[change.banCount - 1];
+        if(hours) change.bannedUntil = new Date(Date.now() + hours * 3600000);
+        await Promise.all(bannedDetailIds(m.email, { xUsername:m.xUsername || '', discordUsername:m.discordUsername || '' })
+          .filter(id => !id.endsWith(':'))
+          .map(id => firestoreWrite(`banned/${encodeURIComponent(id)}`, { uid:m.id, at:new Date() })));
+      }
+      await firestoreWrite(`profiles/${m.id}`, change, fieldMask(Object.keys(change)));
     }catch(e){ notify('That didn\'t save. Check your connection and try again.'); return; }
     loadAdmin();
   }
@@ -4165,6 +4316,7 @@
       catch(e){ throw new Error(await workerUnreachableText(e)); }
       if(scanId === state.scanId) setScanText('scanStep1', 'Scanning page for contract');
       const data = await res.json().catch(() => ({}));
+      if(data.code === 'not_approved' || data.code === 'sign_in_required') throw new Error('your account can\'t use FUSE right now — refresh the page, or contact support on Discord: seedhqx');
       if(res.status === 401 || res.status === 403) throw new Error(data.error === 'origin not allowed'
         ? 'your proxy worker refused this site — add it to ALLOWED_ORIGINS'
         : 'OpenSea rejected the proxy\'s API key — check the OPENSEA_API_KEY secret on your worker');
@@ -5668,6 +5820,7 @@ onmessage = (e) => {
     if(!link || !looksScannable(link) || $('topSearch').value.trim()) return;
     $('topSearch').value = link;
     syncSearchReload();
+    await accountOpened; // the worker only answers once you're signed in
     await walletsRestoring; // so the scan and the eligibility check see the wallets
     if($('topSearch').value.trim() === link && !state.scanId) runScanSequence(link, { restoring:true });
   })();

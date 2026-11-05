@@ -30,6 +30,36 @@ service cloud.firestore {
       return value is string && value.size() <= 64;
     }
 
+    function ownsUsername(data) {
+      return !('username' in data)
+        || get(/databases/$(database)/documents/usernames/$(data.username)).data.uid == request.auth.uid;
+    }
+
+    // Lets someone sign in with a username, so anyone who knows a username can look up its email.
+    // The list can't be read as a whole, and a username belongs to one account at a time.
+    match /usernames/{name} {
+      allow get: if true;
+      allow create: if request.auth != null
+        && name.matches('^[a-z0-9_]{3,20}$')
+        && request.resource.data.keys().hasOnly(['uid', 'email'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email;
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+
+    function isBannedDetail(detail) {
+      return exists(/databases/$(database)/documents/banned/$(detail));
+    }
+
+    // Emails, X and Discord usernames from banned accounts. They can't start a new account.
+    // Anyone can check a single entry, so sign-up can say why, but the list can't be read whole.
+    match /banned/{detail} {
+      allow get: if true;
+      allow list: if isMaster();
+      allow create, update: if isMaster()
+        && request.resource.data.keys().hasOnly(['uid', 'at']);
+    }
+
     // Master emails, at most 3. The first is added in the Firebase console. Only someone on the
     // list can read it, which tells them to verify. Nothing else works until they have.
     match /config/admins {
@@ -41,13 +71,20 @@ service cloud.firestore {
         && request.resource.data.emails.size() <= 3;
     }
 
-    // Who signed up. Only a master can change a status, and a ban can't be changed.
+    // Who signed up. Only a master can change a status, except that someone can let themselves
+    // back in once their ban's time is up. Each new ban adds one to banCount, and the third is final.
     match /profiles/{uid} {
       allow get: if isOwner(uid) || isMaster();
       allow list: if isMaster();
       allow create: if isOwner(uid)
-        && request.resource.data.keys().hasOnly(['email', 'xUsername', 'discordUsername', 'status', 'createdAt', 'lastSignInAt', 'lastSeenAt'])
+        && request.resource.data.keys().hasOnly(['email', 'username', 'xUsername', 'discordUsername', 'status', 'createdAt', 'lastSignInAt', 'lastSeenAt'])
+        && ownsUsername(request.resource.data)
         && request.resource.data.email == request.auth.token.email
+        && (isMaster() || !(
+          isBannedDetail('email:' + request.auth.token.email)
+          || isBannedDetail('x:' + request.resource.data.xUsername.lower())
+          || isBannedDetail('discord:' + request.resource.data.discordUsername.lower())
+        ))
         && isShortText(request.resource.data.xUsername)
         && isShortText(request.resource.data.discordUsername)
         && (
@@ -57,10 +94,21 @@ service cloud.firestore {
           || (request.resource.data.status == 'approved' && isMaster())
         );
       allow update: if
-        (isOwner(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSignInAt', 'lastSeenAt']))
+        (isOwner(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['username', 'lastSignInAt', 'lastSeenAt'])
+          && ownsUsername(request.resource.data))
+        || (isOwner(uid)
+          && resource.data.status == 'banned'
+          && resource.data.get('banCount', 0) < 3
+          && resource.data.get('bannedUntil', null) != null
+          && request.time > resource.data.bannedUntil
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && request.resource.data.status == 'approved')
         || (isMaster()
-          && resource.data.status != 'banned'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decidedAt', 'decidedBy', 'lastSignInAt', 'lastSeenAt'])
+          && !(resource.data.status == 'banned' && resource.data.get('banCount', 0) >= 3)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decidedAt', 'decidedBy', 'lastSignInAt', 'lastSeenAt', 'banCount', 'bannedUntil'])
+          && request.resource.data.get('banCount', 0) == resource.data.get('banCount', 0)
+            + (request.resource.data.status == 'banned' && resource.data.status != 'banned' ? 1 : 0)
           && request.resource.data.status in ['pending', 'approved', 'declined', 'removed', 'banned']);
 
       // Each person's log. It can only be added to, and holds public details, never keys.
