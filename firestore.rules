@@ -14,17 +14,22 @@ service cloud.firestore {
       return isVerified()
         && request.auth.token.email in get(/databases/$(database)/documents/config/admins).data.emails;
     }
+    function isListedMaster() {
+      return request.auth != null
+        && request.auth.token.email in get(/databases/$(database)/documents/config/admins).data.emails;
+    }
     function isApproved() {
-      return isVerified()
+      return request.auth != null
         && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.status == 'approved';
     }
     function isShortText(value) {
       return value is string && value.size() <= 64;
     }
 
-    // Master emails, at most 3. The first is added in the Firebase console.
+    // Master emails, at most 3. The first is added in the Firebase console. Only someone on the
+    // list can read it, which tells them to verify. Nothing else works until they have.
     match /config/admins {
-      allow read: if isMaster();
+      allow read: if isListedMaster();
       allow update: if isMaster()
         && request.resource.data.keys().hasOnly(['emails'])
         && request.resource.data.emails is list
@@ -36,7 +41,7 @@ service cloud.firestore {
     match /profiles/{uid} {
       allow get: if isOwner(uid) || isMaster();
       allow list: if isMaster();
-      allow create: if isOwner(uid) && isVerified()
+      allow create: if isOwner(uid)
         && request.resource.data.keys().hasOnly(['email', 'xUsername', 'discordUsername', 'status', 'createdAt', 'lastSignInAt', 'lastSeenAt'])
         && request.resource.data.email == request.auth.token.email
         && isShortText(request.resource.data.xUsername)
@@ -56,7 +61,7 @@ service cloud.firestore {
       // Each person's log. It can only be added to, and holds public details, never keys.
       match /events/{eventId} {
         allow read: if isOwner(uid) || isMaster();
-        allow create: if isOwner(uid) && isVerified()
+        allow create: if isOwner(uid)
           && request.resource.data.keys().hasOnly(['type', 'at', 'chain', 'from', 'to', 'amount', 'hash', 'status', 'name', 'address'])
           && isShortText(request.resource.data.type)
           && request.resource.data.at is timestamp;
