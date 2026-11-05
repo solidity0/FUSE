@@ -436,11 +436,16 @@
     /* Each wallet is two lines, so the name gets the full width: name, then address and balance under it */
     #page-wallets table, #page-wallets thead, #page-wallets tbody{ display:block; }
     #page-wallets tbody tr{ display:grid; grid-template-columns:41px minmax(0,1fr) auto; column-gap:8px; align-items:center; }
-    #page-wallets thead tr{ display:grid; grid-template-columns:41px 9fr 11fr auto; align-items:end; }
-    #page-wallets thead th{ width:auto !important; } /* All has a fixed width for desktop */
+    /* The headings stack like the rows below them: NAME over ADDRESS, with ALL and BALANCE on ADDRESS's line */
+    #page-wallets thead tr{ display:grid; grid-template-columns:41px minmax(0,1fr) auto; column-gap:8px; align-items:end; padding-bottom:6px; border-bottom:1px solid var(--border); }
+    #page-wallets thead th{ width:auto !important; padding:2px 0; border:none; text-align:left !important; } /* All has a fixed width for desktop */
+    #page-wallets thead th:nth-child(1){ grid-row:1 / span 2; padding-left:10px; }
+    #page-wallets thead th:nth-child(2){ grid-column:2; grid-row:1; }
+    #page-wallets thead th:nth-child(3){ grid-column:2; grid-row:2; }
+    #page-wallets thead th:nth-child(4){ grid-column:3; grid-row:2; }
     #page-wallets tbody td{ border:none; padding:3px 0; }
     #page-wallets tbody tr{ padding:8px 0; border-bottom:1px solid var(--border-soft); }
-    #page-wallets tbody td:nth-child(1){ grid-row:1 / span 2; padding-left:10px; }
+    #page-wallets tbody td:nth-child(1){ grid-row:1 / span 2; padding-left:16px; } /* under the All tick box */
     #page-wallets tbody td:nth-child(2){ grid-column:2 / -1; }
     #page-wallets tbody td:nth-child(3){ grid-column:2; }
     #page-wallets tbody td:nth-child(4){ grid-column:3; text-align:right; white-space:nowrap; }
