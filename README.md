@@ -23,7 +23,7 @@ Read this before you add a wallet.
 2. **Fund them:** use Disperse to send ETH to your wallets, or to an outside address.
 3. **Mints:** paste a mint link. FUSE shows the stages and which wallets can mint.
 4. **Arm, then fire:** Simulate checks the call, Arm gets it ready, and Fire now sends it. Scheduled stages fire by themselves while the page stays open.
-5. **History:** past sends are listed with their status and a link to the block explorer. History stays in your browser.
+5. **History:** past mints and sends are listed with their status and a link to the block explorer. History stays in your browser.
 
 ## How it's built
 
