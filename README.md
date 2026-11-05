@@ -11,7 +11,9 @@ FUSE is a browser tool for minting NFTs from several wallets at once. Paste a mi
 Read this before you add a wallet.
 
 - **You need an approved account.** Sign up with your email, X and Discord username, then wait for an admin to approve you. Admins can see your usernames, email and activity, including wallet addresses and transactions, but never your private keys.
-- **If you're declined or banned,** you can still sign in to export your own private keys.
+- **If you're declined or your access is removed,** you can still sign in to export your own private keys.
+- **A ban is permanent.** You can't use FUSE again with that login and you lose access to the wallets saved in it, including any funds, so write down and securely store your private keys.
+- **Need help?** Contact support on Discord: `seedhqx`.
 - **Use dedicated mint wallets.** Don't use your main wallet, and only keep mint funds in these ones.
 - **Created and imported wallets are encrypted in your browser,** using your password, then saved to your account so they follow you to other devices. Your password itself is never sent, so nobody else can read them.
 - **A forgotten password can't be recovered.** Nobody can reset it or get those wallets back, so keep your own copy of your keys.

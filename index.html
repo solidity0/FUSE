@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-dfR6PBiss1/o4w1zmVzv/S40/mC5Wb2dfWBRS1RzfMQ=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-mO0dY5DovMA0maJTLxKVhC+wBd6AtVT/RqG1hk5ZMLI=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -468,15 +468,18 @@
   .auth-message{ min-height:18px; margin-top:12px; font-size:12.5px; text-align:center; color:var(--text-mid); }
   .auth-message.err{ color:var(--fail); }
   .auth-card .auth-note{ font-size:12.5px; color:var(--text-mid); line-height:1.5; text-align:center; margin-bottom:14px; overflow-wrap:anywhere; }
-  .auth-card .btn + .btn{ margin-top:8px; }
+  #authVerify .btn + .btn{ margin-top:8px; }
   .auth-card input[type=text]{ width:100%; }
+  .support-line{ display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px; margin-top:14px; font-size:12px; color:var(--text-dim); }
+  .support-line b{ font-family:var(--mono); color:var(--text); }
+  .support-copy{ padding:2px 8px; background:none; border:1px solid var(--border); color:var(--text-mid); font-size:11px; }
   .auth-link{ display:block; width:100%; margin-top:12px; background:none; border:none; color:var(--text-dim); font-size:12px; }
   .auth-link:hover{ color:var(--text); }
   .member{ border:1px solid var(--border); padding:12px; margin-top:10px; }
   .member-badge{ display:block; width:max-content; margin:0 auto 8px; padding:2px 10px; border:1px solid var(--border); border-radius:999px; font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; }
   .member-badge.pending{ color:var(--pending); border-color:var(--pending); }
   .member-badge.approved{ color:var(--success); border-color:var(--success); }
-  .member-badge.declined, .member-badge.banned{ color:var(--fail); border-color:var(--fail); }
+  .member-badge.declined, .member-badge.removed, .member-badge.banned{ color:var(--fail); border-color:var(--fail); }
   .member-badge.master{ color:var(--accent-text); border-color:var(--accent); }
   .member-row{ display:flex; justify-content:space-between; gap:12px; padding:5px 0; border-bottom:1px dashed var(--border-soft); font-size:12px; }
   .member-row span:first-child{ color:var(--text-dim); flex:none; }
@@ -603,7 +606,7 @@
         <div class="field"><label for="authConfirm">Confirm password</label><input type="password" id="authConfirm" autocomplete="new-password"></div>
         <div class="field"><label for="authX">X username</label><input type="text" id="authX" maxlength="64" autocapitalize="none" spellcheck="false" placeholder="@username"></div>
         <div class="field"><label for="authDiscord">Discord username</label><input type="text" id="authDiscord" maxlength="64" autocapitalize="none" spellcheck="false"></div>
-        <label class="auth-ack"><input type="checkbox" id="authAck"> <span>I understand that if I forget this password, nobody can recover my account or the wallets saved in it, so I'll keep my own copy of my private keys. FUSE's admins approve accounts and can see my usernames, email and activity, including wallet addresses and transactions, but never my private keys.</span></label>
+        <label class="auth-ack"><input type="checkbox" id="authAck"> <span>I understand that if I forget this password, nobody can recover my account or the wallets saved in it, so I'll write down and securely store my private keys. If my account is banned, I lose access to the wallets saved here and any funds in them. FUSE's admins approve accounts and can see my usernames, email and activity, including wallet addresses and transactions, but never my private keys.</span></label>
       </div>
       <button class="btn btn-primary" id="authSubmit" type="submit" style="width:100%;">Sign in</button>
     </form>
@@ -625,6 +628,7 @@
       <button class="btn btn-primary" id="authExport" type="button" style="width:100%;" hidden>Export my private keys</button>
     </div>
     <button class="auth-link" id="authLeave" type="button" hidden>Sign out</button>
+    <div class="support-line">Need help? Discord: <b>seedhqx</b> <button class="support-copy" type="button" data-copy="seedhqx">Copy</button></div>
     <div class="auth-message" id="authMessage" role="status"></div>
   </div>
 </div>
@@ -934,7 +938,7 @@
 
     <div class="page" id="page-wallets" hidden>
       <div class="diag-banner" style="background:var(--accent-dim); color:var(--accent-text); border-color:rgba(59,43,229,.3);">
-        <span>⚑</span><span class="flex-fill">Your wallets are encrypted and saved to your account. If you forget your password they're gone for good, so keep your own copy of any key you want to keep.</span>
+        <span>⚑</span><span class="flex-fill">Your wallets are encrypted and saved to your account. Write down and securely store your private keys. If your account is banned from FUSE, you lose access to the wallets saved here and any funds in them. Forgetting your password loses them too.</span>
         <a href="#" id="walletSecurityLink" style="color:var(--accent-text);">Learn more</a>
       </div>
 
@@ -1087,10 +1091,11 @@
           <div><div class="section-title"><span class="dot"></span>Account</div><span id="accountEmail"></span></div>
           <button class="btn btn-secondary" id="signOutBtn" type="button">Sign out</button>
         </div>
+        <div class="support-line" style="justify-content:flex-start;">Contact support on Discord: <b>seedhqx</b> <button class="support-copy" type="button" data-copy="seedhqx">Copy</button></div>
       </div>
       <div class="card" id="adminCard" hidden>
         <div class="section-title"><span class="dot"></span>Master Admin</div>
-        <div class="hint">Only master emails see this. Approve, decline or ban who can use FUSE. You see who signed up and what they did, never their private keys. A declined or banned person can only export their own keys.</div>
+        <div class="hint">Only master emails see this. Approve, decline, remove or ban who can use FUSE. You see who signed up, and what approved people did, never their private keys. Someone declined or removed can only export their own keys. A ban is permanent and they can't export anything.</div>
         <button class="btn btn-secondary" id="adminRefresh" type="button" style="width:100%; margin-top:10px;">Refresh list</button>
         <div class="hint" id="adminCount" style="text-align:center; margin-top:8px;"></div>
         <div id="adminMembers"></div>
@@ -1239,7 +1244,7 @@
       <button class="modal-x" id="nwCancel" title="Cancel — discard these wallets">✕</button>
     </div>
 
-    <div class="security-note" style="margin-bottom:14px;">⚠ This is shown once. FUSE saves it encrypted to your account, but if you forget your password it's gone for good without your own copy.</div>
+    <div class="security-note" style="margin-bottom:14px;">⚠ This is shown once. Write down and securely store your private keys. If your account is banned from FUSE, you lose access to the wallets saved here and any funds in them. Forgetting your password loses them too.</div>
 
     <div id="nwList"></div>
     <button class="btn btn-secondary" id="nwCopyAll" style="width:100%;" hidden>Copy all (address, private key)</button>
@@ -1288,7 +1293,7 @@
     </div>
 
     <button class="btn btn-primary" id="importWalletsGo" style="width:100%; margin-top:14px;">+ Import</button>
-    <div class="hint" style="text-align:center; margin-top:8px;">Private keys are encrypted in this browser before they're saved to your account. Nobody else can read them, and they aren't sent anywhere else.</div>
+    <div class="hint" style="text-align:center; margin-top:8px;">Private keys are encrypted in this browser before they're saved to your account. Nobody else can read them, and they aren't sent anywhere else. Keep your own copy: if your account is banned, you lose access to the wallets saved here.</div>
   </div>
 </div>
 
@@ -2087,6 +2092,8 @@
   }
   window.addEventListener('online', () => { if(vaultUnsaved) saveVaultNow(); });
 
+  document.querySelectorAll('.support-copy').forEach(btn => { btn.onclick = () => copyToClipboard(btn.dataset.copy, btn); });
+
   function setAuthMessage(text, isError){
     $('authMessage').textContent = text;
     $('authMessage').classList.toggle('err', !!isError);
@@ -2277,14 +2284,20 @@
       waitingTimer = setTimeout(() => authBusy(continueAccount), 20000);
       return;
     }
+    if(profile.status === 'banned'){
+      $('authBlockedText').textContent = 'This account has been permanently banned from FUSE. You can\'t use it or the wallets saved in it here again. Your own copy of your private keys still works in any wallet app.';
+      $('authExport').hidden = true;
+      showAuthStep('authBlocked', 'Account banned');
+      return;
+    }
     const saved = await readVault();
     let older = [];
     try{ older = readOldWallets(localStorage).concat(readOldWallets(sessionStorage)); }catch(e){}
     blockedWallets = saved.entries.concat(older);
-    $('authBlockedText').textContent = (profile.status === 'banned' ? 'This account has been banned from FUSE.' : 'Your request to use FUSE was declined.')
-      + (blockedWallets.length ? ' You can still export your private keys, so you keep access to your funds.' : '');
+    $('authBlockedText').textContent = (profile.status === 'removed' ? 'Your access to FUSE has been removed.' : 'Your request to use FUSE was declined.')
+      + (blockedWallets.length ? ' You can still export your private keys, so you keep access to your funds. Do it now, because a ban would end this.' : '');
     $('authExport').hidden = !blockedWallets.length;
-    showAuthStep('authBlocked', profile.status === 'banned' ? 'Account banned' : 'Request declined');
+    showAuthStep('authBlocked', profile.status === 'removed' ? 'Access removed' : 'Request declined');
   }
   let waitingTimer = null, blockedWallets = [];
 
@@ -2483,8 +2496,9 @@
   $('activityRefresh').onclick = loadMyActivity;
 
   // Master Admin. Everything here is also enforced by firestore.rules, so hiding it isn't the protection.
-  const STATUS_ORDER = { pending:0, approved:1, declined:2, banned:3 };
-  const STATUS_LABEL = { pending:'Waiting', approved:'Active', declined:'Declined', banned:'Banned' };
+  const STATUS_ORDER = { pending:0, approved:1, removed:2, declined:3, banned:4 };
+  const STATUS_LABEL = { pending:'Waiting', approved:'Active', removed:'Access removed', declined:'Declined', banned:'Banned' };
+  const WAS_APPROVED = ['approved', 'removed', 'banned'];
   const ONLINE_MS = 6 * 60000;
   async function loadAdmin(){
     if(!masterEmails){ $('adminCard').hidden = true; return; }
@@ -2529,14 +2543,19 @@
     if(!isMasterEmail){
       if(m.status === 'pending' || m.status === 'declined') act('Approve', 'btn-primary', () => setMemberStatus(m, 'approved'));
       if(m.status === 'pending') act('Decline', 'btn-secondary', () => setMemberStatus(m, 'declined'));
-      if(m.status === 'banned') act('Restore', 'btn-primary', () => setMemberStatus(m, 'approved'));
-      if(m.status === 'approved') act('Ban', 'btn-danger', () => askWalletAction({
-        title:`Ban ${who}?`,
-        text:'They\'ll be removed from FUSE within about 5 minutes, or at their next refresh. They can still sign in to export their own private keys. You can restore them later.',
-        wallets:[], label:'Ban', run:() => setMemberStatus(m, 'banned'),
+      if(m.status === 'removed') act('Restore', 'btn-primary', () => setMemberStatus(m, 'approved'));
+      if(m.status === 'approved') act('Remove access', 'btn-secondary', () => askWalletAction({
+        title:`Remove ${who}'s access?`,
+        text:'They\'ll be out of FUSE within about 5 minutes, or at their next refresh. They can still sign in to export their own private keys, and you can restore them later.',
+        wallets:[], label:'Remove access', run:() => setMemberStatus(m, 'removed'),
+      }));
+      if(m.status !== 'banned') act('Ban', 'btn-danger', () => askWalletAction({
+        title:`Permanently ban ${who}?`,
+        text:'They can never use FUSE again with this login, and they lose access to the wallets saved in it, including any funds, unless they kept their own private keys. You can\'t undo this from here.',
+        wallets:[], ack:'I understand this is permanent.', label:'Ban', run:() => setMemberStatus(m, 'banned'),
       }));
     }
-    act('View activity', 'btn-secondary', () => viewMemberActivity(m, who));
+    if(WAS_APPROVED.includes(m.status) || isMasterEmail) act('View activity', 'btn-secondary', () => viewMemberActivity(m, who));
     card.append(actions);
     return card;
   }
@@ -2560,7 +2579,7 @@
   $('adminRefresh').onclick = loadAdmin;
   async function loadAdminFeed(members){
     const feed = $('adminFeed');
-    const lists = await Promise.all(members.map(async m => {
+    const lists = await Promise.all(members.filter(m => WAS_APPROVED.includes(m.status) || masterEmails.includes(m.email)).map(async m => {
       try{ return (await firestoreList(`profiles/${m.id}/events`, 'orderBy=at%20desc&pageSize=20')).map(e => ({ ...e, who:(m.xUsername && '@' + m.xUsername) || m.email })); }
       catch(e){ return []; }
     }));
@@ -2768,7 +2787,7 @@
   };
   $('walletSecurityLink').addEventListener('click', (e) => {
     e.preventDefault();
-    notify('Created and imported wallets are encrypted in this browser using your password, then saved to your account, so they follow you to other devices. Your password itself is never sent. While you\'re signed in, a browser extension allowed on this site could still read your keys, so only hold mint funds in them. If you forget your password, nobody can recover them.');
+    notify('Created and imported wallets are encrypted in this browser using your password, then saved to your account, so they follow you to other devices. Your password itself is never sent. While you\'re signed in, a browser extension allowed on this site could still read your keys, so only hold mint funds in them. If you forget your password, nobody can recover them, and if your account is banned you lose access to the wallets saved here, so write down and securely store your keys.');
   });
   $('selectAllWallets').addEventListener('change', e => {
     // Applies to the rows currently shown (respects the search box).
