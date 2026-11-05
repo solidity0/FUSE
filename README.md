@@ -12,7 +12,7 @@ Read this before you add a wallet.
 
 - **You need an approved account.** Sign up with your email, X and Discord username, then wait for an admin to approve you. Admins can see your usernames, email and activity, including wallet addresses and transactions, but never your private keys.
 - **If you're declined or your access is removed,** you can still sign in to export your own private keys.
-- **A ban is permanent.** You can't use FUSE again with that login and you lose access to the wallets saved in it, including any funds, so write down and securely store your private keys.
+- **A ban locks you out of FUSE and your saved wallets, including any funds, until an admin restores you. A third ban is permanent,** so write down and securely store your private keys.
 - **Need help?** Contact support on Discord: `seedhqx`.
 - **Use dedicated mint wallets.** Don't use your main wallet, and only keep mint funds in these ones.
 - **Created and imported wallets are encrypted in your browser,** using your password, then saved to your account so they follow you to other devices. Your password itself is never sent, so nobody else can read them.
@@ -34,7 +34,7 @@ Read this before you add a wallet.
 | File | What it does |
 |---|---|
 | `index.html` | The whole app in one page, served by GitHub Pages from `main` |
-| `worker.js` | A Cloudflare Worker for what a browser can't do alone: OpenSea and ABI lookups, an RPC relay and reading mint pages |
+| `worker.js` | A Cloudflare Worker for what a browser can't do alone: OpenSea and ABI lookups, an RPC relay and reading mint pages. It only serves approved accounts |
 | `firestore.rules` | Enforces approvals, master emails and each person's access to their own encrypted wallets. Publish changes in the Firebase console |
 | `wrangler.toml` | Worker settings, including which sites may use it |
 | `scripts/csp-hash.mjs` | Keeps the page's security policy in step with its script |

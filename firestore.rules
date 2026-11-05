@@ -41,7 +41,8 @@ service cloud.firestore {
         && request.resource.data.emails.size() <= 3;
     }
 
-    // Who signed up. Only a master can change a status, and a ban can't be changed.
+    // Who signed up. Only a master can change a status. Each new ban adds one to banCount,
+    // and the third can't be changed.
     match /profiles/{uid} {
       allow get: if isOwner(uid) || isMaster();
       allow list: if isMaster();
@@ -59,8 +60,10 @@ service cloud.firestore {
       allow update: if
         (isOwner(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSignInAt', 'lastSeenAt']))
         || (isMaster()
-          && resource.data.status != 'banned'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decidedAt', 'decidedBy', 'lastSignInAt', 'lastSeenAt'])
+          && !(resource.data.status == 'banned' && resource.data.get('banCount', 0) >= 3)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decidedAt', 'decidedBy', 'lastSignInAt', 'lastSeenAt', 'banCount'])
+          && request.resource.data.get('banCount', 0) == resource.data.get('banCount', 0)
+            + (request.resource.data.status == 'banned' && resource.data.status != 'banned' ? 1 : 0)
           && request.resource.data.status in ['pending', 'approved', 'declined', 'removed', 'banned']);
 
       // Each person's log. It can only be added to, and holds public details, never keys.
