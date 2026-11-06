@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233B2BE5'/%3E%3Cstop offset='1' stop-color='%23150f5c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='url(%23g)'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='%23eef0ff'%3E%3Crect x='4' y='7' width='16' height='13' rx='3' stroke-width='1.8'/%3E%3Cline x1='12' y1='7' x2='12' y2='3' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='2.3' r='1.3' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='9' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Ccircle cx='15' cy='13.2' r='1.4' fill='%23eef0ff' stroke='none'/%3E%3Cline x1='9' y1='17' x2='15' y2='17' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Private keys live in this page's memory, so only this page's own script (pinned by hash —
      run `npm run csp` after editing it) and the integrity-checked ethers build may run. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-wyfrQkRFeNhki8QtaEIYkjk16kQJQa7T8h5uItZv2pM=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-UVGiIBCOfWo5pZK6Y0VzjOmAT7mp+jqRr+9wwZHTV4I=' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; media-src https:; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha512-V3xRGsQMQ8CG4l2gVN44TCDmNY5cdlxbSvejrgmWxcLKHft0Q3XQDbeuJ9aot14mpNuRWGtI//WKraedDGNZ+g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -871,7 +871,7 @@
               <div class="hint">Each wallet mints first, then sends the NFT here in a second transaction, so it pays a little more gas and a browser wallet asks you to approve twice.</div>
             </div>
           </div>
-          <div class="field"><label>Schedule (blank = manual fire)</label><input type="datetime-local" id="scheduleTime" step="1"><div class="hint" id="scheduleHint" hidden></div></div>
+          <div class="field"><label>Schedule (blank = manual fire)</label><input type="datetime-local" id="scheduleTime" step="1"><button class="btn btn-secondary" id="scheduleNext" type="button" style="width:100%; margin-top:8px;" hidden></button><div class="hint" id="scheduleHint" hidden></div></div>
 
           <div class="btn-row">
             <button class="btn btn-outline-warn" id="simulateBtn">Simulate</button>
@@ -4908,6 +4908,7 @@
     renderPhases();
     $('eligibleBadge').textContent = mintCardEligibleText();
     applyEligibleSchedule();
+    offerNextPhase();
   }
 
   const MAX_ITEM_VIDEOS = 6;
@@ -5211,7 +5212,7 @@
       const waiting = state.scheduleAt && state.scheduleAt > Date.now();
       return setScheduleHint(waiting && yes && liveStage ? `${sum.yes} of your wallets can mint ${liveStage.name} right now. Click it in Mint phases to switch to it.` : '');
     }
-    if(!mintWallets().length) return setScheduleHint('');
+    if(!mintWallets().length) return setScheduleHint('Tick a wallet on the Wallets page to arm a mint.');
     if(liveId && (!sum || state.eligibility.stageId !== liveId || sum.done < sum.total)) return; // still checking
     if(yes){
       if(state.scheduleAuto){ // a wallet just became eligible, or got ticked: back to the live stage
@@ -5249,6 +5250,29 @@
       setScheduleHint(`${blockedText}${next.name} opens ${stageTimeText(next.start)}.${earlierText}`);
     }
     $('eligibleBadge').textContent = mintCardEligibleText();
+  }
+
+  // Offers the next phase's start time. This only fills the form, and arming stays manual.
+  function offerNextPhase(){
+    const btn = $('scheduleNext'), drop = state.collection && state.collection.drop, now = Date.now();
+    const next = drop && !state.armed && !state.firing && !state.targetChainUnsupported
+      ? (drop.stages || []).filter(st => st.start && Date.parse(st.start) > now).sort((a, b) => Date.parse(a.start) - Date.parse(b.start))[0]
+      : null;
+    btn.hidden = !next || $('scheduleTime').value === toLocalInputValue(new Date(next.start));
+    if(btn.hidden) return;
+    btn.textContent = `Use next phase: ${next.name} · ${stageTimeText(next.start)}`;
+    btn.onclick = () => {
+      state.scheduleChosen = true; state.scheduleAuto = false;
+      state.selectedPhase = state.phases.find(p => p.stageId === next.id) || null;
+      $('scheduleTime').value = toLocalInputValue(new Date(next.start));
+      if(next.price != null) $('mintValue').value = String(next.price);
+      $('phaseCardTitle').textContent = String(next.name).toUpperCase();
+      if(next.maxPerWallet) $('maxPerWalletBadge').textContent = String(next.maxPerWallet);
+      $('eligibleBadge').textContent = mintCardEligibleText();
+      syncPriceDisplay();
+      if(mintWallets().length) setScheduleHint(`Set to ${next.name}. Press Arm to fire then, and keep this tab open.`);
+      offerNextPhase();
+    };
   }
 
   function renderPhases(){
@@ -5352,6 +5376,7 @@
     setDiag('ok', `Armed — ${mintWallets().length} wallet(s) · ${state.fn.name}() · ${CHAINS[state.chain].name} · ${moneyText(ethers.formatEther(call.value))} per tx × ${call.txPerWallet} tx/wallet${recipient ? ` · NFTs go to ${recipient.slice(0,6)}...${recipient.slice(-4)}` : ''}`);
     $('fireBtn').disabled = false;
     setupSchedule();
+    offerNextPhase();
   };
 
   function disarm(){
@@ -5361,6 +5386,7 @@
     releaseFreezeLock();
     $('countdownHint').textContent = '';
     checkReadiness();
+    offerNextPhase();
   }
 
   // Chrome slows page timers to about once a minute after a tab has been in the background for
@@ -5760,7 +5786,7 @@ onmessage = (e) => {
   ['contractAddr','mintValue','mintQty','scheduleTime'].forEach(id => {
     $(id).addEventListener('input', () => { if(state.armed) disarm(); checkReadiness(); if(id==='mintValue') refreshUnitDisplays(); });
   });
-  $('scheduleTime').addEventListener('input', () => { state.scheduleChosen = true; state.scheduleAuto = false; state.selectedPhase = null; setScheduleHint(''); });
+  $('scheduleTime').addEventListener('input', () => { state.scheduleChosen = true; state.scheduleAuto = false; state.selectedPhase = null; setScheduleHint(''); offerNextPhase(); });
 
   // ---------- where minted NFTs end up ----------
   // Mints always land in the wallet that pays: SeaDrop only lets a payer mint to someone else if
